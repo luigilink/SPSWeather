@@ -1,6 +1,6 @@
 # SPSWeather - Release Notes
 
-## [1.0.0] - 2023-10-09
+## [1.0.1] - 2023-10-09
 
 ### Changed
 
