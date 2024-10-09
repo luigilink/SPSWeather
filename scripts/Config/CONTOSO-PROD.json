@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "contentVersion": "1.0.0.0",
+  "ConfigurationName": "PROD",
+  "ApplicationName": "contoso",
+  "Domain": "contoso.com",
+  "SMTPToAddress": ["admin-farm@contoso.com", "admin-setup@contoso.com"],
+  "SMTPFromAddress": "noreply@contoso.com",
+  "SMTPServer": "smtp.contoso.com",
+  "StoredCredential": "PROD-ADM",
+  "Farms": [
+    {
+      "Name": "SEARCH",
+      "Server": "srvcontososearch"
+    },
+    {
+      "Name": "SERVICES",
+      "Server": "srvcontososervices"
+    },
+    {
+      "Name": "CONTENT",
+      "Server": "srvcontosocontent"
+    }
+  ]
+}

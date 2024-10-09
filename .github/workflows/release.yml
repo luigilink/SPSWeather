@@ -1,0 +1,31 @@
+# This is a basic workflow to help you get started with Actions
+
+name: SPSWeather CI Release
+
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code
+      - name: Checkout code
+        id: checkout_code
+        uses: actions/checkout@v3
+      # Create Release with tag version
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          draft: false
+          prerelease: false
+          body_path: RELEASE-NOTES.md
+          files: |
+            LICENSE
+            scripts/*
