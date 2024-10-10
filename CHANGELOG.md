@@ -11,10 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add code_of_conduct.md badge
 - Add CODE_OF_CONDUCT.md file
 - Add Issue Templates files:
-  - 1_bug_report.yaml
-  - 2_feature_request.yaml
-  - 3_documentation_request.yaml
-  - 4_improvement_request.yaml
+  - 1_bug_report.yml
+  - 2_feature_request.yml
+  - 3_documentation_request.yml
+  - 4_improvement_request.yml
   - config.yml
 
 ### Changed
