@@ -3,6 +3,7 @@
 ![Latest release date](https://img.shields.io/github/release-date/luigilink/SPSWeather.svg?style=flat)
 ![Total downloads](https://img.shields.io/github/downloads/luigilink/SPSWeather/total.svg?style=flat)  
 ![Issues opened](https://img.shields.io/github/issues/luigilink/SPSWeather.svg?style=flat)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](code_of_conduct.md)
 
 ## Description
 
