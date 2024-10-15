@@ -17,9 +17,9 @@ function Get-SPSAPIHttpStatus {
     )
 
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
+        -Arguments $PSBoundParameters `
+        -Server $Server `
+        -ScriptBlock {
         $params = $args[0]
         class APIHttpStatus {
             [System.String]$Farm
@@ -58,11 +58,11 @@ function Get-SPSAPIHttpStatus {
                     Write-Output "Getting webSession by opening $($authentUrl) with Invoke-WebRequest"
                     try {
                         Invoke-WebRequest -Uri $authentUrl `
-                                          -SessionVariable webSession `
-                                          -TimeoutSec 90 `
-                                          -UserAgent $useragent `
-                                          -UseDefaultCredentials `
-                                          -UseBasicParsing
+                            -SessionVariable webSession `
+                            -TimeoutSec 90 `
+                            -UserAgent $useragent `
+                            -UseDefaultCredentials `
+                            -UseBasicParsing
                     }
                     catch {
                         Write-Warning -Message $_.Exception.Message
@@ -77,11 +77,11 @@ function Get-SPSAPIHttpStatus {
                         while ($attempt -le 5 -and $httpCODE -ne '200') {
                             try {
                                 $webUrlResponse = Invoke-WebRequest -Uri $webUrlPSO.Url `
-                                                                    -WebSession $webSession `
-                                                                    -TimeoutSec 90 `
-                                                                    -UserAgent $useragent `
-                                                                    -UseBasicParsing `
-                                                                    -ErrorAction SilentlyContinue
+                                    -WebSession $webSession `
+                                    -TimeoutSec 90 `
+                                    -UserAgent $useragent `
+                                    -UseBasicParsing `
+                                    -ErrorAction SilentlyContinue
                             }
                             catch [Net.WebException] {
                                 $exceptionResponse = $_.Exception.Message
@@ -103,13 +103,13 @@ function Get-SPSAPIHttpStatus {
                             $attempt++
                         }
                         [void]$tbSPAPIHttpStatus.Add([APIHttpStatus]@{
-                            Farm     = $params.farm
-                            Title    = $webUrlPSO.Title;
-                            Url      = $webUrlPSO.Url;
-                            HTTPCode = $httpCODE;
-                            Status   = $webUrlStatus
-                            IsInfo   = $isMailInfo;
-                        })
+                                Farm     = $params.farm
+                                Title    = $webUrlPSO.Title;
+                                Url      = $webUrlPSO.Url;
+                                HTTPCode = $httpCODE;
+                                Status   = $webUrlStatus
+                                IsInfo   = $isMailInfo;
+                            })
                     }
                 }
             }
@@ -136,9 +136,9 @@ function Get-SPSSiteHttpStatus {
         $Farm = 'SPS'
     )
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
+        -Arguments $PSBoundParameters `
+        -Server $Server `
+        -ScriptBlock {
         $params = $args[0]
         class SPSiteHttpStatus {
             [System.String]$Farm
@@ -154,16 +154,16 @@ function Get-SPSSiteHttpStatus {
         if ($null -ne $spWebApplications) {
             foreach ($webApp in $spWebApplications) {
                 $getRootSPSite = Get-SPSite ($webApp.url)
-                $useragent     = [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
-                $authentUrl    = ("$($getRootSPSite.Url)" + '/_windows/default.aspx?ReturnUrl=/_layouts/15/Authenticate.aspx?Source=%2f')
+                $useragent = [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
+                $authentUrl = ("$($getRootSPSite.Url)" + '/_windows/default.aspx?ReturnUrl=/_layouts/15/Authenticate.aspx?Source=%2f')
                 Write-Output "Getting webSession by opening $($authentUrl) with Invoke-WebRequest"
                 try {
                     Invoke-WebRequest -Uri $authentUrl `
-                                        -SessionVariable webSession `
-                                        -TimeoutSec 90 `
-                                        -UserAgent $useragent `
-                                        -UseDefaultCredentials  `
-                                        -UseBasicParsing
+                        -SessionVariable webSession `
+                        -TimeoutSec 90 `
+                        -UserAgent $useragent `
+                        -UseDefaultCredentials  `
+                        -UseBasicParsing
                 }
                 catch {
                     Write-Warning -Message $_.Exception.Message
@@ -178,11 +178,11 @@ function Get-SPSSiteHttpStatus {
                         while ($attempt -le 5 -and $httpCODE -ne '200') {
                             try {
                                 $webUrlResponse = Invoke-WebRequest -Uri $site.RootWeb.Url `
-                                                                    -WebSession $webSession `
-                                                                    -TimeoutSec 90 `
-                                                                    -UserAgent $useragent  `
-                                                                    -UseBasicParsing `
-                                                                    -ErrorAction SilentlyContinue
+                                    -WebSession $webSession `
+                                    -TimeoutSec 90 `
+                                    -UserAgent $useragent  `
+                                    -UseBasicParsing `
+                                    -ErrorAction SilentlyContinue
                             }
                             catch [Net.WebException] {
                                 $exceptionResponse = $_.Exception.Message
@@ -205,12 +205,12 @@ function Get-SPSSiteHttpStatus {
                             $attempt++
                         }
                         [void]$tbSPSiteHttpStatus.Add([SPSiteHttpStatus]@{
-                            Farm     = $params.Farm;
-                            Url      = $site.RootWeb.Url;
-                            HTTPCode = $httpCODE;
-                            Status   = $webUrlStatus
-                            IsInfo   = $isMailInfo;
-                        })
+                                Farm     = $params.Farm;
+                                Url      = $site.RootWeb.Url;
+                                HTTPCode = $httpCODE;
+                                Status   = $webUrlStatus
+                                IsInfo   = $isMailInfo;
+                            })
                         $site.Dispose()
                     }
                 }
@@ -238,9 +238,9 @@ function Get-SPSFailedTimerJob {
         $Farm = 'SPS'
     )
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
+        -Arguments $PSBoundParameters `
+        -Server $Server `
+        -ScriptBlock {
         $params = $args[0]
         class FailedTimerJob {
             [System.String]$Farm
@@ -249,24 +249,24 @@ function Get-SPSFailedTimerJob {
             [System.String]$Status
         }
         try {
-            $startTime    = (Get-Date).AddDays(-1)
-            $farm         = Get-SPFarm
+            $startTime = (Get-Date).AddDays(-1)
+            $farm = Get-SPFarm
             $timerService = $farm.TimerService
-            $failedJobs   = $timerService.JobHistoryEntries | Where-Object -FilterScript {
+            $failedJobs = $timerService.JobHistoryEntries | Where-Object -FilterScript {
                 $_.Status -eq 'Failed' -and $_.StartTime -gt $startTime
             }
 
-            if($null -ne $failedJobs) {
-                $spFailedJobs = $failedJobs | Select-Object -Property ServerName,JobDefinitionTitle,Status -Unique
+            if ($null -ne $failedJobs) {
+                $spFailedJobs = $failedJobs | Select-Object -Property ServerName, JobDefinitionTitle, Status -Unique
                 #Initialize ArrayList variable
                 $tbfailedJobs = New-Object -TypeName System.Collections.ArrayList
                 foreach ($failedJob in $spFailedJobs) {
                     [void]$tbfailedJobs.Add([FailedTimerJob]@{
-                        farm=$params.Farm;
-                        server=$failedJob.ServerName;
-                        JobDefinitionTitle=$failedJob.JobDefinitionTitle;
-                        Status=$failedJob.Status
-                    })
+                            farm               = $params.Farm;
+                            server             = $failedJob.ServerName;
+                            JobDefinitionTitle = $failedJob.JobDefinitionTitle;
+                            Status             = $failedJob.Status
+                        })
                 }
                 return $tbfailedJobs
             }
@@ -295,9 +295,9 @@ function Get-SPSHealthStatusFromCA {
         $Farm = 'SPS'
     )
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
+        -Arguments $PSBoundParameters `
+        -Server $Server `
+        -ScriptBlock {
         $params = $args[0]
         class HealthAnalyzerInfo {
             [System.String]$farm
@@ -315,33 +315,32 @@ function Get-SPSHealthStatusFromCA {
             }
             if ($null -ne $spWebApplication) {
                 $spWebCentralAdmin = Get-SPWeb -Identity $spWebApplication.Url -ErrorAction SilentlyContinue
-                if ($null -ne $spWebCentralAdmin){
+                if ($null -ne $spWebCentralAdmin) {
                     #Get Health Analyzer list on Central Admin site
-                    $healthList     = $spWebCentralAdmin.GetList('\Lists\HealthReports')
+                    $healthList = $spWebCentralAdmin.GetList('\Lists\HealthReports')
                     $displayFormUrl = $spWebCentralAdmin.Url + ($healthList.Forms | Where-Object -FilterScript { $_.Type -eq "PAGE_DISPLAYFORM" }).ServerRelativeUrl
 
-                    $queryString    = "<Where><Neq><FieldRef Name='HealthReportSeverity' /><Value Type='Text'>4 - Success</Value></Neq></Where>"
-                    $query          = New-Object -TypeName Microsoft.SharePoint.SPQuery
-                    $query.Query    = $queryString
-                    $items          = $healthList.GetItems($query)
+                    $queryString = "<Where><Neq><FieldRef Name='HealthReportSeverity' /><Value Type='Text'>4 - Success</Value></Neq></Where>"
+                    $query = New-Object -TypeName Microsoft.SharePoint.SPQuery
+                    $query.Query = $queryString
+                    $items = $healthList.GetItems($query)
                     if ($null -ne $items) {
 
                         #Initialize ArrayList variable
                         $tbhealthListItems = New-Object -TypeName System.Collections.ArrayList
 
                         #Create HTML body by walking through each item and adding it to a table
-                        foreach ($item in $items)
-                        {
+                        foreach ($item in $items) {
                             $itemUrl = $displayFormUrl + "?id=" + $item.ID
                             [void]$tbhealthListItems.Add([HealthAnalyzerInfo]@{
-                                farm=$params.Farm
-                                centraladmin=$spWebApplication.Url;
-                                title=$item.Title;
-                                url=$itemUrl;
-                                severity=$item["Severity"];
-                                category=$item["Category"];
-                                lastExecution=$item["Modified"]
-                            })
+                                    farm          = $params.Farm
+                                    centraladmin  = $spWebApplication.Url;
+                                    title         = $item.Title;
+                                    url           = $itemUrl;
+                                    severity      = $item["Severity"];
+                                    category      = $item["Category"];
+                                    lastExecution = $item["Modified"]
+                                })
                         }
                         $spWebCentralAdmin.Dispose()
                     }
@@ -379,9 +378,9 @@ function Get-SPSSolutionStatus {
         $Farm = 'SPS'
     )
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
+        -Arguments $PSBoundParameters `
+        -Server $Server `
+        -ScriptBlock {
         $params = $args[0]
         class WSPDeployment {
             [System.String]$Farm
@@ -405,13 +404,13 @@ function Get-SPSSolutionStatus {
                     $isMailInfo = $true
                 }
                 [void]$tbSPSolutions.Add([WSPDeployment]@{
-                    farm                 = $params.Farm;
-                    SolutionName         = $spSolution.Name;
-                    DeploymentState      = $spSolution.DeploymentState;
-                    LastOperationResult  = $spSolution.LastOperationResult;
-                    LastOperationEndTime = $spSolution.LastOperationEndTime;
-                    IsInfo               = $isMailInfo;
-                })
+                        farm                 = $params.Farm;
+                        SolutionName         = $spSolution.Name;
+                        DeploymentState      = $spSolution.DeploymentState;
+                        LastOperationResult  = $spSolution.LastOperationResult;
+                        LastOperationEndTime = $spSolution.LastOperationEndTime;
+                        IsInfo               = $isMailInfo;
+                    })
             }
             return $tbSPSolutions
         }
@@ -436,9 +435,9 @@ function Get-SPSUpgradeStatus {
         $Farm = 'SPS'
     )
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
+        -Arguments $PSBoundParameters `
+        -Server $Server `
+        -ScriptBlock {
         $params = $args[0]
         class UpgradeStatusInfo {
             [System.String]$farm
@@ -474,13 +473,13 @@ function Get-SPSUpgradeStatus {
                     $isMailInfo = $false
                 }
                 [void]$tbUpgradeListItems.Add([UpgradeStatusInfo]@{
-                    farm           = $params.Farm
-                    server         = $spServer.Address;
-                    SPBuildVersion = $buildVersion;
-                    SPRegVersion   = $spsVersion.DisplayVersion;
-                    UpgradeStatus  = $serverProductInfo.InstallStatus
-                    IsInfo         = $isMailInfo;
-                })
+                        farm           = $params.Farm
+                        server         = $spServer.Address;
+                        SPBuildVersion = $buildVersion;
+                        SPRegVersion   = $spsVersion.DisplayVersion;
+                        UpgradeStatus  = $serverProductInfo.InstallStatus
+                        IsInfo         = $isMailInfo;
+                    })
             }
             return $tbUpgradeListItems
         }
@@ -508,9 +507,9 @@ function Get-SPSContentDBStatus {
         $Farm = 'SPS'
     )
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
+        -Arguments $PSBoundParameters `
+        -Server $Server `
+        -ScriptBlock {
         $params = $args[0]
         class SPDatabaseStatusInfo {
             [System.String]$farm
@@ -528,17 +527,17 @@ function Get-SPSContentDBStatus {
                 #Initialize ArrayList variable
                 $tbSPDatabases = New-Object -TypeName System.Collections.ArrayList
                 foreach ($spDatabase in $spDatabases) {
-                    $upgradeStatus      = 'No Action Required'
-                    $isMailInfo         = $true
+                    $upgradeStatus = 'No Action Required'
+                    $isMailInfo = $true
                     if ($null -ne $spDatabase.Server.Address) {
-                        $sqlInstance    = $spDatabase.Server.Address
+                        $sqlInstance = $spDatabase.Server.Address
                     }
                     else {
-                        $sqlInstance    = $spDatabase.Server
+                        $sqlInstance = $spDatabase.Server
                     }
                     if ($spDatabase.NeedsUpgrade) {
-                        $upgradeStatus  = 'Upgrade Required'
-                        $isMailInfo     = $false
+                        $upgradeStatus = 'Upgrade Required'
+                        $isMailInfo = $false
                     }
                     if ($spDatabase.Type.Contains('.')) {
                         $spDatabaseType = ([regex]::Matches($spDatabase.Type, '(?<=\.)[^.]*$')).value
@@ -547,14 +546,14 @@ function Get-SPSContentDBStatus {
                         $spDatabaseType = $spDatabase.Type
                     }
                     [void]$tbSPDatabases.Add([SPDatabaseStatusInfo]@{
-                        farm            = $params.Farm;
-                        SQLInstance     = $sqlInstance;
-                        DatabaseName    = $spDatabase.Name;
-                        Type            = $spDatabaseType;
-                        Upgrade         = $upgradeStatus;
-                        DiskSize        = ([math]::Round($spDatabase.DiskSizeRequired / 1GB, 2)).ToString();
-                        IsInfo          = $isMailInfo;
-                    })
+                            farm         = $params.Farm;
+                            SQLInstance  = $sqlInstance;
+                            DatabaseName = $spDatabase.Name;
+                            Type         = $spDatabaseType;
+                            Upgrade      = $upgradeStatus;
+                            DiskSize     = ([math]::Round($spDatabase.DiskSizeRequired / 1GB, 2)).ToString();
+                            IsInfo       = $isMailInfo;
+                        })
                 }
                 return $tbSPDatabases
             }
@@ -566,8 +565,7 @@ function Get-SPSContentDBStatus {
     return $result
 }
 
-function Get-SPSVersion
-{
+function Get-SPSVersion {
     [CmdletBinding()]
     [OutputType([System.Collections.Hashtable])]
     param
@@ -583,9 +581,9 @@ function Get-SPSVersion
 
     Write-Verbose "Getting SharePoint Version of Farm '$Server'"
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
+        -Arguments $PSBoundParameters `
+        -Server $Server `
+        -ScriptBlock {
         # location in registry to get info about installed software
         $regLoc = Get-ChildItem HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall
         # Get SharePoint Products and language packs
@@ -598,6 +596,74 @@ function Get-SPSVersion
         }
         # Return SharePoint version
         return $spsVersion.DisplayVersion
+    }
+    return $result
+}
+function Get-USPAudienceStatus {
+    [CmdletBinding()]
+    [OutputType([System.Collections.Hashtable])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $Server,
+
+        [Parameter()]
+        [System.Management.Automation.PSCredential]
+        $InstallAccount,
+
+        [Parameter()]
+        [System.String]
+        $Farm = 'SPS'
+    )
+    $result = Invoke-SPSCommand -Credential $InstallAccount `
+        -Arguments $PSBoundParameters `
+        -Server $Server `
+        -ScriptBlock {
+
+        $params = $args[0]
+        class USPAudienceStatus {
+            [System.String]$Farm
+            [System.String]$Server
+            [System.String]$StartTime
+            [System.String]$EndTime
+            [System.String]$Duration
+            [System.String]$Status
+        }
+
+        $serviceAppUSP = Get-SPServiceApplication -ErrorAction SilentlyContinue | Where-Object -FilterScript {
+            $_.GetType().FullName -eq 'Microsoft.Office.Server.Administration.UserProfileApplication'
+        }
+
+        if ($null -ne $serviceAppUSP) {
+            $tbUSPAudienceStatus = New-Object -TypeName System.Collections.ArrayList
+            $timerJob = Get-SPTimerJob | Where-Object -FilterScript { $_.Name -like '*_AudienceCompilationJob*' }
+            if ($null -ne $timerJob) {
+                $currentTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById([System.TimeZoneInfo]::Local.Id)
+                $lastEntries = $timerJob.HistoryEntries | Where-Object -FilterScript { $_.StartTime -gt (Get-Date).AddDays(-1) }
+                foreach ($lastEntry in $lastEntries) {
+                    if ($null -ne $lastEntry.StartTime) {
+                        $startTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($lastEntry.StartTime, $currentTimeZone)
+                    }
+                    if ($null -ne $lastEntry.EndTime) {
+                        $endTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($lastEntry.EndTime, $currentTimeZone)
+                    }
+                    if (($null -ne $startTime) -and ($null -ne $endTime)) {
+                        $duration = [math]::Round(($endTime - $startTime).TotalSeconds)
+                    }
+                    $supAudienceStatus = $lastEntry.Status
+                    [void]$tbUSPAudienceStatus.Add([USPAudienceStatus]@{
+                            Farm      = $params.Farm;
+                            Server    = $lastEntry.ServerName;
+                            StartTime = $startTime;
+                            EndTime   = $endTime;
+                            Duration  = $duration;
+                            Status    = $supAudienceStatus;
+                        })
+                }
+                return $tbUSPAudienceStatus
+            }
+        }
     }
     return $result
 }
