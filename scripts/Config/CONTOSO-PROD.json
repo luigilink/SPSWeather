@@ -8,6 +8,12 @@
   "SMTPFromAddress": "noreply@contoso.com",
   "SMTPServer": "smtp.contoso.com",
   "StoredCredential": "PROD-ADM",
+  "ExclusionRules": [
+    "SPSiteHttpStatus",
+    "EvtViewerStatus",
+    "IISW3WPStatus",
+    "WSPStatus"
+  ],
   "Farms": [
     {
       "Name": "SEARCH",

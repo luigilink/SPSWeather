@@ -10,23 +10,17 @@
     PS D:\> E:\SCRIPT\SPSWeather.ps1 -ConfigFile 'contoso-PROD.json'
 
     .PARAMETER EnableSmtp
-    Use the switch Uninstall parameter if you want to enable Email notifications using SMTP
+    Use the switch EnableSmtp parameter if you want to enable Email notifications using SMTP
     PS D:\> E:\SCRIPT\SPSWeather.ps1 -EnableSmtp
-
-    .PARAMETER ExclusionRules
-    Use the ExclusionRules if you want to exclude some rules during the weather check
-    Avaialble value 'None','APIHttpStatus','EvtViewerStatus','IISW3WPStatus','HealthStatus','WSPStatus','FailedTimerJob'
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -ExclusionRules ('APIHttpStatus','HealthStatus')
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -ExclusionRules 'None'
 
     .PARAMETER Install
     Use the switch Install parameter if you want to add the SPSWeather script in taskscheduler
     InstallAccount parameter need to be set
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Install -InstallAccount (Get-Credential)
+    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.json'
 
     .PARAMETER InstallAccount
-    Need parameter InstallAccount whent you use the switch Install parameter
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Install -InstallAccount (Get-Credential)
+    Need parameter InstallAccount when you use the switch Install parameter
+    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.json'
 
     .PARAMETER Uninstall
     Use the switch Uninstall parameter if you want to remove the SPSWeather script from taskscheduler
@@ -34,8 +28,8 @@
 
     .EXAMPLE
     SPSWeather.ps1 -ConfigFile 'contoso-PROD.json' -EnableSmtp
-    SPSWeather.ps1 -Install -InstallAccount (Get-Credential)
-    SPSWeather.ps1 -Uninstall
+    SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.json'
+    SPSWeather.ps1 -Uninstall -ConfigFile 'contoso-PROD.json'
 
     .NOTES
     FileName:	SPSWeather.ps1
@@ -58,19 +52,14 @@ param
     $EnableSmtp,
 
     [Parameter(Position = 3)]
-    [ValidateSet('None', 'APIHttpStatus', 'SPSiteHttpStatus', 'EvtViewerStatus', 'IISW3WPStatus', 'HealthStatus', 'WSPStatus', 'FailedTimerJob')]
-    [System.String[]]
-    $ExclusionRules = ('SPSiteHttpStatus', 'EvtViewerStatus', 'IISW3WPStatus', 'WSPStatus'),
-
-    [Parameter(Position = 4)]
     [switch]
     $Install,
 
-    [Parameter(Position = 5)]
+    [Parameter(Position = 4)]
     [System.Management.Automation.PSCredential]
     $InstallAccount,
 
-    [Parameter(Position = 6)]
+    [Parameter(Position = 5)]
     [switch]
     $Uninstall
 )
@@ -91,6 +80,7 @@ if (Test-Path $ConfigFile) {
     $jsonEnvCfg = get-content $ConfigFile | ConvertFrom-Json
     $Application = $jsonEnvCfg.ApplicationName
     $Environment = $jsonEnvCfg.ConfigurationName
+    $ExclusionRules = $jsonEnvCfg.ExclusionRules
 }
 else {
     Throw "Missing $ConfigFile"
