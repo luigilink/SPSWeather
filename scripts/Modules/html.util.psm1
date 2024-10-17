@@ -7,7 +7,7 @@ $htmlHEADER =
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="x-apple-disable-message-reformatting">
-    <title>CAGIP - SPWeather</title>
+    <title>SPSWeather</title>
     <!--[if mso]> <xml> <o:OfficeDocumentSettings>  <o:AllowPNG/> <o:PixelsPerInch>96</o:PixelsPerInch> </o:OfficeDocumentSettings> </xml> <![endif]-->
     <!--[if lte mso 11]> <style type="text/css"> .mj-outlook-group-fix { width:100% !important; } </style> <![endif]-->
     <style>
@@ -57,7 +57,7 @@ function Join-HtmlTable {
     )
 
     $bodyToMerge =
-@"
+    @"
 <h1>$TitleH1</h1>
 <table role="$TableRole"><tr>
 "@
@@ -85,12 +85,12 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SPWeatherListInfoItem.UserAccount)</td>"
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SPWeatherListInfoItem.DateStarted)</td>"
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SPWeatherListInfoItem.DateEnded)</td></tr>"
-            $htmltTitle     = "SPWeather V$($SPWeatherListInfoItem.Version) - $($SPWeatherListInfoItem.Application) - $($SPWeatherListInfoItem.Environment)"
+            $htmltTitle = "SPSWeather V$($SPWeatherListInfoItem.Version) - $($SPWeatherListInfoItem.Application) - $($SPWeatherListInfoItem.Environment)"
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 $htmltTitle `
-                                         -TableRole 'SPWeatherListInfo' `
-                                         -TableHeaders @('PowerShell Version','Executed By','Started','Finished') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SPWeatherListInfo' `
+            -TableHeaders @('PowerShell Version', 'Executed By', 'Started', 'Finished') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPSiteHttpStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -102,14 +102,14 @@ function Join-HtmlBodyFromPSo {
             if ($SPSiteHttpStatusItem.Status -ne 'OK') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($SPSiteHttpStatusItem.Status)</td></tr>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($SPSiteHttpStatusItem.Status)</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SharePoint Sites Web Request Status' `
-                                         -TableRole 'SharePointSiteStatus' `
-                                         -TableHeaders @('Server','Url','HTTP Code','Time (seconds)','Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SharePointSiteStatus' `
+            -TableHeaders @('Server', 'Url', 'HTTP Code', 'Time (seconds)', 'Status') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPAPIHttpStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -121,14 +121,14 @@ function Join-HtmlBodyFromPSo {
             if ($SPAPIHttpStatusItem.Status -ne 'OK') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($SPAPIHttpStatusItem.Status)</td></tr>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($SPAPIHttpStatusItem.Status)</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SharePoint Trust Farm Status' `
-                                         -TableRole 'SharePointAPIStatus' `
-                                         -TableHeaders @('Farm','Title','Url','HTTP Code','Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SharePointAPIStatus' `
+            -TableHeaders @('Farm', 'Title', 'Url', 'HTTP Code', 'Status') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPSSitesHttpStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -139,14 +139,14 @@ function Join-HtmlBodyFromPSo {
             if ($SPSSitesHttpStatusItem.Status -ne 'OK') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($SPSSitesHttpStatusItem.Status)</td></tr>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($SPSSitesHttpStatusItem.Status)</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SharePoint Site Collection Status' `
-                                         -TableRole 'SharePointSPSiteStatus' `
-                                         -TableHeaders @('Farm','Url','HTTP Code','Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SharePointSPSiteStatus' `
+            -TableHeaders @('Farm', 'Url', 'HTTP Code', 'Status') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPUpgradeStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -158,14 +158,14 @@ function Join-HtmlBodyFromPSo {
             if ($SPUpgradeStatusItem.UpgradeStatus -ne "NoActionRequired") {
                 $htmlTableRows += "<td class=`"tdfailed`">Action Required</td></tr>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td class=`"tdsuccess`">No Action Required</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SharePoint Upgrade Status' `
-                                         -TableRole 'SPUpgradeStatus' `
-                                         -TableHeaders @('Farm','Server Name','SP Build Version','SP Version from Registry','Upgrade Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SPUpgradeStatus' `
+            -TableHeaders @('Farm', 'Server Name', 'SP Build Version', 'SP Version from Registry', 'Upgrade Status') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPSContentDBStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -178,14 +178,14 @@ function Join-HtmlBodyFromPSo {
             if ($SPSContentDBStatusItem.Upgrade -ne 'No Action Required') {
                 $htmlTableRows += "<td class=`"tdfailed`">Upgrade Required</td></tr>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td class=`"tdsuccess`">No Action Required</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SharePoint Database Status' `
-                                         -TableRole 'SPSContentDBStatus' `
-                                         -TableHeaders @('Farm','SQL Instance','Database Name','Type','Size (GB)','Upgrade Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SPSContentDBStatus' `
+            -TableHeaders @('Farm', 'SQL Instance', 'Database Name', 'Type', 'Size (GB)', 'Upgrade Status') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPHealthAnalyzer).Count -ne 0) {
         $htmlTableRows = @()
@@ -194,10 +194,10 @@ function Join-HtmlBodyFromPSo {
                 $htmlTableRows += "<tr><td class=`"tddefault`">$($SPHealthAnalyzerItem.farm)</td>"
                 $htmlTableRows += "<td class=`"tddefault`">$($SPHealthAnalyzerItem.centraladmin)</td>"
                 $htmlTableRows += "<td class=`"tddefault`"><a href=`"" + $($SPHealthAnalyzerItem.url) + "`">" + $SPHealthAnalyzerItem.Title + "</a></td>"
-                if ($SPHealthAnalyzerItem.severity -like '*Error*'){
+                if ($SPHealthAnalyzerItem.severity -like '*Error*') {
                     $htmlTableRows += "<td class=`"tdfailed`">$($SPHealthAnalyzerItem.severity)</td>"
                 }
-                elseif ($SPHealthAnalyzerItem.severity -like '*Warning*'){
+                elseif ($SPHealthAnalyzerItem.severity -like '*Warning*') {
                     $htmlTableRows += "<td class=`"tdwarning`">$($SPHealthAnalyzerItem.severity)</td>"
                 }
                 else {
@@ -208,9 +208,9 @@ function Join-HtmlBodyFromPSo {
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'Health Analyzer Review' `
-                                         -TableRole 'HealthAnalyzerReview' `
-                                         -TableHeaders @('Farm','Central Admin','Title','Severity','Category','Last Execution') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'HealthAnalyzerReview' `
+            -TableHeaders @('Farm', 'Central Admin', 'Title', 'Severity', 'Category', 'Last Execution') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPFailedTimerJobs).Count -ne 0) {
         $htmlTableRows = @()
@@ -221,11 +221,11 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td class=`"tdfailed`">$($SPFailedTimerJobsItem.Status)</td></tr>"
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SharePoint Failed Timer Jobs Status last 24h' `
-                                         -TableRole 'SPFailedTimerJobStatus' `
-                                         -TableHeaders @('Farm','Server Name','Job Definition Title','Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SPFailedTimerJobStatus' `
+            -TableHeaders @('Farm', 'Server Name', 'Job Definition Title', 'Status') `
+            -TableRows $htmlTableRows
     }
-    if (($PSObjectFromJson.AppFabricStatus).Count -ne 0){
+    if (($PSObjectFromJson.AppFabricStatus).Count -ne 0) {
         $htmlTableRows = @()
         foreach ($AppFabricStatusItem in ($PSObjectFromJson.AppFabricStatus)) {
             $htmlTableRows += "<tr><td class=`"tddefault`">$($AppFabricStatusItem.Farm)</td>"
@@ -236,20 +236,20 @@ function Join-HtmlBodyFromPSo {
             if ($AppFabricStatusItem.CacheStatus -ne 'Up') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($AppFabricStatusItem.CacheStatus)</td>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($AppFabricStatusItem.CacheStatus)</td>"
             }
             if ($AppFabricStatusItem.SPInstanceStatus -ne 'Online') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($AppFabricStatusItem.SPInstanceStatus)</td></tr>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($AppFabricStatusItem.SPInstanceStatus)</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SharePoint Distributed Cache Status' `
-                                         -TableRole 'AppFabricStatus' `
-                                         -TableHeaders @('Farm','Server','Port','Service Name','Size (MB)','Status','SP Instance') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'AppFabricStatus' `
+            -TableHeaders @('Farm', 'Server', 'Port', 'Service Name', 'Size (MB)', 'Status', 'SP Instance') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPSolutionDeployment).Count -ne 0) {
         $htmlTableRows = @()
@@ -261,11 +261,11 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td class=`"tddefault`">$($SPSolutionDeploymentItem.LastOperationEndTime)</td></tr>"
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SharePoint Deployment Solution Status' `
-                                         -TableRole 'SPSolutionStatus' `
-                                         -TableHeaders @('Farm','Solution Name','Deployment State','Last Operation Result','Last Operation End Time') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SPSolutionStatus' `
+            -TableHeaders @('Farm', 'Solution Name', 'Deployment State', 'Last Operation Result', 'Last Operation End Time') `
+            -TableRows $htmlTableRows
     }
-    if (($PSObjectFromJson.USPAudienceStatus).Count -ne 0){
+    if (($PSObjectFromJson.USPAudienceStatus).Count -ne 0) {
         $htmlTableRows = @()
         foreach ($USPAudienceStatusItem in ($PSObjectFromJson.USPAudienceStatus)) {
             $htmlTableRows += "<tr><td class=`"tddefault`">$($USPAudienceStatusItem.Server)</td>"
@@ -275,14 +275,14 @@ function Join-HtmlBodyFromPSo {
             if ($USPAudienceStatusItem.Status -ne 'Succeeded') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($USPAudienceStatusItem.Status)</td></tr>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($USPAudienceStatusItem.Status)</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'User Profile Audience Compilation Status last 24h' `
-                                         -TableRole 'USPAudienceStatus' `
-                                         -TableHeaders @('Server','Start Time','End Time','Duration (seconds)','Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'USPAudienceStatus' `
+            -TableHeaders @('Server', 'Start Time', 'End Time', 'Duration (seconds)', 'Status') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPSSearchEntTopology).Count -ne 0) {
         $htmlTableRows = @()
@@ -293,14 +293,14 @@ function Join-HtmlBodyFromPSo {
             if ($SPSSearchEntTopologyItem.State -ne 'Active') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($SPSSearchEntTopologyItem.State)</td></tr>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($SPSSearchEntTopologyItem.State)</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'Search - Component Topology Status' `
-                                         -TableRole 'SearchEntTopologyStatus' `
-                                         -TableHeaders @('Search Service','Server','Component','Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SearchEntTopologyStatus' `
+            -TableHeaders @('Search Service', 'Server', 'Component', 'Status') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPSearchLastCrawlStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -313,9 +313,9 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td class=`"tddefault`">$($SPSearchLastCrawlItem.CrawlCompleted)</td></tr>"
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'Search - Content Last Crawl Status' `
-                                         -TableRole 'SearchContentLastCrawl' `
-                                         -TableHeaders @('Search Service','Content source','Crawl State','Duration','Crawl Started','Crawl Completed') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SearchContentLastCrawl' `
+            -TableHeaders @('Search Service', 'Content source', 'Crawl State', 'Duration', 'Crawl Started', 'Crawl Completed') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SPSearchCrawlLogs).Count -ne 0) {
         $htmlTableRows = @()
@@ -329,9 +329,9 @@ function Join-HtmlBodyFromPSo {
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'Search - Content Crawl Logs' `
-                                         -TableRole 'SearchContentCrawlLogs' `
-                                         -TableHeaders @('Search Service','Content source','Error ID','Message','Count') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SearchContentCrawlLogs' `
+            -TableHeaders @('Search Service', 'Content source', 'Error ID', 'Message', 'Count') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.IISApplicationPoolStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -340,29 +340,29 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td class=`"tddefault`">$($IISApplicationPoolItem.Server)</td>"
             $htmlTableRows += "<td class=`"tddefault`">$($IISApplicationPoolItem.ApplicationPool)</td>"
 
-            if ($IISApplicationPoolItem.ApplicationPool -eq 'SharePoint Web Services Root'){
+            if ($IISApplicationPoolItem.ApplicationPool -eq 'SharePoint Web Services Root') {
                 $htmlTableRows += "<td align=`"center`" class=`"tddefault`">Stopped</td>"
-                if ($IISApplicationPoolItem.Status -eq 'Stopped'){
+                if ($IISApplicationPoolItem.Status -eq 'Stopped') {
                     $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($IISApplicationPoolItem.Status)</td></tr>"
                 }
-                else{
+                else {
                     $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($IISApplicationPoolItem.Status)</td></tr>"
                 }
             }
-            else{
+            else {
                 $htmlTableRows += "<td align=`"center`" class=`"tddefault`">Started</td>"
-                if ($IISApplicationPoolItem.Status -eq 'Started'){
+                if ($IISApplicationPoolItem.Status -eq 'Started') {
                     $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($IISApplicationPoolItem.Status)</td></tr>"
                 }
-                else{
+                else {
                     $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($IISApplicationPoolItem.Status)</td></tr>"
                 }
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'IIS - Application Pool Status' `
-                                         -TableRole 'IISApplicationPoolStatus' `
-                                         -TableHeaders @('Farm','Server','Application Pool','Desired Status','Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'IISApplicationPoolStatus' `
+            -TableHeaders @('Farm', 'Server', 'Application Pool', 'Desired Status', 'Status') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.IISWorkerProcessStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -374,9 +374,9 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td class=`"tddefault`">$($IISWorkerProcessItem.CreationDate)</td></tr>"
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'IIS - Worker Process Status' `
-                                         -TableRole 'IISWorkerProcessStatus' `
-                                         -TableHeaders @('Farm','Server','Application Pool','Memory (MB)','Creation Date') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'IISWorkerProcessStatus' `
+            -TableHeaders @('Farm', 'Server', 'Application Pool', 'Memory (MB)', 'Creation Date') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.IISWebSiteCertStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -385,17 +385,17 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td class=`"tddefault`">$($IISWebSiteCertStatusItem.Server)</td>"
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($IISWebSiteCertStatusItem.WebSiteName)</td>"
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($IISWebSiteCertStatusItem.ExpirationDate)</td>"
-            if ($IISWebSiteCertStatusItem.Status -eq 'OK'){
+            if ($IISWebSiteCertStatusItem.Status -eq 'OK') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($IISWebSiteCertStatusItem.Status)</td></tr>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($IISWebSiteCertStatusItem.Status)</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'IIS - SSL Certificates Expiration Status' `
-                                         -TableRole 'IISWebSiteCertStatus' `
-                                         -TableHeaders @('Farm','Server','Web Site Name','Expiration Date','Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'IISWebSiteCertStatus' `
+            -TableHeaders @('Farm', 'Server', 'Web Site Name', 'Expiration Date', 'Status') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SYSLastRebootStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -407,9 +407,9 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td class=`"tddefault`">$($SYSLastRebootStatusItem.LastRebootTime)</td></tr>"
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SYSTEM - Last Reboot Status' `
-                                         -TableRole 'LastRebootStatus' `
-                                         -TableHeaders @('Farm','Server','OS Name','OS Version','Last Reboot Time') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'LastRebootStatus' `
+            -TableHeaders @('Farm', 'Server', 'OS Name', 'OS Version', 'Last Reboot Time') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SYSDOTNETVersion).Count -ne 0) {
         $htmlTableRows = @()
@@ -420,9 +420,9 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td class=`"tddefault`">$($SYSDOTNETVersionItem.NetRequiredVersion)</td></tr>"
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SYSTEM - .NET Framework Version' `
-                                         -TableRole 'SYSDOTNETVersion' `
-                                         -TableHeaders @('Farm','Server','Net Version','Required Version') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SYSDOTNETVersion' `
+            -TableHeaders @('Farm', 'Server', 'Net Version', 'Required Version') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SYSEventViewerAppErrors).Count -ne 0) {
         $htmlTableRows = @()
@@ -435,9 +435,9 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SYSEventViewerAppError.Count)</td></tr>"
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SYSTEM - Event Viewer Application last 24h' `
-                                         -TableRole 'EventViewerApplicationErrors' `
-                                         -TableHeaders @('Farm','Server','ID','Severity','Name','Count') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'EventViewerApplicationErrors' `
+            -TableHeaders @('Farm', 'Server', 'ID', 'Severity', 'Name', 'Count') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SYSDiskUsageStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -447,17 +447,17 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SYSDiskUsageStatusItem.DriveLetter)</td>"
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SYSDiskUsageStatusItem.Size)</td>"
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SYSDiskUsageStatusItem.FreeSpace)</td>"
-            if ($SYSDiskUsageStatusItem.Status -eq 'OK'){
+            if ($SYSDiskUsageStatusItem.Status -eq 'OK') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($SYSDiskUsageStatusItem.Status)</td></tr>"
             }
-            else{
+            else {
                 $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($SYSDiskUsageStatusItem.Status)</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SYSTEM - Server Disks Usage Status' `
-                                         -TableRole 'DiskUsageStatus' `
-                                         -TableHeaders @('Farm','Server','DriveLetter','Size (GB)','Free Space (GB)','Status') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'DiskUsageStatus' `
+            -TableHeaders @('Farm', 'Server', 'DriveLetter', 'Size (GB)', 'Free Space (GB)', 'Status') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SQLInstancesStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -469,9 +469,9 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLInstancesStatusItem.UpdateLevel)</td>"
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SQL - Instance Status' `
-                                         -TableRole 'SQLInstanceStatus' `
-                                         -TableHeaders @('Server','InstanceName','Version','ProductLevel','UpdateLevel') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SQLInstanceStatus' `
+            -TableHeaders @('Server', 'InstanceName', 'Version', 'ProductLevel', 'UpdateLevel') `
+            -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.SQLDatabasesStatus).Count -ne 0) {
         $htmlTableRows = @()
@@ -484,10 +484,10 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDatabasesStatusItem.SpaceAvailable)</td>"
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SQL - Database Status' `
-                                         -TableRole 'SQLDatabaseStatus' `
-                                         -TableHeaders @('Server','Instance','Database','Status','Size (GB)','SpaceAvailable (MB)') `
-                                         -TableRows $htmlTableRows
+            -TableRole 'SQLDatabaseStatus' `
+            -TableHeaders @('Server', 'Instance', 'Database', 'Status', 'Size (GB)', 'SpaceAvailable (MB)') `
+            -TableRows $htmlTableRows
     }
-    $htmlBody = $htmlHEADER + $htmlBodyMerge +$htmlFOOTER
+    $htmlBody = $htmlHEADER + $htmlBodyMerge + $htmlFOOTER
     return $htmlBody
 }

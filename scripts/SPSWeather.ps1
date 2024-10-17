@@ -142,15 +142,6 @@ if (-Not (Test-Path -Path $pathConfigFolder)) {
     # If the path does not exist, create the directory
     New-Item -ItemType Directory -Path $pathConfigFolder
 }
-# Initialize Security
-$scriptFQDN = $jsonEnvCfg.Domain
-$credential = Get-StoredCredential -Target "$($jsonEnvCfg.StoredCredential)" -ErrorAction SilentlyContinue
-if ($null -ne $credential) {
-    New-Variable -Name 'ADM' -Value $credential -Force
-}
-else {
-    Throw "The Target $($jsonEnvCfg.StoredCredential) not present in Credential Manager. Please contact your administrator."
-}
 
 # Initialize jSON Object
 New-Variable -Name jsonObject `
@@ -208,9 +199,18 @@ else {
         }
 
         # Add SPSWeather script in a new scheduled Task
-        Add-SPSSheduledTask -TaskName $spWeatherTaskName -ActionArguments "-Execution Bypass $($scriptRootPath)\SPSWeather.ps1 -ConfigFile $($ConfigFile) -EnableSMTP"
+        Add-SPSSheduledTask -ExecuteAsCredential $InstallAccount -TaskName $spWeatherTaskName -ActionArguments "-Execution Bypass $($scriptRootPath)\SPSWeather.ps1 -ConfigFile $($ConfigFile) -EnableSMTP"
     }
     else {
+        # Initialize Security
+        $scriptFQDN = $jsonEnvCfg.Domain
+        $credential = Get-StoredCredential -Target "$($jsonEnvCfg.StoredCredential)" -ErrorAction SilentlyContinue
+        if ($null -ne $credential) {
+            New-Variable -Name 'ADM' -Value $credential -Force
+        }
+        else {
+            Throw "The Target $($jsonEnvCfg.StoredCredential) not present in Credential Manager. Please contact your administrator."
+        }
         $spFarms = $jsonEnvCfg.Farms
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"

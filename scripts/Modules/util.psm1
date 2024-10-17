@@ -307,6 +307,10 @@ function Add-SPSSheduledTask {
     param
     (
         [Parameter(Mandatory = $true)]
+        [System.Management.Automation.PSCredential]        
+        $ExecuteAsCredential, # Credentials for Task Schedule    
+
+        [Parameter(Mandatory = $true)]
         [System.String]
         $ActionArguments, # Arguments for the task action
 
@@ -322,6 +326,8 @@ function Add-SPSSheduledTask {
     # Initialize variables
     $TaskDate = Get-Date -Format yyyy-MM-dd # Current date in yyyy-MM-dd format
     $TaskCmd = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' # Path to PowerShell executable
+    $UserName = $ExecuteAsCredential.UserName
+    $Password = $ExecuteAsCredential.GetNetworkCredential().Password
 
     # Connect to the local TaskScheduler Service
     $TaskSvc = New-Object -ComObject ('Schedule.service')
@@ -349,7 +355,7 @@ function Add-SPSSheduledTask {
     }
     else {
         Write-Output '--------------------------------------------------------------'
-        Write-Output 'Adding '$TaskName' script in Task Scheduler Service ...'
+        Write-Output "Adding '$TaskName' script in Task Scheduler Service ..."
         
         # Get credentials for Task Schedule
         $TaskAuthor = ([Security.Principal.WindowsIdentity]::GetCurrent()).Name # Author of the task
@@ -386,7 +392,7 @@ function Add-SPSSheduledTask {
         try {
             # Register the task
             $TaskFolder.RegisterTaskDefinition($TaskName, $TaskSchd, 6, $TaskUser, $TaskUserPwd, 1)
-            Write-Output 'Successfully added '$TaskName' script in Task Scheduler Service'
+            Write-Output "Successfully added '$TaskName' script in Task Scheduler Service"
         }
         catch {
             Write-Error -Message $_ # Handle any errors during task registration
