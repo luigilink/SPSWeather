@@ -18,8 +18,8 @@
 ```
 
 > [!IMPORTANT]
-> Configure the StoredCredential parameter in json before running the script in installation mode.
-> Run the Install mode with the same account than you used in InstallAccount parameter
+> Configure the StoredCredential parameter in JSON before running the script in installation mode.
+> Run the Install mode with the same account than you used the in InstallAccount parameter
 
 ## Next Step
 
