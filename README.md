@@ -25,7 +25,7 @@ This is discussed further on the [SPSWeather Wiki Getting-Started](https://githu
 
 ## CredSSP
 
-Impersonation is handled using the `Invoke-Command` cmdlet in PowerShell, together with the creation of a "remote" session via `New-PSSession`. Although each session created this way always targets "localhost" instead of a genuinely remote machine, it allows us to control the authentication for that session. In the SPSWeather script, we authenticate as the InstallAccount and specify CredSSP as the authentication mechanism. This is explained further in the [SPSWeather Wiki Getting-Started](https://github.com/luigilink/SPSWeather/wiki/Getting-Started)
+Impersonation is handled using the `Invoke-Command` cmdlet in PowerShell, together with the creation of a "remote" session via `New-PSSession`. In the SPSWeather script, we authenticate as the InstallAccount and specify CredSSP as the authentication mechanism. This is explained further in the [SPSWeather Wiki Getting-Started](https://github.com/luigilink/SPSWeather/wiki/Getting-Started)
 
 ## Documentation
 
