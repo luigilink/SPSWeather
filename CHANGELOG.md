@@ -3,6 +3,18 @@
 The format is based on and uses the types of changes according to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- scripts/Modules/sps.util.psm1
+  - Update Get-SPSFailedTimerJob to evaluate timer job failures over a configurable lookback window instead of deduplicating failed entries only
+  - Add failure ratio metrics per timer job: failed runs, total runs, failure percentage, threshold percentage, and IsInfo flag
+  - Mark timer jobs below the default 5% failure threshold as informational to reduce false positives
+- scripts/Modules/html.util.psm1
+  - Extend the SharePoint Failed Timer Jobs report with failed runs, total runs, and failure rate columns
+  - Render below-threshold timer job failures as warnings instead of hard failures
+
 ## [1.0.3] - 2023-10-16
 
 ### Added

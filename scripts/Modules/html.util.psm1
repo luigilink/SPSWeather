@@ -218,11 +218,19 @@ function Join-HtmlBodyFromPSo {
             $htmlTableRows += "<tr><td class=`"tddefault`">$($SPFailedTimerJobsItem.Farm)</td>"
             $htmlTableRows += "<td class=`"tddefault`">$($SPFailedTimerJobsItem.server)</td>"
             $htmlTableRows += "<td class=`"tddefault`">$($SPFailedTimerJobsItem.JobDefinitionTitle)</td>"
-            $htmlTableRows += "<td class=`"tdfailed`">$($SPFailedTimerJobsItem.Status)</td></tr>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SPFailedTimerJobsItem.FailedExecutions)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SPFailedTimerJobsItem.TotalExecutions)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SPFailedTimerJobsItem.FailurePercentage)%</td>"
+            if ($SPFailedTimerJobsItem.IsInfo) {
+                $htmlTableRows += "<td class=`"tdwarning`">$($SPFailedTimerJobsItem.Status)</td></tr>"
+            }
+            else {
+                $htmlTableRows += "<td class=`"tdfailed`">$($SPFailedTimerJobsItem.Status)</td></tr>"
+            }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SharePoint Failed Timer Jobs Status last 24h' `
             -TableRole 'SPFailedTimerJobStatus' `
-            -TableHeaders @('Farm', 'Server Name', 'Job Definition Title', 'Status') `
+            -TableHeaders @('Farm', 'Server Name', 'Job Definition Title', 'Failed Runs', 'Total Runs', 'Failure Rate', 'Status') `
             -TableRows $htmlTableRows
     }
     if (($PSObjectFromJson.AppFabricStatus).Count -ne 0) {
