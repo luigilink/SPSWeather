@@ -1,1 +1,9 @@
 **/.DS_Store
+
+# Test / analysis artifacts
+test-results.xml
+testResults.xml
+coverage.xml
+
+# Local secrets (phase 2 DPAPI credential store) -- NEVER commit real secrets
+**/secrets.psd1
