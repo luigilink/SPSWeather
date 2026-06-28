@@ -38,6 +38,28 @@ This page lists every check SPSWeather runs against each farm in scope, what it 
 | Application event errors | Recent errors in the Windows Application event log | `EvtViewerStatus` |
 | Disk usage | Drive size and free space | _(always)_ |
 
+## SQL Server checks
+
+SQL data is collected from a SharePoint server with dependency-free ADO.NET
+(`System.Data.SqlClient` — no `SqlServer` module needed). The SQL servers are
+discovered from `Get-SPDatabase`, so checks follow the farm's own databases. The
+service account needs `VIEW SERVER STATE` and read access to `master`/`msdb`. An
+unreachable instance produces a single red row instead of failing the run.
+
+| Check | Reports | ExclusionRules key |
+|---|---|---|
+| Instances | Edition/version/build, MAXDOP (advisory if ≠ 1), max server memory, TempDB file count vs CPUs | `SQLInstanceStatus` |
+| Databases | State, recovery model, data/log size, last full backup age, compatibility level, AutoShrink/AutoClose | `SQLDatabaseStatus` |
+| Disk volumes | Free space per volume hosting SQL files (`sys.dm_os_volume_stats`) | `SQLDiskStatus` |
+| Availability | AlwaysOn AG replica sync health and recent failed SQL Agent jobs | `SQLAvailabilityStatus` |
+
+SQL alert thresholds are configurable in the environment config: `SQLDiskFreeThresholdPercent`
+(default 15) and `SQLBackupMaxAgeDays` (default 3). Database offline state, a
+missing/old full backup, low volume free space, an unhealthy AG replica, a failed
+backup job, or an unreachable instance raise an alert; best-practice deviations
+(MAXDOP, memory, TempDB, AutoShrink/AutoClose) are shown as orange advisories
+without raising the global alert.
+
 ## How an ALERT is raised
 
 Every check returns rows flagged as informational or not (an internal `IsInfo` flag). When **any** collected check contains at least one **non-informational (failed)** row, SPSWeather:
@@ -52,7 +74,7 @@ In the HTML report, failing rows use the `tdfailed` (red) style, below-threshold
 
 Add the corresponding key to `ExclusionRules` in your config to skip a check. Authorized values:
 
-`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`.
+`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`, `SQLInstanceStatus`, `SQLDatabaseStatus`, `SQLDiskStatus`, `SQLAvailabilityStatus`.
 
 Checks marked _(always)_ above are not individually excludable.
 

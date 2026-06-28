@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- SQL Server health checks (`Get-SPSSqlStatus`), collected from a SharePoint
+  server with dependency-free ADO.NET (no `SqlServer` module). SQL servers are
+  discovered via `Get-SPDatabase`. Four new report sections / ExclusionRules
+  keys: `SQLInstanceStatus`, `SQLDatabaseStatus`, `SQLDiskStatus`,
+  `SQLAvailabilityStatus`, covering instance config (MAXDOP, memory, TempDB),
+  databases (state, recovery model, sizes, last full backup), volume free space
+  (`sys.dm_os_volume_stats`) and AlwaysOn/Agent. Thresholds
+  `SQLDiskFreeThresholdPercent` (15) and `SQLBackupMaxAgeDays` (3) are
+  configurable (#17).
 - Per-farm resilience: a farm whose server is unreachable over CredSSP is now
   logged (console warning + SPSWeather event ID 3001) and skipped, instead of
   letting the failure abort the whole run (#18).
