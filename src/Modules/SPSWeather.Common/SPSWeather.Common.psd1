@@ -11,6 +11,7 @@
 
     FunctionsToExport = @(
         'Add-SPSSheduledTask'
+        'Add-SPSWeatherEvent'
         'Clear-SPSLog'
         'Get-AppFabricStatus'
         'Get-SPSAPIHttpStatus'

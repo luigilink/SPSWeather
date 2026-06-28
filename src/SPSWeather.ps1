@@ -207,6 +207,7 @@ else {
             Throw "Credential '$($envCfg.CredentialKey)' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Install as the service account, or populate secrets.psd1 manually. See the wiki for details."
         }
         $spFarms = $envCfg.Farms
+        Add-SPSWeatherEvent -Message "SPSWeather $spsWeatherVersion started for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1000
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
             Write-Output '--------------------------------------------------------------'
@@ -514,6 +515,14 @@ else {
         $mailHTMLBody | Out-File -FilePath $pathHTMLFile -Force
         $jsonObject | ConvertTo-Json | Set-Content -Path $pathJSONFile -Force
 
+        # Record the run outcome in the SPSWeather event log
+        if ($mailAlert -eq 'ALERT') {
+            Add-SPSWeatherEvent -Message "SPSWeather detected ALERT conditions for $Application/$Environment. See $pathHTMLFile for details." -EntryType 'Warning' -EventID 2000
+        }
+        else {
+            Add-SPSWeatherEvent -Message "SPSWeather completed with no alert for $Application/$Environment." -EntryType 'Information' -EventID 1001
+        }
+
         # Clean the folder of log files
         Clear-SPSLog -path $pathLogsFolder -Retention 180
 
@@ -541,6 +550,7 @@ else {
             }
             catch {
                 Write-Output $_
+                Add-SPSWeatherEvent -Message "SPSWeather failed to send the report email for $Application/$Environment. Exception: $_" -EntryType 'Error' -EventID 3000
             }
         }
     }

@@ -42,6 +42,7 @@ Describe 'SPSWeather.Common module' {
     It 'exports exactly the expected public functions' {
         $expected = @(
             'Add-SPSSheduledTask'
+            'Add-SPSWeatherEvent'
             'Clear-SPSLog'
             'Get-AppFabricStatus'
             'Get-SPSAPIHttpStatus'
@@ -135,6 +136,28 @@ Describe 'Public function contracts' {
         $param = (Get-Command -Name Get-SPSVersion -Module SPSWeather.Common).Parameters['Server']
         $param | Should -Not -BeNullOrEmpty
         $param.Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
+    }
+
+    It 'Add-SPSWeatherEvent requires a mandatory -Message' {
+        $param = (Get-Command -Name Add-SPSWeatherEvent -Module SPSWeather.Common).Parameters['Message']
+        $param | Should -Not -BeNullOrEmpty
+        $param.Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
+    }
+
+    It 'Add-SPSWeatherEvent restricts -EntryType with a ValidateSet' {
+        $cmd = Get-Command -Name Add-SPSWeatherEvent -Module SPSWeather.Common
+        $validate = $cmd.Parameters['EntryType'].Attributes.Where{ $_.TypeId.Name -eq 'ValidateSetAttribute' }
+        $validate | Should -Not -BeNullOrEmpty
+        $validate[0].ValidValues | Should -Contain 'Information'
+        $validate[0].ValidValues | Should -Contain 'Warning'
+        $validate[0].ValidValues | Should -Contain 'Error'
+    }
+
+    It 'Add-SPSWeatherEvent defaults -Source to SPSWeather' {
+        $cmd = Get-Command -Name Add-SPSWeatherEvent -Module SPSWeather.Common
+        $cmd.Parameters['Source'].Attributes.Where{ $_ -is [System.Management.Automation.ParameterAttribute] } |
+            Should -Not -BeNullOrEmpty
+        $cmd.Parameters.Keys | Should -Contain 'EventID'
     }
 }
 
@@ -281,8 +304,7 @@ Describe 'Secret store (DPAPI secrets.psd1)' {
     }
 }
 
-Describe 'Example secrets file (secrets.example.psd1)' {
-    BeforeAll {
+Describe 'Example secrets file (secrets.example.psd1)' {    BeforeAll {
         $repoRoot = Split-Path -Path $PSScriptRoot -Parent
         $path = Join-Path -Path $repoRoot -ChildPath 'src/Config/secrets.example.psd1'
         $secrets = Import-PowerShellDataFile -Path $path
