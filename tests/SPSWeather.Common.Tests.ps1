@@ -288,6 +288,23 @@ Describe 'HTML report (Join-HtmlBodyFromPSo)' {
     It 'renders a failed status cell for a non-OK row' {
         $html | Should -Match 'tdfailed'
     }
+
+    It 'renders the SQL sections with 3-state coloring' {
+        $sqlReport = [PSCustomObject]@{}
+        $sqlReport | Add-Member -MemberType NoteProperty -Name SQLInstanceStatus -Value @(
+            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Edition = 'Std'; Version = '15.0'; MaxDop = 1; TempDbDataFiles = 8; Recommendation = ''; IsInfo = $true }
+            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Edition = 'Std'; Version = '15.0'; MaxDop = 0; TempDbDataFiles = 1; Recommendation = 'MAXDOP=0 (SharePoint requires 1)'; IsInfo = $true }
+        )
+        $sqlReport | Add-Member -MemberType NoteProperty -Name SQLDiskStatus -Value @(
+            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Volume = 'D:\'; TotalGB = 100; FreeGB = 5; FreePercent = 5; IsInfo = $false }
+        )
+        $sqlHtml = Join-HtmlBodyFromPSo -PSObjectFromJson $sqlReport
+        $sqlHtml | Should -Match 'SQL - Instance Status'
+        $sqlHtml | Should -Match 'SQL - Disk Volume Status'
+        $sqlHtml | Should -Match 'tdwarning'   # advisory MAXDOP row
+        $sqlHtml | Should -Match 'tdfailed'    # low free disk
+        $sqlHtml | Should -Match 'tdsuccess'   # healthy instance row
+    }
 }
 
 Describe 'Example configuration (config.psd1)' {

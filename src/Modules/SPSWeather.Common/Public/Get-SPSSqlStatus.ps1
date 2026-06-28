@@ -153,7 +153,7 @@ SELECT
                         MaxServerMemoryMB = $maxMem
                         TempDbDataFiles   = $tempDbFiles
                         Recommendation    = ($notes -join '; ')
-                        IsInfo            = ($notes.Count -eq 0)
+                        IsInfo            = $true
                     })
 
                 # --- Databases (filtered to SharePoint databases on this server) ---
