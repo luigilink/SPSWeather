@@ -1,28 +1,40 @@
 # SPSWeather - Release Notes
 
-## [2.0.1] - 2026-06-28
+## [2.1.0] - 2026-06-28
 
-A patch release: one remoting correctness fix and dead-code cleanup.
+A feature release: SQL Server health checks, a pre-flight readiness script, a
+testable report assembly, and per-farm resilience.
 
-### Fixed
+### Added
 
-- `Invoke-SPSCommand` no longer runs the SharePoint command on the **local**
-  server when the CredSSP session cannot be opened. Previously, if
-  `New-PSSession` failed (CredSSP misconfigured or the target unreachable), the
-  scriptblock was executed locally and returned data for the wrong server. It now
-  fails with a clear, server-scoped error.
+- **SQL Server health checks** (`Get-SPSSqlStatus`), collected from a SharePoint
+  server with **dependency-free ADO.NET** (no `SqlServer` module required). The
+  SQL servers are discovered from `Get-SPDatabase`, so the checks follow the
+  farm's own databases. Four new report sections (and `ExclusionRules` keys):
+  - `SQLInstanceStatus` - edition/version/build, MAXDOP, max server memory,
+    TempDB file count vs CPUs.
+  - `SQLDatabaseStatus` - state, recovery model, data/log size, last full backup
+    age, compatibility level, AutoShrink/AutoClose.
+  - `SQLDiskStatus` - free space per SQL volume (`sys.dm_os_volume_stats`).
+  - `SQLAvailabilityStatus` - AlwaysOn AG sync health and recent failed SQL Agent
+    jobs.
+  Thresholds `SQLDiskFreeThresholdPercent` (default 15) and `SQLBackupMaxAgeDays`
+  (default 3) are configurable. The service account needs `VIEW SERVER STATE`
+  plus read access to `master`/`msdb`.
+- **`Test-SPSWeatherReadiness.ps1`** - a read-only pre-flight check (config,
+  secrets DPAPI decryptability, Administrator rights, per-farm WinRM/CredSSP
+  reachability).
+- **Per-farm resilience** - an unreachable farm server is logged (SPSWeather
+  event ID 3001) and skipped instead of aborting the whole run.
 
-### Removed
+### Changed
 
-- Dead code: the orphaned `Get-SQLInstancesStatus` / `Get-SQLDatabasesStatus`
-  public functions (never called and broken) and the unused private
-  `Invoke-SPSWebRequestUrl` helper. A real SQL Server health check is planned for
-  2.1.0.
+- The report assembly moved into a testable `ConvertTo-SPSWeatherReport` module
+  function (identical output), replacing ~140 repeated lines in `SPSWeather.ps1`.
 
 ### Notes
 
-- No configuration or credential change since 2.0.0; this is a drop-in update.
-- Per-farm resilience (continue when one farm server is unreachable) will land
-  with the data-driven report refactor in 2.1.0.
+- No configuration or credential change is required to upgrade from 2.0.x. The
+  SQL sections appear automatically; add their `ExclusionRules` keys to opt out.
 
 A full list of changes can be found in the [change log](CHANGELOG.md).

@@ -5,11 +5,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- Refactor the report assembly in `SPSWeather.ps1` into a testable
-  `ConvertTo-SPSWeatherReport` module function with identical output, replacing
-  ~140 lines of repeated per-section `Add-Member` blocks (#18).
+## [2.1.0] - 2026-06-28
 
 ### Added
 
@@ -29,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Per-farm resilience: a farm whose server is unreachable over CredSSP is now
   logged (console warning + SPSWeather event ID 3001) and skipped, instead of
   letting the failure abort the whole run (#18).
+
+### Changed
+
+- Refactor the report assembly in `SPSWeather.ps1` into a testable
+  `ConvertTo-SPSWeatherReport` module function with identical output, replacing
+  ~140 lines of repeated per-section `Add-Member` blocks (#18).
 
 ## [2.0.1] - 2026-06-28
 
