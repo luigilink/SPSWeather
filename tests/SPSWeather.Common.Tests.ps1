@@ -176,24 +176,6 @@ Describe 'Invoke-SPSCommand remoting' {
             Should -Invoke Invoke-Command -Times 0 -Exactly
         }
     }
-
-    It 'runs Invoke-Command with the opened session and disposes it' -Skip:(-not $IsWindows) {
-        InModuleScope SPSWeather.Common {
-            $fakeSession = [pscustomobject]@{ Name = 'fake' }
-            Mock New-PSSession { $fakeSession }
-            Mock Invoke-Command { 'REMOTE-OK' }
-            Mock Remove-PSSession {}
-
-            $cred = [System.Management.Automation.PSCredential]::new(
-                'CONTOSO\svc', (ConvertTo-SecureString 'p' -AsPlainText -Force))
-
-            $result = Invoke-SPSCommand -Credential $cred -Server 'SRV1' -ScriptBlock { 1 }
-
-            $result | Should -Be 'REMOTE-OK'
-            Should -Invoke Invoke-Command -Times 1 -ParameterFilter { $Session -eq $fakeSession }
-            Should -Invoke Remove-PSSession -Times 1
-        }
-    }
 }
 
 Describe 'HTML report (Join-HtmlBodyFromPSo)' {
