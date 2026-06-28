@@ -1,14 +1,16 @@
 # Usage
 
+This page describes how to run, schedule and troubleshoot SPSWeather.
+
 ## Parameters
 
-| Parameter | Description |
-|---|---|
-| `-ConfigFile` | Path to the environment configuration `.psd1` file. |
-| `-EnableSmtp` | Send the HTML report by email over SMTP. |
-| `-Install` | Register SPSWeather as a scheduled task and store the service credential in `secrets.psd1`. |
-| `-InstallAccount` | The service account that runs the scheduled task (required with `-Install`). |
-| `-Uninstall` | Remove the SPSWeather scheduled task and the stored secret. |
+| Parameter | Type | Description |
+|---|---|---|
+| `-ConfigFile` | `string` | Path to the environment configuration `.psd1` file. Mandatory. |
+| `-EnableSmtp` | `switch` | Send the HTML report by email over SMTP. |
+| `-Install` | `switch` | Register SPSWeather as a scheduled task and store the service credential in `secrets.psd1`. |
+| `-InstallAccount` | `PSCredential` | The service account that runs the scheduled task (required with `-Install`). |
+| `-Uninstall` | `switch` | Remove the SPSWeather scheduled task and the stored secret. |
 
 ### Basic run
 
@@ -44,11 +46,28 @@ Each run writes, next to `SPSWeather.ps1`:
 - `Results\<app>-<env>-<date>.json` — a JSON snapshot of the collected data.
 - `Logs\<app>-<env>-<date>.log` — the PowerShell transcript. Logs older than the retention window are pruned automatically.
 
-The email subject is prefixed with the overall status, e.g. `[ALERT]contoso_PROD - Meteo SharePoint <date>`. The priority is raised to **High** when an alert is detected.
+The email subject is prefixed with the overall status, e.g. `[ALERT]contoso_PROD - Meteo SharePoint <date>`. The priority is raised to **High** when an alert is detected. See [Health Checks](Health-Checks) for the list of checks and how an **ALERT** is raised.
+
+## Scheduling
+
+`-Install` registers a scheduled task named `SPSWeather-<app>-<env>` that runs the script with `-EnableSMTP` as the service account. A typical setup:
+
+| Field | Value |
+|---|---|
+| Run as | Service account (member of local Administrators on the run server) |
+| Trigger | Daily, e.g. every morning at 06:00 |
+| Action | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\SCRIPT\SPSWeather\SPSWeather.ps1" -ConfigFile "D:\SCRIPT\SPSWeather\Config\contoso-PROD.psd1" -EnableSMTP` |
+| Run whether user is logged on or not | Yes |
+| Run with highest privileges | Yes |
+
+> [!IMPORTANT]
+> The scheduled task action must run via `powershell.exe` (Windows PowerShell 5.1), not `pwsh.exe`: SPSWeather relies on the `Microsoft.SharePoint.PowerShell` snap-in and CredSSP remoting.
 
 ## Windows Event Log
 
-SPSWeather writes lifecycle entries to a dedicated **`SPSWeather`** Windows Event Log (created on first use; requires the run to be elevated):
+SPSWeather writes lifecycle entries to a dedicated **`SPSWeather`** Windows Event Log, created on first use (the run must be elevated):
+
+> **Event Viewer → Applications and Services Logs → SPSWeather**
 
 | Event ID | Type | Meaning |
 |---|---|---|
@@ -57,12 +76,76 @@ SPSWeather writes lifecycle entries to a dedicated **`SPSWeather`** Windows Even
 | 2000 | Warning | The run completed with **ALERT** conditions. |
 | 3000 | Error | The report email could not be sent. |
 
-Filter the log in Event Viewer (or via `Get-WinEvent -LogName SPSWeather`) to monitor runs across servers; each entry carries a header with the SPSWeather version, user and computer name.
+Each event header records the SPSWeather version, the user and the computer name:
 
-## Scheduling
+```
+SPSWeather Version: 2.0.0
+User: CONTOSO\svc_spsweather
+ComputerName: SPS-APP-01
+```
 
-`-Install` registers a scheduled task named `SPSWeather-<app>-<env>` that runs `SPSWeather.ps1 -ConfigFile <file> -EnableSMTP` as the service account. Adjust the trigger in Task Scheduler to your preferred cadence.
+Recommended Event Viewer filters:
+
+- `EntryType = Warning or Error` to surface runs that need attention (alerts and email failures).
+- `Event ID = 2000` to focus on farms that reported an alert.
+- Text contains `Version: 2.0.0` to spot servers running an outdated build.
+
+Query the log from PowerShell with:
+
+```powershell
+Get-WinEvent -LogName SPSWeather -MaxEvents 20
+```
+
+## Troubleshooting
+
+### Module fails to import
+
+```
+Failed to import function file '...\SPSWeather.Common\...'
+```
+
+- Confirm the `Modules\SPSWeather.Common\` folder lives **next to** `SPSWeather.ps1`.
+- Confirm the running account has read access to that folder.
+- Run `Test-ModuleManifest .\Modules\SPSWeather.Common\SPSWeather.Common.psd1` to confirm the manifest is valid.
+
+### Configuration file not found
+
+```
+Missing <path>
+```
+
+The `-ConfigFile` path does not exist. Pass the full path to your `.psd1` config (copied from `Config\CONTOSO-PROD.example.psd1`).
+
+### Credential not found in secrets.psd1
+
+```
+Credential 'PROD-ADM' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Install
+as the service account, or populate secrets.psd1 manually.
+```
+
+`secrets.psd1` has no entry for the `CredentialKey` declared in your config. Run `-Install` **as the service account**, or add the entry by hand (see [Configuration](Configuration#service-credential-secretspsd1)).
+
+### Failed to decode SecureString
+
+```
+Failed to decode SecureString for secret 'PROD-ADM'. The value must be the output of
+ConvertFrom-SecureString on the current user account and machine.
+```
+
+The value in `secrets.psd1` was generated by a different account or on a different server. DPAPI binds the encrypted value to the **account + machine** that created it. Regenerate it under the account that runs the scheduled task, on this server.
+
+### Not running as Administrator
+
+```
+You do not have Administrator rights to run this script!
+```
+
+SPSWeather needs elevation to create its Event Log source on first use and to call SharePoint cmdlets. Re-run the console (or the scheduled task) **as Administrator**.
+
+### CredSSP / remoting errors
+
+Remoting into the farm servers uses CredSSP. Confirm CredSSP is configured on both the client and the target servers (see [Getting Started → Configure CredSSP](Getting-Started#configure-credssp)) and that the service account can open a `New-PSSession` to each farm server.
 
 ## Next step
 
-For maintainers, see the [Release Process](Release-Process).
+See the [Health Checks](Health-Checks) reference, or the [Release Process](Release-Process) for maintainers.

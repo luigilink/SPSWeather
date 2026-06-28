@@ -32,6 +32,7 @@ The credential used for remoting is read from `Config\secrets.psd1` (DPAPI), and
 - [Getting Started](Getting-Started) — prerequisites, installation, first run
 - [Configuration](Configuration) — `config.psd1` and `secrets.psd1` explained
 - [Usage](Usage) — parameters, scheduling, output and the event log
+- [Health Checks](Health-Checks) — every check, what it reports, and how an ALERT is raised
 - [Release Process](Release-Process) — for maintainers: how to ship a new version
 
 ## Project links
