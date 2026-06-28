@@ -1,4 +1,4 @@
-<#
+﻿<#
     .SYNOPSIS
     SPSWeather script for SharePoint Server
 
@@ -35,7 +35,7 @@
     FileName:	SPSWeather.ps1
     Author:		luigilink (Jean-Cyril DROUHIN)
     Date:		Ocotober 15, 2024
-    Version:	1.0.3
+    Version:	Defined by the SPSWeather.Common module manifest (ModuleVersion)
 
     .LINK
     https://spjc.fr/
@@ -73,7 +73,7 @@ param
 Clear-Host
 $Host.UI.RawUI.WindowTitle = "SPSWeather script running on $env:COMPUTERNAME"
 $script:HelperModulePath = Join-Path -Path $PSScriptRoot -ChildPath 'Modules'
-Import-Module -Name (Join-Path -Path $script:HelperModulePath -ChildPath 'util.psm1') -Force
+Import-Module -Name (Join-Path -Path $script:HelperModulePath -ChildPath 'SPSWeather.Common\SPSWeather.Common.psd1') -Force
 Import-Module -Name (Join-Path -Path (Join-Path -Path $script:HelperModulePath -ChildPath 'credentialmanager') -ChildPath 'CredentialManager.psd1') -Force
 
 if (Test-Path $ConfigFile) {
@@ -87,7 +87,7 @@ else {
 }
 
 # Define variable
-$spsWeatherVersion = '1.0.3'
+$spsWeatherVersion = (Get-Module -Name 'SPSWeather.Common').Version.ToString()
 $getDateFormatted = Get-Date -Format yyyy-MM-dd
 $spWeatherFileName = "$($Application)-$($Environment)-$($getDateFormatted)"
 $spWeatherTaskName = "SPSWeather-$($Application)-$($Environment)"
