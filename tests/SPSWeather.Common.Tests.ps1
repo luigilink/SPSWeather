@@ -137,3 +137,39 @@ Describe 'Public function contracts' {
         $param.Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
     }
 }
+
+Describe 'HTML report (Join-HtmlBodyFromPSo)' {
+    BeforeAll {
+        $report = [PSCustomObject]@{}
+        $report | Add-Member -MemberType NoteProperty -Name SPSiteHttpStatus -Value @(
+            [PSCustomObject]@{ Server = 'SRV1'; Url = 'https://sp'; HTTPCode = 200; Time = 0.4; Status = 'OK' }
+            [PSCustomObject]@{ Server = 'SRV2'; Url = 'https://sp2'; HTTPCode = 500; Time = 2.1; Status = 'KO' }
+        )
+        $html = Join-HtmlBodyFromPSo -PSObjectFromJson $report
+    }
+
+    It 'returns a single self-contained HTML document string' {
+        $html | Should -BeOfType ([System.String])
+        $html.StartsWith('<!DOCTYPE html>') | Should -BeTrue
+        $html.TrimEnd().EndsWith('</html>') | Should -BeTrue
+    }
+
+    It 'embeds the head, style block and container (regression guard for the dropped CSS)' {
+        $html | Should -Match '<head>'
+        $html | Should -Match '<style>'
+        $html | Should -Match 'id="spweathermain"'
+    }
+
+    It 'keeps the Outlook MSO conditional comment' {
+        $html | Should -Match '\[if mso\]'
+    }
+
+    It 'does not leak an unexpanded caller-scope header/footer variable' {
+        $html | Should -Not -Match '\$htmlHEADER'
+        $html | Should -Not -Match '\$htmlFOOTER'
+    }
+
+    It 'renders a failed status cell for a non-OK row' {
+        $html | Should -Match 'tdfailed'
+    }
+}

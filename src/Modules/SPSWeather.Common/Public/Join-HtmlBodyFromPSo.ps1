@@ -1,10 +1,51 @@
 ﻿function Join-HtmlBodyFromPSo {
     [CmdletBinding()]
-    [OutputType([System.Collections.Hashtable])]
+    [OutputType([System.String])]
     param (
         [Parameter()]
         $PSObjectFromJson
     )
+
+    # Email-optimized HTML document wrapper. Defined locally so the function is
+    # self-contained (the report is sent with Send-MailMessage -BodyAsHtml). Keeps
+    # the MSO conditional comments for Outlook and the status classes used by the
+    # table builder (tdheader, tddefault, tditalic, tdfailed, tdwarning, tdsuccess).
+    $htmlHEADER = @"
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="x-apple-disable-message-reformatting">
+    <title>SPSWeather</title>
+    <!--[if mso]> <xml> <o:OfficeDocumentSettings> <o:AllowPNG/> <o:PixelsPerInch>96</o:PixelsPerInch> </o:OfficeDocumentSettings> </xml> <![endif]-->
+    <!--[if lte mso 11]> <style type="text/css"> .mj-outlook-group-fix { width:100% !important; } </style> <![endif]-->
+    <style>
+        body {margin:0;padding:0;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;background-color:#f4f6f8;}
+        #spweathermain {margin:0 auto;max-width:900px;background-color:#ffffff;padding:0 0 16px 0;}
+        h1 {font-size:15px;margin:22px 0 0 0;padding:9px 12px;color:#ffffff;background-color:#2b5797;text-align:left;}
+        table {width:100%;border-collapse:collapse;border-spacing:0;margin:0 0 6px 0;text-align:left;}
+        table,td {border:1px solid #cccccc;}
+        td {padding:6px 10px;font-size:13px;vertical-align:top;color:#1b1b1b;}
+        .tdheader {background-color:#70bbd9;color:#10222e;font-weight:bold;text-align:center;}
+        .tddefault {background-color:#ffffff;}
+        .tditalic {font-style:italic;}
+        .tdfailed {background-color:#ff6464;color:#3a0000;font-weight:bold;}
+        .tdwarning {background-color:#ff9966;color:#3a1a00;font-weight:bold;}
+        .tdsuccess {background-color:#bfff80;color:#13300a;font-weight:bold;}
+        img {border:0;height:auto;line-height:100%;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;}
+        body,table,td,div,h1,h2,p {font-family:'Segoe UI',Arial,sans-serif;}
+    </style>
+</head>
+<body>
+<div id="spweathermain">
+"@
+
+    $htmlFOOTER = @"
+</div>
+</body>
+</html>
+"@
 
     $htmlBodyMerge = @()
     if (($PSObjectFromJson.SPWeatherListInfo).Count -ne 0) {
