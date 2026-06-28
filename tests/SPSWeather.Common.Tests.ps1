@@ -36,7 +36,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'manifest version is 2.0.0 or higher' {
-        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.0.1')
+        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.1.0')
     }
 
     It 'exports exactly the expected public functions' {
@@ -44,6 +44,7 @@ Describe 'SPSWeather.Common module' {
             'Add-SPSSheduledTask'
             'Add-SPSWeatherEvent'
             'Clear-SPSLog'
+            'ConvertTo-SPSWeatherReport'
             'Get-AppFabricStatus'
             'Get-SPSAPIHttpStatus'
             'Get-SPSContentDBStatus'
@@ -55,6 +56,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SPSServer'
             'Get-SPSSiteHttpStatus'
             'Get-SPSSolutionStatus'
+            'Get-SPSSqlStatus'
             'Get-SPSUpgradeStatus'
             'Get-SPSVersion'
             'Get-SPWeatherListInfo'
@@ -157,10 +159,49 @@ Describe 'Public function contracts' {
             Should -Not -BeNullOrEmpty
         $cmd.Parameters.Keys | Should -Contain 'EventID'
     }
+
+    It 'Get-SPSSqlStatus requires Server and InstallAccount and has threshold defaults' {
+        $cmd = Get-Command -Name Get-SPSSqlStatus -Module SPSWeather.Common
+        $cmd.Parameters['Server'].Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
+        $cmd.Parameters['InstallAccount'].Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
+        $cmd.Parameters['InstallAccount'].ParameterType.Name | Should -Be 'PSCredential'
+        $cmd.Parameters.Keys | Should -Contain 'DiskFreeThresholdPercent'
+        $cmd.Parameters.Keys | Should -Contain 'BackupMaxAgeDays'
+    }
 }
 
-Describe 'Invoke-SPSCommand remoting' {
-    It 'throws and never runs the command locally when the session cannot be opened' -Skip:(-not $IsWindows) {
+Describe 'Readiness script (Test-SPSWeatherReadiness.ps1)' {
+    BeforeAll {
+        $repoRoot = Split-Path -Path $PSScriptRoot -Parent
+        $scriptPath = Join-Path -Path $repoRoot -ChildPath 'src/Test-SPSWeatherReadiness.ps1'
+    }
+
+    It 'exists next to the entry script' {
+        Test-Path -Path $scriptPath | Should -BeTrue
+    }
+
+    It 'parses without errors' {
+        $tokens = $null; $errs = $null
+        [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$errs) | Out-Null
+        $errs | Should -BeNullOrEmpty
+    }
+
+    It 'declares a mandatory -ConfigFile parameter' {
+        $cmd = Get-Command -Name $scriptPath
+        $cmd.Parameters.Keys | Should -Contain 'ConfigFile'
+        $cmd.Parameters['ConfigFile'].Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
+        $cmd.Parameters.Keys | Should -Contain 'SkipNetwork'
+    }
+
+    It 'is stored as UTF-8 with BOM' {
+        $bytes = [System.IO.File]::ReadAllBytes($scriptPath)
+        $bytes[0] | Should -Be 0xEF
+        $bytes[1] | Should -Be 0xBB
+        $bytes[2] | Should -Be 0xBF
+    }
+}
+
+Describe 'Invoke-SPSCommand remoting' {    It 'throws and never runs the command locally when the session cannot be opened' -Skip:(-not $IsWindows) {
         InModuleScope SPSWeather.Common {
             Mock New-PSSession { throw 'CredSSP not configured' }
             Mock Invoke-Command { 'SHOULD-NOT-RUN' }
@@ -175,6 +216,72 @@ Describe 'Invoke-SPSCommand remoting' {
             # The bug being guarded: Invoke-Command must NOT run without a session.
             Should -Invoke Invoke-Command -Times 0 -Exactly
         }
+    }
+}
+
+Describe 'Report assembly (ConvertTo-SPSWeatherReport)' {
+    It 'adds every non-null section as a property, preserving order' {
+        $sections = [ordered]@{
+            SectionA = @([pscustomobject]@{ IsInfo = $true })
+            SectionB = @([pscustomobject]@{ IsInfo = $true })
+            SectionC = @()
+        }
+        $result = ConvertTo-SPSWeatherReport -Section $sections
+        $result.Report.PSObject.Properties.Name | Should -Be @('SectionA', 'SectionB', 'SectionC')
+    }
+
+    It 'raises IsAlert when any row has IsInfo = $false' {
+        $sections = [ordered]@{
+            Healthy = @([pscustomobject]@{ IsInfo = $true })
+            Broken  = @([pscustomobject]@{ IsInfo = $true }, [pscustomobject]@{ IsInfo = $false })
+        }
+        (ConvertTo-SPSWeatherReport -Section $sections).IsAlert | Should -BeTrue
+    }
+
+    It 'keeps IsAlert false when every row is informational' {
+        $sections = [ordered]@{
+            One = @([pscustomobject]@{ IsInfo = $true })
+            Two = @([pscustomobject]@{ IsInfo = $true }, [pscustomobject]@{ IsInfo = $true })
+        }
+        (ConvertTo-SPSWeatherReport -Section $sections).IsAlert | Should -BeFalse
+    }
+
+    It 'never raises IsAlert for info-only sections without an IsInfo property' {
+        $sections = [ordered]@{
+            SYSLastRebootStatus = @([pscustomobject]@{ Server = 'SRV1'; LastReboot = '2026-06-28' })
+            SYSDOTNETVersion    = @([pscustomobject]@{ Server = 'SRV1'; Version = '4.8' })
+        }
+        (ConvertTo-SPSWeatherReport -Section $sections).IsAlert | Should -BeFalse
+    }
+
+    It 'keeps empty-collection sections (stable JSON shape)' {
+        $sections = [ordered]@{ Empty = @() }
+        $result = ConvertTo-SPSWeatherReport -Section $sections
+        $result.Report.PSObject.Properties.Name | Should -Contain 'Empty'
+    }
+
+    It 'matches a hand-rolled replication of the legacy assembly logic' {
+        $sections = [ordered]@{
+            SPHealthAnalyzer   = @([pscustomobject]@{ IsInfo = $true })
+            SPSContentDBStatus = @([pscustomobject]@{ IsInfo = $false })
+            SPWeatherListInfo  = @([pscustomobject]@{ PSVersion = '5.1' })
+            SYSDiskUsageStatus = @()
+        }
+
+        # Replicate the original per-section behavior.
+        $legacy = [PSCustomObject]@{}
+        $legacyAlert = 'INFO'
+        foreach ($name in $sections.Keys) {
+            $data = $sections[$name]
+            if ($null -ne $data) {
+                if ($data.IsInfo -contains $false) { $legacyAlert = 'ALERT' }
+                $legacy | Add-Member -MemberType NoteProperty -Name $name -Value $data
+            }
+        }
+
+        $result = ConvertTo-SPSWeatherReport -Section $sections
+        $result.Report.PSObject.Properties.Name | Should -Be ($legacy.PSObject.Properties.Name)
+        (& { if ($result.IsAlert) { 'ALERT' } else { 'INFO' } }) | Should -Be $legacyAlert
     }
 }
 
@@ -211,6 +318,23 @@ Describe 'HTML report (Join-HtmlBodyFromPSo)' {
 
     It 'renders a failed status cell for a non-OK row' {
         $html | Should -Match 'tdfailed'
+    }
+
+    It 'renders the SQL sections with 3-state coloring' {
+        $sqlReport = [PSCustomObject]@{}
+        $sqlReport | Add-Member -MemberType NoteProperty -Name SQLInstanceStatus -Value @(
+            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Edition = 'Std'; Version = '15.0'; MaxDop = 1; TempDbDataFiles = 8; Recommendation = ''; IsInfo = $true }
+            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Edition = 'Std'; Version = '15.0'; MaxDop = 0; TempDbDataFiles = 1; Recommendation = 'MAXDOP=0 (SharePoint requires 1)'; IsInfo = $true }
+        )
+        $sqlReport | Add-Member -MemberType NoteProperty -Name SQLDiskStatus -Value @(
+            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Volume = 'D:\'; TotalGB = 100; FreeGB = 5; FreePercent = 5; IsInfo = $false }
+        )
+        $sqlHtml = Join-HtmlBodyFromPSo -PSObjectFromJson $sqlReport
+        $sqlHtml | Should -Match 'SQL - Instance Status'
+        $sqlHtml | Should -Match 'SQL - Disk Volume Status'
+        $sqlHtml | Should -Match 'tdwarning'   # advisory MAXDOP row
+        $sqlHtml | Should -Match 'tdfailed'    # low free disk
+        $sqlHtml | Should -Match 'tdsuccess'   # healthy instance row
     }
 }
 

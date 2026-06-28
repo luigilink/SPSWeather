@@ -75,6 +75,7 @@ SPSWeather writes lifecycle entries to a dedicated **`SPSWeather`** Windows Even
 | 1001 | Information | The run completed with no alert. |
 | 2000 | Warning | The run completed with **ALERT** conditions. |
 | 3000 | Error | The report email could not be sent. |
+| 3001 | Error | A farm server was unreachable over CredSSP and was skipped. |
 
 Each event header records the SPSWeather version, the user and the computer name:
 

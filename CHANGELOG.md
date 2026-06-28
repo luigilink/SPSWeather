@@ -5,6 +5,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-06-28
+
+### Added
+
+- `Test-SPSWeatherReadiness.ps1`: a read-only pre-flight check that validates the
+  module import, the configuration `.psd1` and its required keys, the
+  DPAPI-decryptable `secrets.psd1` credential, Administrator rights and per-farm
+  WinRM/CredSSP reachability before a run (#19).
+- SQL Server health checks (`Get-SPSSqlStatus`), collected from a SharePoint
+  server with dependency-free ADO.NET (no `SqlServer` module). SQL servers are
+  discovered via `Get-SPDatabase`. Four new report sections / ExclusionRules
+  keys: `SQLInstanceStatus`, `SQLDatabaseStatus`, `SQLDiskStatus`,
+  `SQLAvailabilityStatus`, covering instance config (MAXDOP, memory, TempDB),
+  databases (state, recovery model, sizes, last full backup), volume free space
+  (`sys.dm_os_volume_stats`) and AlwaysOn/Agent. Thresholds
+  `SQLDiskFreeThresholdPercent` (15) and `SQLBackupMaxAgeDays` (3) are
+  configurable (#17).
+- Per-farm resilience: a farm whose server is unreachable over CredSSP is now
+  logged (console warning + SPSWeather event ID 3001) and skipped, instead of
+  letting the failure abort the whole run (#18).
+
+### Changed
+
+- Refactor the report assembly in `SPSWeather.ps1` into a testable
+  `ConvertTo-SPSWeatherReport` module function with identical output, replacing
+  ~140 lines of repeated per-section `Add-Member` blocks (#18).
+
 ## [2.0.1] - 2026-06-28
 
 ### Fixed

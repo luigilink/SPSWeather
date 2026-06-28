@@ -168,6 +168,10 @@ $tbSYSDOTNETVersion = @()
 $tbSYSDiskUsageStatus = @()
 $tbSPWeatherListInfo = @()
 $tbSPSContentDBStatus = @()
+$tbSQLInstanceStatus = @()
+$tbSQLDatabaseStatus = @()
+$tbSQLDiskStatus = @()
+$tbSQLAvailabilityStatus = @()
 
 # Check Permission Level
 if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
@@ -207,13 +211,26 @@ else {
             Throw "Credential '$($envCfg.CredentialKey)' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Install as the service account, or populate secrets.psd1 manually. See the wiki for details."
         }
         $spFarms = $envCfg.Farms
+        # Optional SQL thresholds (config overrides, with safe defaults)
+        $sqlDiskThreshold = if ($null -ne $envCfg.SQLDiskFreeThresholdPercent) { [int]$envCfg.SQLDiskFreeThresholdPercent } else { 15 }
+        $sqlBackupMaxAge = if ($null -ne $envCfg.SQLBackupMaxAgeDays) { [int]$envCfg.SQLBackupMaxAgeDays } else { 3 }
         Add-SPSWeatherEvent -Message "SPSWeather $spsWeatherVersion started for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1000
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
             Write-Output '--------------------------------------------------------------'
             Write-Output "Farm: $($spFarm.Name) - Targeted Server: $spTargetServer"
-            $spsVersion = Get-SPSVersion -Server $spTargetServer `
-                -InstallAccount $ADM
+            # Per-farm resilience: probe the target with the first remote call. If the
+            # server cannot be reached over CredSSP, log it and move on to the next farm
+            # instead of aborting the whole run (or, before 2.0.1, running locally).
+            try {
+                $spsVersion = Get-SPSVersion -Server $spTargetServer `
+                    -InstallAccount $ADM
+            }
+            catch {
+                Write-Warning -Message "Skipping farm '$($spFarm.Name)': '$spTargetServer' is unreachable. $($_.Exception.Message)"
+                Add-SPSWeatherEvent -Message "SPSWeather skipped farm '$($spFarm.Name)' ($spTargetServer) which was unreachable: $($_.Exception.Message)" -EntryType 'Error' -EventID 3001
+                continue
+            }
 
             Write-Output "SharePoint Version: $spsVersion"
 
@@ -357,6 +374,23 @@ else {
                     -Servers $spServers `
                     -WarningPercentage 20
             }
+
+            # Get SQL Server health for the farm (Tier 1+2+3), unless every SQL
+            # check is excluded. Get-SPSSqlStatus discovers the SQL servers from
+            # Get-SPDatabase and queries them with dependency-free ADO.NET.
+            $sqlExclusions = @('SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus', 'SQLAvailabilityStatus')
+            if (@($sqlExclusions | Where-Object { -not $ExclusionRules.Contains($_) }).Count -gt 0) {
+                Write-Output "Getting SQL Server health for farm $($spFarm.Name)"
+                $sqlStatus = Get-SPSSqlStatus -Server $spTargetServer `
+                    -InstallAccount $ADM `
+                    -Farm "$($spFarm.Name)" `
+                    -DiskFreeThresholdPercent $sqlDiskThreshold `
+                    -BackupMaxAgeDays $sqlBackupMaxAge
+                if (-not $ExclusionRules.Contains('SQLInstanceStatus')) { $tbSQLInstanceStatus += $sqlStatus.Instances }
+                if (-not $ExclusionRules.Contains('SQLDatabaseStatus')) { $tbSQLDatabaseStatus += $sqlStatus.Databases }
+                if (-not $ExclusionRules.Contains('SQLDiskStatus')) { $tbSQLDiskStatus += $sqlStatus.Disks }
+                if (-not $ExclusionRules.Contains('SQLAvailabilityStatus')) { $tbSQLAvailabilityStatus += $sqlStatus.Availability }
+            }
         }
 
         $tbSPWeatherListInfo = Get-SPWeatherListInfo -Version $spsWeatherVersion `
@@ -367,144 +401,40 @@ else {
             -Environment $Environment `
             -Application $Application
 
-        Write-Output 'Adding each list object in PsCustomObject jsonObject:'
-        if ($null -ne $tbhealthListItems) {
-            if ($tbhealthListItems.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SPHealthAnalyzer object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPHealthAnalyzer `
-                -Value $tbhealthListItems
+        Write-Output 'Assembling the SPSWeather report object:'
+        $reportSections = [ordered]@{
+            SPHealthAnalyzer         = $tbhealthListItems
+            SPUpgradeStatus          = $tbUpgradeListItems
+            SPAPIHttpStatus          = $tbSPAPIHttpStatus
+            SPSSitesHttpStatus       = $tbSPSSitesHttpStatus
+            SPFailedTimerJobs        = $tbSPSfailedJobs
+            SPSolutionDeployment     = $tbSPSolutions
+            SPSearchLastCrawlStatus  = $tbSPSSearchEntCrawlStatus
+            SPSearchCrawlLogs        = $tbSPSSearchEntCrawlLogs
+            SPSSearchEntTopology     = $tbSPSSearchEntTopology
+            AppFabricStatus          = $tbAppFabricStatus
+            USPAudienceStatus        = $tbUSPAudienceStatus
+            IISApplicationPoolStatus = $tbIISApplicationPoolStatus
+            IISWorkerProcessStatus   = $tbIISWorkerProcessStatus
+            IISWebSiteCertStatus     = $tbIISSiteCertStatus
+            SYSEventViewerAppErrors  = $tbSYSEventViewerAppErrors
+            SYSDiskUsageStatus       = $tbSYSDiskUsageStatus
+            SYSLastRebootStatus      = $tbSYSLastRebootStatus
+            SYSDOTNETVersion         = $tbSYSDOTNETVersion
+            SPWeatherListInfo        = $tbSPWeatherListInfo
+            SPSContentDBStatus       = $tbSPSContentDBStatus
+            SQLInstanceStatus        = $tbSQLInstanceStatus
+            SQLDatabaseStatus        = $tbSQLDatabaseStatus
+            SQLDiskStatus            = $tbSQLDiskStatus
+            SQLAvailabilityStatus    = $tbSQLAvailabilityStatus
         }
-        if ($null -ne $tbUpgradeListItems) {
-            if ($tbUpgradeListItems.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SPUpgradeStatus object'
+        $reportResult = ConvertTo-SPSWeatherReport -Section $reportSections
+        foreach ($section in $reportResult.Report.PSObject.Properties) {
             $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPUpgradeStatus `
-                -Value $tbUpgradeListItems
+                -Name $section.Name `
+                -Value $section.Value
         }
-        if ($null -ne $tbSPAPIHttpStatus) {
-            if ($tbSPAPIHttpStatus.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SPAPIHttpStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPAPIHttpStatus `
-                -Value $tbSPAPIHttpStatus
-        }
-        if ($null -ne $tbSPSSitesHttpStatus) {
-            if ($tbSPSSitesHttpStatus.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SPSSitesHttpStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPSSitesHttpStatus `
-                -Value $tbSPSSitesHttpStatus
-        }
-        if ($null -ne $tbSPSfailedJobs) {
-            if ($tbSPSfailedJobs.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SPFailedTimerJobs object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPFailedTimerJobs `
-                -Value $tbSPSfailedJobs
-        }
-        if ($null -ne $tbSPSolutions) {
-            if ($tbSPSolutions.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SPSolutionDeployment object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPSolutionDeployment `
-                -Value $tbSPSolutions
-        }
-        if ($null -ne $tbSPSSearchEntCrawlStatus) {
-            if ($tbSPSSearchEntCrawlStatus.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SPSearchLastCrawlStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPSearchLastCrawlStatus `
-                -Value $tbSPSSearchEntCrawlStatus
-        }
-        if ($null -ne $tbSPSSearchEntCrawlLogs) {
-            if ($tbSPSSearchEntCrawlLogs.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SPSearchCrawlLogs object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPSearchCrawlLogs `
-                -Value $tbSPSSearchEntCrawlLogs
-        }
-        if ($null -ne $tbSPSSearchEntTopology) {
-            if ($tbSPSSearchEntTopology.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SPSSearchEntTopology object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPSSearchEntTopology `
-                -Value $tbSPSSearchEntTopology
-        }    
-        if ($null -ne $tbAppFabricStatus) {
-            if ($tbAppFabricStatus.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding AppFabricStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name AppFabricStatus `
-                -Value $tbAppFabricStatus
-        }
-        if ($null -ne $tbUSPAudienceStatus) {
-            if ($tbUSPAudienceStatus.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding USPAudienceStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name USPAudienceStatus `
-                -Value $tbUSPAudienceStatus
-        }
-        if ($null -ne $tbIISApplicationPoolStatus) {
-            if ($tbIISApplicationPoolStatus.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding IISApplicationPoolStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name IISApplicationPoolStatus `
-                -Value $tbIISApplicationPoolStatus
-        }
-        if ($null -ne $tbIISWorkerProcessStatus) {
-            if ($tbIISWorkerProcessStatus.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding IISWorkerProcessStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name IISWorkerProcessStatus `
-                -Value $tbIISWorkerProcessStatus
-        }
-        if ($null -ne $tbIISSiteCertStatus) {
-            if ($tbIISSiteCertStatus.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding IISWebSiteCertStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name IISWebSiteCertStatus `
-                -Value $tbIISSiteCertStatus
-        }
-        if ($null -ne $tbSYSEventViewerAppErrors) {
-            if ($tbSYSEventViewerAppErrors.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SYSEventViewerAppErrors object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SYSEventViewerAppErrors `
-                -Value $tbSYSEventViewerAppErrors
-        }
-        if ($null -ne $tbSYSDiskUsageStatus) {
-            if ($tbSYSDiskUsageStatus.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SYSDiskUsageStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SYSDiskUsageStatus `
-                -Value $tbSYSDiskUsageStatus
-        }
-        if ($null -ne $tbSYSLastRebootStatus) {
-            Write-Output '* Adding SYSLastRebootStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SYSLastRebootStatus `
-                -Value $tbSYSLastRebootStatus
-        }
-        if ($null -ne $tbSYSDOTNETVersion) {
-            Write-Output '* Adding SYSDOTNETVersion object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SYSDOTNETVersion `
-                -Value $tbSYSDOTNETVersion
-        }
-        if ($null -ne $tbSPWeatherListInfo) {
-            Write-Output '* Adding SPWeatherListInfo object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPWeatherListInfo `
-                -Value $tbSPWeatherListInfo
-        }
-        if ($null -ne $tbSPSContentDBStatus) {
-            if ($tbSPSContentDBStatus.IsInfo -contains $false) { $mailAlert = 'ALERT' }
-            Write-Output '* Adding SPSContentDBStatus object'
-            $jsonObject | Add-Member -MemberType NoteProperty `
-                -Name SPSContentDBStatus `
-                -Value $tbSPSContentDBStatus
-        }
+        if ($reportResult.IsAlert) { $mailAlert = 'ALERT' }
 
         Trap { Continue }
 

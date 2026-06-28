@@ -83,6 +83,7 @@ jobs:
           # intentionally excluded (its UTF-16 manifest is shipped verbatim).
           $results = @()
           $results += Invoke-ScriptAnalyzer -Path ./src/SPSWeather.ps1 -Settings ./PSScriptAnalyzerSettings.psd1
+          $results += Invoke-ScriptAnalyzer -Path ./src/Test-SPSWeatherReadiness.ps1 -Settings ./PSScriptAnalyzerSettings.psd1
           $results += Invoke-ScriptAnalyzer -Path ./src/Modules/SPSWeather.Common -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
 
           if ($results) {

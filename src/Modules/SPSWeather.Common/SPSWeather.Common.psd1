@@ -1,6 +1,6 @@
 ﻿@{
     RootModule        = 'SPSWeather.Common.psm1'
-    ModuleVersion     = '2.0.1'
+    ModuleVersion     = '2.1.0'
     GUID              = 'c39bd612-8520-4e65-9037-80060894d654'
     Author            = 'Jean-Cyril DROUHIN'
     CompanyName       = 'luigilink'
@@ -13,6 +13,7 @@
         'Add-SPSSheduledTask'
         'Add-SPSWeatherEvent'
         'Clear-SPSLog'
+        'ConvertTo-SPSWeatherReport'
         'Get-AppFabricStatus'
         'Get-SPSAPIHttpStatus'
         'Get-SPSContentDBStatus'
@@ -24,6 +25,7 @@
         'Get-SPSServer'
         'Get-SPSSiteHttpStatus'
         'Get-SPSSolutionStatus'
+        'Get-SPSSqlStatus'
         'Get-SPSUpgradeStatus'
         'Get-SPSVersion'
         'Get-SPWeatherListInfo'

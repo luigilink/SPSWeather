@@ -437,33 +437,90 @@
             -TableHeaders @('Farm', 'Server', 'DriveLetter', 'Size (GB)', 'Free Space (GB)', 'Status') `
             -TableRows $htmlTableRows
     }
-    if (($PSObjectFromJson.SQLInstancesStatus).Count -ne 0) {
+    if (($PSObjectFromJson.SQLInstanceStatus).Count -ne 0) {
         $htmlTableRows = @()
-        foreach ($SQLInstancesStatusItem in ($PSObjectFromJson.SQLInstancesStatus)) {
-            $htmlTableRows += "<tr><td class=`"tddefault`">$($SQLInstancesStatusItem.Server)</td>"
-            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLInstancesStatusItem.InstanceName)</td>"
-            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLInstancesStatusItem.Version)</td>"
-            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLInstancesStatusItem.ProductLevel)</td>"
-            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLInstancesStatusItem.UpdateLevel)</td>"
+        foreach ($SQLInstanceStatusItem in ($PSObjectFromJson.SQLInstanceStatus)) {
+            $htmlTableRows += "<tr><td class=`"tddefault`">$($SQLInstanceStatusItem.Farm)</td>"
+            $htmlTableRows += "<td class=`"tddefault`">$($SQLInstanceStatusItem.SqlServer)</td>"
+            $htmlTableRows += "<td class=`"tddefault`">$($SQLInstanceStatusItem.Edition)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLInstanceStatusItem.Version)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLInstanceStatusItem.MaxDop)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLInstanceStatusItem.TempDbDataFiles)</td>"
+            if (-not $SQLInstanceStatusItem.IsInfo) {
+                $htmlTableRows += "<td class=`"tdfailed`">$($SQLInstanceStatusItem.Recommendation)</td></tr>"
+            }
+            elseif ($SQLInstanceStatusItem.Recommendation) {
+                $htmlTableRows += "<td class=`"tdwarning`">$($SQLInstanceStatusItem.Recommendation)</td></tr>"
+            }
+            else {
+                $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">OK</td></tr>"
+            }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SQL - Instance Status' `
             -TableRole 'SQLInstanceStatus' `
-            -TableHeaders @('Server', 'InstanceName', 'Version', 'ProductLevel', 'UpdateLevel') `
+            -TableHeaders @('Farm', 'SQL Server', 'Edition', 'Version', 'MAXDOP', 'TempDB Files', 'Status') `
             -TableRows $htmlTableRows
     }
-    if (($PSObjectFromJson.SQLDatabasesStatus).Count -ne 0) {
+    if (($PSObjectFromJson.SQLDatabaseStatus).Count -ne 0) {
         $htmlTableRows = @()
-        foreach ($SQLDatabasesStatusItem in ($PSObjectFromJson.SQLDatabasesStatus)) {
-            $htmlTableRows += "<tr><td class=`"tddefault`">$($SQLDatabasesStatusItem.Server)</td>"
-            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDatabasesStatusItem.Instance)</td>"
-            $htmlTableRows += "<td class=`"tddefault`">$($SQLDatabasesStatusItem.Name)</td>"
-            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDatabasesStatusItem.Status)</td>"
-            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDatabasesStatusItem.Size)</td>"
-            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDatabasesStatusItem.SpaceAvailable)</td>"
+        foreach ($SQLDatabaseStatusItem in ($PSObjectFromJson.SQLDatabaseStatus)) {
+            $htmlTableRows += "<tr><td class=`"tddefault`">$($SQLDatabaseStatusItem.SqlServer)</td>"
+            $htmlTableRows += "<td class=`"tddefault`">$($SQLDatabaseStatusItem.Name)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDatabaseStatusItem.State)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDatabaseStatusItem.RecoveryModel)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDatabaseStatusItem.DataSizeMB)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDatabaseStatusItem.LogSizeMB)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDatabaseStatusItem.LastFullBackup)</td>"
+            if (-not $SQLDatabaseStatusItem.IsInfo) {
+                $htmlTableRows += "<td class=`"tdfailed`">$($SQLDatabaseStatusItem.Recommendation)</td></tr>"
+            }
+            elseif ($SQLDatabaseStatusItem.Recommendation) {
+                $htmlTableRows += "<td class=`"tdwarning`">$($SQLDatabaseStatusItem.Recommendation)</td></tr>"
+            }
+            else {
+                $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">OK</td></tr>"
+            }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SQL - Database Status' `
             -TableRole 'SQLDatabaseStatus' `
-            -TableHeaders @('Server', 'Instance', 'Database', 'Status', 'Size (GB)', 'SpaceAvailable (MB)') `
+            -TableHeaders @('SQL Server', 'Database', 'State', 'Recovery', 'Data (MB)', 'Log (MB)', 'Last Full Backup', 'Status') `
+            -TableRows $htmlTableRows
+    }
+    if (($PSObjectFromJson.SQLDiskStatus).Count -ne 0) {
+        $htmlTableRows = @()
+        foreach ($SQLDiskStatusItem in ($PSObjectFromJson.SQLDiskStatus)) {
+            $htmlTableRows += "<tr><td class=`"tddefault`">$($SQLDiskStatusItem.SqlServer)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDiskStatusItem.Volume)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDiskStatusItem.TotalGB)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLDiskStatusItem.FreeGB)</td>"
+            if (-not $SQLDiskStatusItem.IsInfo) {
+                $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($SQLDiskStatusItem.FreePercent) %</td></tr>"
+            }
+            else {
+                $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($SQLDiskStatusItem.FreePercent) %</td></tr>"
+            }
+        }
+        $htmlBodyMerge += Join-HtmlTable -TitleH1 'SQL - Disk Volume Status' `
+            -TableRole 'SQLDiskStatus' `
+            -TableHeaders @('SQL Server', 'Volume', 'Total (GB)', 'Free (GB)', 'Free %') `
+            -TableRows $htmlTableRows
+    }
+    if (($PSObjectFromJson.SQLAvailabilityStatus).Count -ne 0) {
+        $htmlTableRows = @()
+        foreach ($SQLAvailabilityStatusItem in ($PSObjectFromJson.SQLAvailabilityStatus)) {
+            $htmlTableRows += "<tr><td class=`"tddefault`">$($SQLAvailabilityStatusItem.SqlServer)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLAvailabilityStatusItem.Type)</td>"
+            $htmlTableRows += "<td class=`"tddefault`">$($SQLAvailabilityStatusItem.Name)</td>"
+            if (-not $SQLAvailabilityStatusItem.IsInfo) {
+                $htmlTableRows += "<td class=`"tdfailed`">$($SQLAvailabilityStatusItem.Detail)</td></tr>"
+            }
+            else {
+                $htmlTableRows += "<td class=`"tdsuccess`">$($SQLAvailabilityStatusItem.Detail)</td></tr>"
+            }
+        }
+        $htmlBodyMerge += Join-HtmlTable -TitleH1 'SQL - Availability Status' `
+            -TableRole 'SQLAvailabilityStatus' `
+            -TableHeaders @('SQL Server', 'Type', 'Name', 'Detail') `
             -TableRows $htmlTableRows
     }
     $htmlBody = $htmlHEADER + $htmlBodyMerge + $htmlFOOTER
