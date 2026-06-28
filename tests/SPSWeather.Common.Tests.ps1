@@ -375,6 +375,19 @@ Describe 'HTML report (Join-HtmlBodyFromPSo)' {
         $sqlHtml | Should -Match 'tdfailed'    # low free disk
         $sqlHtml | Should -Match 'tdsuccess'   # healthy instance row
     }
+
+    It 'renders the SQL alias mapping section with advisory coloring' {
+        $aliasReport = [PSCustomObject]@{}
+        $aliasReport | Add-Member -MemberType NoteProperty -Name SQLAliasStatus -Value @(
+            [PSCustomObject]@{ Farm = 'C'; Name = 'SPSQL'; RealServer = 'SQLPROD01\SP'; Protocol = 'TCP'; Port = '1433'; Bitness = 'both'; Note = ''; IsInfo = $true }
+            [PSCustomObject]@{ Farm = 'C'; Name = 'SPSQL2'; RealServer = 'SQLPROD02'; Protocol = 'TCP'; Port = ''; Bitness = '64-bit'; Note = 'alias defined only in 64-bit'; IsInfo = $true }
+        )
+        $aliasHtml = Join-HtmlBodyFromPSo -PSObjectFromJson $aliasReport
+        $aliasHtml | Should -Match 'SQL - Alias Mapping'
+        $aliasHtml | Should -Match 'SQLPROD01\\SP'
+        $aliasHtml | Should -Match 'tdwarning'   # bitness advisory
+        $aliasHtml | Should -Match 'tdsuccess'   # clean mapping
+    }
 }
 
 Describe 'Example configuration (config.psd1)' {

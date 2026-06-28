@@ -437,6 +437,27 @@
             -TableHeaders @('Farm', 'Server', 'DriveLetter', 'Size (GB)', 'Free Space (GB)', 'Status') `
             -TableRows $htmlTableRows
     }
+    if (($PSObjectFromJson.SQLAliasStatus).Count -ne 0) {
+        $htmlTableRows = @()
+        foreach ($SQLAliasStatusItem in ($PSObjectFromJson.SQLAliasStatus)) {
+            $htmlTableRows += "<tr><td class=`"tddefault`">$($SQLAliasStatusItem.Farm)</td>"
+            $htmlTableRows += "<td class=`"tddefault`">$($SQLAliasStatusItem.Name)</td>"
+            $htmlTableRows += "<td class=`"tddefault`">$($SQLAliasStatusItem.RealServer)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLAliasStatusItem.Protocol)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLAliasStatusItem.Port)</td>"
+            $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($SQLAliasStatusItem.Bitness)</td>"
+            if ($SQLAliasStatusItem.Note) {
+                $htmlTableRows += "<td class=`"tdwarning`">$($SQLAliasStatusItem.Note)</td></tr>"
+            }
+            else {
+                $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">OK</td></tr>"
+            }
+        }
+        $htmlBodyMerge += Join-HtmlTable -TitleH1 'SQL - Alias Mapping' `
+            -TableRole 'SQLAliasStatus' `
+            -TableHeaders @('Farm', 'Alias / Name', 'Real Server', 'Protocol', 'Port', 'Bitness', 'Status') `
+            -TableRows $htmlTableRows
+    }
     if (($PSObjectFromJson.SQLInstanceStatus).Count -ne 0) {
         $htmlTableRows = @()
         foreach ($SQLInstanceStatusItem in ($PSObjectFromJson.SQLInstanceStatus)) {

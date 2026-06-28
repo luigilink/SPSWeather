@@ -172,6 +172,7 @@ $tbSQLInstanceStatus = @()
 $tbSQLDatabaseStatus = @()
 $tbSQLDiskStatus = @()
 $tbSQLAvailabilityStatus = @()
+$tbSQLAliasStatus = @()
 
 # Check Permission Level
 if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
@@ -378,18 +379,20 @@ else {
             # Get SQL Server health for the farm (Tier 1+2+3), unless every SQL
             # check is excluded. Get-SPSSqlStatus discovers the SQL servers from
             # Get-SPDatabase and queries them with dependency-free ADO.NET.
-            $sqlExclusions = @('SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus', 'SQLAvailabilityStatus')
+            $sqlExclusions = @('SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus', 'SQLAvailabilityStatus', 'SQLAliasStatus')
             if (@($sqlExclusions | Where-Object { -not $ExclusionRules.Contains($_) }).Count -gt 0) {
                 Write-Output "Getting SQL Server health for farm $($spFarm.Name)"
                 $sqlStatus = Get-SPSSqlStatus -Server $spTargetServer `
                     -InstallAccount $ADM `
                     -Farm "$($spFarm.Name)" `
                     -DiskFreeThresholdPercent $sqlDiskThreshold `
-                    -BackupMaxAgeDays $sqlBackupMaxAge
+                    -BackupMaxAgeDays $sqlBackupMaxAge `
+                    -DeclaredSqlServers $spFarm.SqlServers
                 if (-not $ExclusionRules.Contains('SQLInstanceStatus')) { $tbSQLInstanceStatus += $sqlStatus.Instances }
                 if (-not $ExclusionRules.Contains('SQLDatabaseStatus')) { $tbSQLDatabaseStatus += $sqlStatus.Databases }
                 if (-not $ExclusionRules.Contains('SQLDiskStatus')) { $tbSQLDiskStatus += $sqlStatus.Disks }
                 if (-not $ExclusionRules.Contains('SQLAvailabilityStatus')) { $tbSQLAvailabilityStatus += $sqlStatus.Availability }
+                if (-not $ExclusionRules.Contains('SQLAliasStatus')) { $tbSQLAliasStatus += $sqlStatus.Aliases }
             }
         }
 
@@ -427,6 +430,7 @@ else {
             SQLDatabaseStatus        = $tbSQLDatabaseStatus
             SQLDiskStatus            = $tbSQLDiskStatus
             SQLAvailabilityStatus    = $tbSQLAvailabilityStatus
+            SQLAliasStatus           = $tbSQLAliasStatus
         }
         $reportResult = ConvertTo-SPSWeatherReport -Section $reportSections
         foreach ($section in $reportResult.Report.PSObject.Properties) {
