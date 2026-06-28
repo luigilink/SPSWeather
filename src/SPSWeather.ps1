@@ -168,6 +168,10 @@ $tbSYSDOTNETVersion = @()
 $tbSYSDiskUsageStatus = @()
 $tbSPWeatherListInfo = @()
 $tbSPSContentDBStatus = @()
+$tbSQLInstanceStatus = @()
+$tbSQLDatabaseStatus = @()
+$tbSQLDiskStatus = @()
+$tbSQLAvailabilityStatus = @()
 
 # Check Permission Level
 if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
@@ -207,6 +211,9 @@ else {
             Throw "Credential '$($envCfg.CredentialKey)' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Install as the service account, or populate secrets.psd1 manually. See the wiki for details."
         }
         $spFarms = $envCfg.Farms
+        # Optional SQL thresholds (config overrides, with safe defaults)
+        $sqlDiskThreshold = if ($null -ne $envCfg.SQLDiskFreeThresholdPercent) { [int]$envCfg.SQLDiskFreeThresholdPercent } else { 15 }
+        $sqlBackupMaxAge = if ($null -ne $envCfg.SQLBackupMaxAgeDays) { [int]$envCfg.SQLBackupMaxAgeDays } else { 3 }
         Add-SPSWeatherEvent -Message "SPSWeather $spsWeatherVersion started for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1000
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
@@ -367,6 +374,23 @@ else {
                     -Servers $spServers `
                     -WarningPercentage 20
             }
+
+            # Get SQL Server health for the farm (Tier 1+2+3), unless every SQL
+            # check is excluded. Get-SPSSqlStatus discovers the SQL servers from
+            # Get-SPDatabase and queries them with dependency-free ADO.NET.
+            $sqlExclusions = @('SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus', 'SQLAvailabilityStatus')
+            if (@($sqlExclusions | Where-Object { -not $ExclusionRules.Contains($_) }).Count -gt 0) {
+                Write-Output "Getting SQL Server health for farm $($spFarm.Name)"
+                $sqlStatus = Get-SPSSqlStatus -Server $spTargetServer `
+                    -InstallAccount $ADM `
+                    -Farm "$($spFarm.Name)" `
+                    -DiskFreeThresholdPercent $sqlDiskThreshold `
+                    -BackupMaxAgeDays $sqlBackupMaxAge
+                if (-not $ExclusionRules.Contains('SQLInstanceStatus')) { $tbSQLInstanceStatus += $sqlStatus.Instances }
+                if (-not $ExclusionRules.Contains('SQLDatabaseStatus')) { $tbSQLDatabaseStatus += $sqlStatus.Databases }
+                if (-not $ExclusionRules.Contains('SQLDiskStatus')) { $tbSQLDiskStatus += $sqlStatus.Disks }
+                if (-not $ExclusionRules.Contains('SQLAvailabilityStatus')) { $tbSQLAvailabilityStatus += $sqlStatus.Availability }
+            }
         }
 
         $tbSPWeatherListInfo = Get-SPWeatherListInfo -Version $spsWeatherVersion `
@@ -399,6 +423,10 @@ else {
             SYSDOTNETVersion         = $tbSYSDOTNETVersion
             SPWeatherListInfo        = $tbSPWeatherListInfo
             SPSContentDBStatus       = $tbSPSContentDBStatus
+            SQLInstanceStatus        = $tbSQLInstanceStatus
+            SQLDatabaseStatus        = $tbSQLDatabaseStatus
+            SQLDiskStatus            = $tbSQLDiskStatus
+            SQLAvailabilityStatus    = $tbSQLAvailabilityStatus
         }
         $reportResult = ConvertTo-SPSWeatherReport -Section $reportSections
         foreach ($section in $reportResult.Report.PSObject.Properties) {

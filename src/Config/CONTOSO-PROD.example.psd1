@@ -32,13 +32,20 @@
 
     # ExclusionRules : checks to skip. Authorized values: None, APIHttpStatus,
     # SPSiteHttpStatus, EvtViewerStatus, IISW3WPStatus, HealthStatus, WSPStatus,
-    # FailedTimerJob.
+    # FailedTimerJob, SQLInstanceStatus, SQLDatabaseStatus, SQLDiskStatus,
+    # SQLAvailabilityStatus.
     ExclusionRules    = @(
         'SPSiteHttpStatus'
         'EvtViewerStatus'
         'IISW3WPStatus'
         'WSPStatus'
     )
+
+    # SQL thresholds (optional; defaults shown). A SQL volume below
+    # SQLDiskFreeThresholdPercent free, or a database whose last full backup is
+    # older than SQLBackupMaxAgeDays, raises an alert.
+    SQLDiskFreeThresholdPercent = 15
+    SQLBackupMaxAgeDays         = 3
 
     # Farms : one entry per trusted farm to check. Server is the short name; the
     # Domain above is appended to build the FQDN targeted for remoting.
