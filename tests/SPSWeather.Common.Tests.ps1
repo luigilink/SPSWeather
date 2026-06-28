@@ -36,7 +36,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'manifest version is 2.0.0 or higher' {
-        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.0.0')
+        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.0.1')
     }
 
     It 'exports exactly the expected public functions' {
@@ -58,8 +58,6 @@ Describe 'SPSWeather.Common module' {
             'Get-SPSUpgradeStatus'
             'Get-SPSVersion'
             'Get-SPWeatherListInfo'
-            'Get-SQLDatabasesStatus'
-            'Get-SQLInstancesStatus'
             'Get-SYSDiskUsageStatus'
             'Get-SYSDOTNETVersion'
             'Get-SYSEvtAppErrors'
@@ -158,6 +156,43 @@ Describe 'Public function contracts' {
         $cmd.Parameters['Source'].Attributes.Where{ $_ -is [System.Management.Automation.ParameterAttribute] } |
             Should -Not -BeNullOrEmpty
         $cmd.Parameters.Keys | Should -Contain 'EventID'
+    }
+}
+
+Describe 'Invoke-SPSCommand remoting' {
+    It 'throws and never runs the command locally when the session cannot be opened' -Skip:(-not $IsWindows) {
+        InModuleScope SPSWeather.Common {
+            Mock New-PSSession { throw 'CredSSP not configured' }
+            Mock Invoke-Command { 'SHOULD-NOT-RUN' }
+            Mock Remove-PSSession {}
+
+            $cred = [System.Management.Automation.PSCredential]::new(
+                'CONTOSO\svc', (ConvertTo-SecureString 'p' -AsPlainText -Force))
+
+            { Invoke-SPSCommand -Credential $cred -Server 'SRV1' -ScriptBlock { 1 } } |
+                Should -Throw "*Failed to open a CredSSP PSSession to 'SRV1'*"
+
+            # The bug being guarded: Invoke-Command must NOT run without a session.
+            Should -Invoke Invoke-Command -Times 0 -Exactly
+        }
+    }
+
+    It 'runs Invoke-Command with the opened session and disposes it' -Skip:(-not $IsWindows) {
+        InModuleScope SPSWeather.Common {
+            $fakeSession = [pscustomobject]@{ Name = 'fake' }
+            Mock New-PSSession { $fakeSession }
+            Mock Invoke-Command { 'REMOTE-OK' }
+            Mock Remove-PSSession {}
+
+            $cred = [System.Management.Automation.PSCredential]::new(
+                'CONTOSO\svc', (ConvertTo-SecureString 'p' -AsPlainText -Force))
+
+            $result = Invoke-SPSCommand -Credential $cred -Server 'SRV1' -ScriptBlock { 1 }
+
+            $result | Should -Be 'REMOTE-OK'
+            Should -Invoke Invoke-Command -Times 1 -ParameterFilter { $Session -eq $fakeSession }
+            Should -Invoke Remove-PSSession -Times 1
+        }
     }
 }
 

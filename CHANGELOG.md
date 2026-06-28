@@ -5,6 +5,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-06-28
+
+### Fixed
+
+- `Invoke-SPSCommand` no longer runs the SharePoint command on the **local**
+  server when the CredSSP session cannot be opened. It used to add the remote
+  session only when `New-PSSession` succeeded, so a session failure (CredSSP
+  misconfigured or server unreachable) silently executed the scriptblock
+  locally; it now fails with a clear, server-scoped error (#15).
+
+### Removed
+
+- Dead code: the orphaned public functions `Get-SQLInstancesStatus` /
+  `Get-SQLDatabasesStatus` (never called, and broken — they wrote to a
+  `$jsonObject` that did not exist in their scope) and the unused private helper
+  `Invoke-SPSWebRequestUrl`. A proper SQL Server health check is planned for
+  2.1.0 (#16, see #17).
+
 ## [2.0.0] - 2026-06-28
 
 This is a major modernization release. The flat helper modules become a real
