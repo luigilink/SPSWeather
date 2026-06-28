@@ -37,35 +37,38 @@
     if ($null -eq $Credential) {
         throw 'You need to specify a Credential'
     }
-    else {
-        Write-Verbose -Message ("Executing using a provided credential and local PSSession " + `
-                "as user $($Credential.UserName)")
 
-        # Running garbage collection to resolve issues related to Azure DSC extention use
-        [GC]::Collect()
+    Write-Verbose -Message ("Executing on '$Server' using a CredSSP PSSession " + `
+            "as user $($Credential.UserName)")
 
+    # Running garbage collection to resolve issues related to Azure DSC extension use
+    [GC]::Collect()
+
+    # Open the remote session, failing clearly instead of silently running the
+    # SharePoint scriptblock on the local server when the CredSSP session cannot be
+    # established (e.g. CredSSP not configured, or the target server is unreachable).
+    try {
         $session = New-PSSession -ComputerName $Server `
             -Credential $Credential `
             -Authentication CredSSP `
             -Name "Microsoft.SharePoint.PSSession" `
             -SessionOption (New-PSSessionOption -OperationTimeout 0 `
                 -IdleTimeout 60000) `
-            -ErrorAction Continue
+            -ErrorAction Stop
+    }
+    catch {
+        throw "Failed to open a CredSSP PSSession to '$Server': $($_.Exception.Message)"
+    }
 
-        if ($session) {
-            $invokeArgs.Add("Session", $session)
-        }
+    $invokeArgs.Add("Session", $session)
 
-        try {
-            return Invoke-Command @invokeArgs -Verbose
-        }
-        catch {
-            throw $_
-        }
-        finally {
-            if ($session) {
-                Remove-PSSession -Session $session
-            }
-        }
+    try {
+        return Invoke-Command @invokeArgs -Verbose
+    }
+    catch {
+        throw "Remote command on '$Server' failed: $($_.Exception.Message)"
+    }
+    finally {
+        Remove-PSSession -Session $session
     }
 }
