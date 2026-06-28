@@ -173,3 +173,39 @@ Describe 'HTML report (Join-HtmlBodyFromPSo)' {
         $html | Should -Match 'tdfailed'
     }
 }
+
+Describe 'Example configuration (config.psd1)' {
+    BeforeAll {
+        $repoRoot = Split-Path -Path $PSScriptRoot -Parent
+        $cfgPath  = Join-Path -Path $repoRoot -ChildPath 'src/Config/CONTOSO-PROD.example.psd1'
+        $cfg      = Import-PowerShellDataFile -Path $cfgPath
+    }
+
+    It 'parses as a hashtable via Import-PowerShellDataFile' {
+        $cfg | Should -BeOfType ([System.Collections.Hashtable])
+    }
+
+    It 'exposes the keys the entry script reads' {
+        foreach ($key in @('ConfigurationName', 'ApplicationName', 'Domain',
+                'SMTPToAddress', 'SMTPFromAddress', 'SMTPServer', 'ExclusionRules', 'Farms')) {
+            $cfg.Keys | Should -Contain $key
+        }
+    }
+
+    It 'keeps Farms as a collection of Name/Server entries' {
+        $cfg.Farms.Count | Should -BeGreaterThan 0
+        foreach ($farm in $cfg.Farms) {
+            $farm.Name   | Should -Not -BeNullOrEmpty
+            $farm.Server | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    It 'keeps ExclusionRules as an array supporting Contains()' {
+        $cfg.ExclusionRules -is [array] | Should -BeTrue
+        $cfg.ExclusionRules.Contains('SPSiteHttpStatus') | Should -BeTrue
+    }
+
+    It 'keeps SMTPToAddress as an array' {
+        $cfg.SMTPToAddress -is [array] | Should -BeTrue
+    }
+}

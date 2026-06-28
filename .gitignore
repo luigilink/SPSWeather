@@ -7,3 +7,7 @@ coverage.xml
 
 # Local secrets (phase 2 DPAPI credential store) -- NEVER commit real secrets
 **/secrets.psd1
+
+# Real environment configs live in src/Config; only *.example.psd1 templates are tracked
+src/Config/*.psd1
+!src/Config/*.example.psd1

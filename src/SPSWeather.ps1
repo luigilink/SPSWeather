@@ -7,7 +7,7 @@
 
     .PARAMETER ConfigFile
     Need parameter ConfigFile, example:
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -ConfigFile 'contoso-PROD.json'
+    PS D:\> E:\SCRIPT\SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1'
 
     .PARAMETER EnableSmtp
     Use the switch EnableSmtp parameter if you want to enable Email notifications using SMTP
@@ -16,20 +16,20 @@
     .PARAMETER Install
     Use the switch Install parameter if you want to add the SPSWeather script in taskscheduler
     InstallAccount parameter need to be set
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.json'
+    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.psd1'
 
     .PARAMETER InstallAccount
     Need parameter InstallAccount when you use the switch Install parameter
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.json'
+    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.psd1'
 
     .PARAMETER Uninstall
     Use the switch Uninstall parameter if you want to remove the SPSWeather script from taskscheduler
     PS D:\> E:\SCRIPT\SPSWeather.ps1 -Uninstall
 
     .EXAMPLE
-    SPSWeather.ps1 -ConfigFile 'contoso-PROD.json' -EnableSmtp
-    SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.json'
-    SPSWeather.ps1 -Uninstall -ConfigFile 'contoso-PROD.json'
+    SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -EnableSmtp
+    SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.psd1'
+    SPSWeather.ps1 -Uninstall -ConfigFile 'contoso-PROD.psd1'
 
     .NOTES
     FileName:	SPSWeather.ps1
@@ -77,10 +77,10 @@ Import-Module -Name (Join-Path -Path $script:HelperModulePath -ChildPath 'SPSWea
 Import-Module -Name (Join-Path -Path (Join-Path -Path $script:HelperModulePath -ChildPath 'credentialmanager') -ChildPath 'CredentialManager.psd1') -Force
 
 if (Test-Path $ConfigFile) {
-    $jsonEnvCfg = get-content $ConfigFile | ConvertFrom-Json
-    $Application = $jsonEnvCfg.ApplicationName
-    $Environment = $jsonEnvCfg.ConfigurationName
-    $ExclusionRules = $jsonEnvCfg.ExclusionRules
+    $envCfg = Import-PowerShellDataFile -Path $ConfigFile
+    $Application = $envCfg.ApplicationName
+    $Environment = $envCfg.ConfigurationName
+    $ExclusionRules = $envCfg.ExclusionRules
 }
 else {
     Throw "Missing $ConfigFile"
@@ -186,16 +186,16 @@ else {
         Remove-SPSSheduledTask -TaskName $spWeatherTaskName
 
         # Remove Credential from Credential Manager
-        $credential = Get-StoredCredential -Target "$($jsonEnvCfg.StoredCredential)" -ErrorAction SilentlyContinue
+        $credential = Get-StoredCredential -Target "$($envCfg.StoredCredential)" -ErrorAction SilentlyContinue
         if ($null -ne $credential) {
-            Remove-StoredCredential -Target "$($jsonEnvCfg.StoredCredential)"
+            Remove-StoredCredential -Target "$($envCfg.StoredCredential)"
         }
     }
     elseif ($Install) {
         # Add Credential in Credential Manager
-        $credential = Get-StoredCredential -Target "$($jsonEnvCfg.StoredCredential)" -ErrorAction SilentlyContinue
+        $credential = Get-StoredCredential -Target "$($envCfg.StoredCredential)" -ErrorAction SilentlyContinue
         if ($null -eq $credential) {
-            New-StoredCredential -Credentials $InstallAccount -Target "$($jsonEnvCfg.StoredCredential)" -Type Generic -Persist LocalMachine
+            New-StoredCredential -Credentials $InstallAccount -Target "$($envCfg.StoredCredential)" -Type Generic -Persist LocalMachine
         }
 
         # Add SPSWeather script in a new scheduled Task
@@ -203,15 +203,15 @@ else {
     }
     else {
         # Initialize Security
-        $scriptFQDN = $jsonEnvCfg.Domain
-        $credential = Get-StoredCredential -Target "$($jsonEnvCfg.StoredCredential)" -ErrorAction SilentlyContinue
+        $scriptFQDN = $envCfg.Domain
+        $credential = Get-StoredCredential -Target "$($envCfg.StoredCredential)" -ErrorAction SilentlyContinue
         if ($null -ne $credential) {
             New-Variable -Name 'ADM' -Value $credential -Force
         }
         else {
-            Throw "The Target $($jsonEnvCfg.StoredCredential) not present in Credential Manager. Please contact your administrator."
+            Throw "The Target $($envCfg.StoredCredential) not present in Credential Manager. Please contact your administrator."
         }
-        $spFarms = $jsonEnvCfg.Farms
+        $spFarms = $envCfg.Farms
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
             Write-Output '--------------------------------------------------------------'
@@ -524,9 +524,9 @@ else {
 
         # Send Email
         if ($EnableSmtp) {
-            $SmtpToAddress = $jsonEnvCfg.SMTPToAddress
-            $SmtpFromAddress = $jsonEnvCfg.SMTPFromAddress
-            $SmtpServerAddress = $jsonEnvCfg.SMTPServer
+            $SmtpToAddress = $envCfg.SMTPToAddress
+            $SmtpFromAddress = $envCfg.SMTPFromAddress
+            $SmtpServerAddress = $envCfg.SMTPServer
             Write-Output '--------------------------------------------------------------'
             Write-Output "Sending Email"
             Write-Output " * To: $SmtpToAddress"
