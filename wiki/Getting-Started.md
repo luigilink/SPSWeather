@@ -2,47 +2,56 @@
 
 ## Prerequisites
 
-- PowerShell 5.0 or later
-- CredSSP configured
-- Administrative privileges on the SharePoint Server
-- SMTP server configured (if using `EnableSmtp`)
-- StoredCredential configured (if using `Install`)
+- **PowerShell 5.1** (Windows Management Framework 5.0 or above) on every farm server. SPSWeather uses class-based reporting types that require WMF 5.0+.
+- **CredSSP** configured (see below) so the script can remote into each farm server as the service account.
+- **Administrative privileges** on the server that runs SPSWeather (required to create the `SPSWeather` Windows Event Log on first use and to call most SharePoint cmdlets).
+- An **SMTP server** reachable from the run server (only needed with `-EnableSmtp`).
+- A **service account** that can reach the farms; its credential is stored in `Config\secrets.psd1` (see [Configuration](Configuration)).
 
 ## Configure CredSSP
 
 ### Option 1: Manually configure CredSSP
 
-You can manually configure CredSSP through the use of some PowerShell cmdlet's (and potentially group policy to configure the allowed delegate computers). Some basic instructions can be found at [https://technet.microsoft.com/en-us/magazine/ff700227.aspx](https://technet.microsoft.com/en-us/magazine/ff700227.aspx).
+You can configure CredSSP with the relevant PowerShell cmdlets (and, if needed, group policy for the allowed delegate computers).
 
 ### Option 2: Configure CredSSP through a DSC resource
 
-It is possible to use a DSC resource to configure your CredSSP settings on a server, and include this in all of your SharePoint server configurations. This is done through the use of the [xCredSSP](https://github.com/PowerShell/xCredSSP) resource. The below example shows how this can be used.
+You can use the [xCredSSP](https://github.com/PowerShell/xCredSSP) DSC resource and include it in your SharePoint server configurations:
 
 ```powershell
 xCredSSP CredSSPServer { Ensure = "Present"; Role = "Server" }
 xCredSSP CredSSPClient { Ensure = "Present"; Role = "Client"; DelegateComputers = $CredSSPDelegates }
 ```
 
-In the above example, `$CredSSPDelegates` can be a wildcard name (such as "\*.contoso.com" to allow all servers in the contoso.com domain), or a list of specific servers (such as "server1", "server 2" to allow only specific servers).
+`$CredSSPDelegates` can be a wildcard (such as `*.contoso.com`) or a list of specific servers.
 
 ## Installation
 
-1. [Download the latest release](https://github.com/luigilink/SPSWeather/releases/latest) and unzip to a directory on your SharePoint Server. The entry script `SPSWeather.ps1` and its `SPSWeather.Common` module live in the `src` folder; run the commands below from there.
-2. Prepare your JSON configuration file with the required SMTP and farm details.
-3. Add the script in task scheduler by running the following command:
+1. [Download the latest release](https://github.com/luigilink/SPSWeather/releases/latest) and unzip it to a directory on your SharePoint Server. The archive extracts straight to `SPSWeather.ps1`, `Config\` and `Modules\` (the `SPSWeather.Common` module ships inside `Modules\`).
+2. Copy `Config\CONTOSO-PROD.example.psd1` to your own config (e.g. `Config\contoso-PROD.psd1`) and edit it for your environment. See [Configuration](Configuration).
+3. Register the scheduled task **while signed in as the service account** so the credential is encrypted under that account:
 
 ```powershell
-.\SPSWeather.ps1 -ConfigFile 'contoso-PROD.json' -Install -InstallAccount (Get-Credential)
+.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -Install -InstallAccount (Get-Credential)
 ```
 
 > [!IMPORTANT]
-> Configure the StoredCredential parameter in JSON before running the script in installation mode.
-> Run the Install mode with the same account than you used the in InstallAccount parameter
+> Run the `-Install` step as the **same account** you pass to `-InstallAccount`. The credential is stored in `Config\secrets.psd1` as a DPAPI SecureString that only that account, on that machine, can decrypt at run time.
 
-## Next Step
+## First run
 
-For the next steps, go to the [Configuration](./Configuration) page.
+Trigger a one-off run (with email) to validate the setup:
+
+```powershell
+.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -EnableSmtp
+```
+
+The HTML report is written under `Results\` and, with `-EnableSmtp`, emailed to the configured recipients. Lifecycle events are written to the `SPSWeather` Windows Event Log.
+
+## Next step
+
+Continue with the [Configuration](Configuration) page.
 
 ## Change log
 
-A full list of changes in each version can be found in the [change log](https://github.com/luigilink/SPSWeather/blob/main/CHANGELOG.md).
+A full list of changes is in the [change log](https://github.com/luigilink/SPSWeather/blob/main/CHANGELOG.md).
