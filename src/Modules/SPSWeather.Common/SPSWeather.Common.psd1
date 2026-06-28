@@ -25,6 +25,7 @@
         'Get-SPSServer'
         'Get-SPSSiteHttpStatus'
         'Get-SPSSolutionStatus'
+        'Get-SPSSqlStatus'
         'Get-SPSUpgradeStatus'
         'Get-SPSVersion'
         'Get-SPWeatherListInfo'

@@ -56,6 +56,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SPSServer'
             'Get-SPSSiteHttpStatus'
             'Get-SPSSolutionStatus'
+            'Get-SPSSqlStatus'
             'Get-SPSUpgradeStatus'
             'Get-SPSVersion'
             'Get-SPWeatherListInfo'
@@ -157,6 +158,15 @@ Describe 'Public function contracts' {
         $cmd.Parameters['Source'].Attributes.Where{ $_ -is [System.Management.Automation.ParameterAttribute] } |
             Should -Not -BeNullOrEmpty
         $cmd.Parameters.Keys | Should -Contain 'EventID'
+    }
+
+    It 'Get-SPSSqlStatus requires Server and InstallAccount and has threshold defaults' {
+        $cmd = Get-Command -Name Get-SPSSqlStatus -Module SPSWeather.Common
+        $cmd.Parameters['Server'].Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
+        $cmd.Parameters['InstallAccount'].Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
+        $cmd.Parameters['InstallAccount'].ParameterType.Name | Should -Be 'PSCredential'
+        $cmd.Parameters.Keys | Should -Contain 'DiskFreeThresholdPercent'
+        $cmd.Parameters.Keys | Should -Contain 'BackupMaxAgeDays'
     }
 }
 
