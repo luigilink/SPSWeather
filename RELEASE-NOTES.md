@@ -1,40 +1,29 @@
 # SPSWeather - Release Notes
 
-## [2.1.0] - 2026-06-28
+## [2.2.0] - 2026-06-28
 
-A feature release: SQL Server health checks, a pre-flight readiness script, a
-testable report assembly, and per-farm resilience.
+A feature release: SQL client alias (cliconfg) resolution and per-farm SQL
+declaration.
 
 ### Added
 
-- **SQL Server health checks** (`Get-SPSSqlStatus`), collected from a SharePoint
-  server with **dependency-free ADO.NET** (no `SqlServer` module required). The
-  SQL servers are discovered from `Get-SPDatabase`, so the checks follow the
-  farm's own databases. Four new report sections (and `ExclusionRules` keys):
-  - `SQLInstanceStatus` - edition/version/build, MAXDOP, max server memory,
-    TempDB file count vs CPUs.
-  - `SQLDatabaseStatus` - state, recovery model, data/log size, last full backup
-    age, compatibility level, AutoShrink/AutoClose.
-  - `SQLDiskStatus` - free space per SQL volume (`sys.dm_os_volume_stats`).
-  - `SQLAvailabilityStatus` - AlwaysOn AG sync health and recent failed SQL Agent
-    jobs.
-  Thresholds `SQLDiskFreeThresholdPercent` (default 15) and `SQLBackupMaxAgeDays`
-  (default 3) are configurable. The service account needs `VIEW SERVER STATE`
-  plus read access to `master`/`msdb`.
-- **`Test-SPSWeatherReadiness.ps1`** - a read-only pre-flight check (config,
-  secrets DPAPI decryptability, Administrator rights, per-farm WinRM/CredSSP
-  reachability).
-- **Per-farm resilience** - an unreachable farm server is logged (SPSWeather
-  event ID 3001) and skipped instead of aborting the whole run.
-
-### Changed
-
-- The report assembly moved into a testable `ConvertTo-SPSWeatherReport` module
-  function (identical output), replacing ~140 repeated lines in `SPSWeather.ps1`.
+- **SQL alias resolution.** SharePoint best practice reaches SQL through cliconfg
+  client aliases, so `Get-SPDatabase` returns the alias, not the real server.
+  SPSWeather now resolves each alias from the registry (64-bit `ConnectTo` and
+  32-bit `Wow6432Node`) to the real **server\instance, protocol, port and
+  bitness**, shown in a new **SQL - Alias Mapping** report table (new
+  `SQLAliasStatus` ExclusionRules key and a `Resolve-SPSSqlAlias` function).
+- **Per-farm SQL declaration.** You can declare the SQL alias(es)/server(s) a farm
+  uses with an optional `SqlServers` array in the config. SPSWeather cross-checks
+  **declared vs discovered** SQL servers and flags mismatches (and 32/64-bit alias
+  inconsistencies) as advisories. Auto-discovery via `Get-SPDatabase` is kept; the
+  connection still uses the alias name, exactly like SharePoint.
 
 ### Notes
 
-- No configuration or credential change is required to upgrade from 2.0.x. The
-  SQL sections appear automatically; add their `ExclusionRules` keys to opt out.
+- Backward compatible: the `SqlServers` key is optional; without it, SPSWeather
+  behaves as in 2.1.0 (auto-discovery) and still resolves discovered aliases.
+- Alias resolution (registry) and the SQL queries run on the SharePoint server;
+  validate them on a real farm.
 
 A full list of changes can be found in the [change log](CHANGELOG.md).

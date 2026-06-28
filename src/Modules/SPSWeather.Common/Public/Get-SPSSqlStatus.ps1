@@ -72,7 +72,11 @@
 
         [Parameter()]
         [System.Int32]
-        $BackupMaxAgeDays = 3
+        $BackupMaxAgeDays = 3,
+
+        [Parameter()]
+        [System.String[]]
+        $DeclaredSqlServers
     )
 
     $result = Invoke-SPSCommand -Credential $InstallAccount `
@@ -109,13 +113,89 @@
         $databases = New-Object System.Collections.ArrayList
         $disks = New-Object System.Collections.ArrayList
         $availability = New-Object System.Collections.ArrayList
+        $aliasRows = New-Object System.Collections.ArrayList
+
+        # Resolve a cliconfg client alias from the registry (64-bit ConnectTo and
+        # 32-bit Wow6432Node). Returns the real server/instance/protocol/port and
+        # the bitness where the alias is defined, or $null when it is not an alias.
+        function Resolve-AliasLocal {
+            param($AliasName)
+            $roots = @(
+                @{ Path = 'HKLM:\SOFTWARE\Microsoft\MSSQLServer\Client\ConnectTo'; Bitness = '64-bit' }
+                @{ Path = 'HKLM:\SOFTWARE\Wow6432Node\Microsoft\MSSQLServer\Client\ConnectTo'; Bitness = '32-bit' }
+            )
+            $found = $null
+            foreach ($root in $roots) {
+                if (-not (Test-Path -Path $root.Path)) { continue }
+                $key = Get-Item -Path $root.Path -ErrorAction SilentlyContinue
+                if ($null -eq $key -or ($key.GetValueNames() -notcontains $AliasName)) { continue }
+                $raw = [string]$key.GetValue($AliasName)
+                $provider = ($raw -split ',', 2)[0].Trim()
+                $remainder = if (($raw -split ',', 2).Count -eq 2) { ($raw -split ',', 2)[1].Trim() } else { '' }
+                $protocol = 'Unknown'; $server = ''; $instance = ''; $port = ''
+                if ($provider -eq 'DBMSSOCN') {
+                    $protocol = 'TCP'
+                    $tcp = $remainder -split ','
+                    $target = $tcp[0].Trim()
+                    if ($tcp.Count -ge 2) { $port = $tcp[1].Trim() }
+                    if ($target -match '^(?<srv>[^\\]+)\\(?<inst>.+)$') { $server = $Matches['srv']; $instance = $Matches['inst'] } else { $server = $target }
+                }
+                elseif ($provider -eq 'DBNMPNTW') {
+                    $protocol = 'NamedPipes'
+                    if ($remainder -match '^\\\\(?<srv>[^\\]+)\\') { $server = $Matches['srv'] }
+                }
+                else { $server = $remainder }
+                if ($null -eq $found) {
+                    $found = [PSCustomObject]@{ Provider = $provider; Protocol = $protocol; Server = $server; Instance = $instance; Port = $port; Bitness = $root.Bitness; Raw = $raw }
+                }
+                elseif ($found.Bitness -ne $root.Bitness) {
+                    $found.Bitness = 'both'
+                }
+            }
+            return $found
+        }
 
         # Discover the SQL servers and SharePoint databases of the farm.
         $spDatabases = @(Get-SPDatabase | ForEach-Object {
                 $srv = if ($_.Server -and $_.Server.Address) { $_.Server.Address } else { [string]$_.Server }
                 [PSCustomObject]@{ Name = $_.Name; SqlServer = $srv }
             })
-        $sqlServers = @($spDatabases | Select-Object -ExpandProperty SqlServer | Sort-Object -Unique | Where-Object { $_ })
+        $discoveredServers = @($spDatabases | Select-Object -ExpandProperty SqlServer | Sort-Object -Unique | Where-Object { $_ })
+        $declaredServers = @($params.DeclaredSqlServers | Where-Object { $_ })
+
+        # Alias / server mapping with declared-vs-discovered validation. The union
+        # is reported so a declared-but-unused or used-but-undeclared entry shows up.
+        $allServers = @(@($discoveredServers + $declaredServers) | Sort-Object -Unique)
+        foreach ($name in $allServers) {
+            $isDiscovered = $discoveredServers -contains $name
+            $isDeclared = $declaredServers -contains $name
+            $alias = Resolve-AliasLocal -AliasName $name
+            $notes = New-Object System.Collections.ArrayList
+            if ($declaredServers.Count -gt 0) {
+                if ($isDiscovered -and -not $isDeclared) { [void]$notes.Add('used by SharePoint but not declared in config') }
+                if ($isDeclared -and -not $isDiscovered) { [void]$notes.Add('declared in config but not used by any database') }
+            }
+            if ($alias -and $alias.Bitness -ne 'both' -and $alias.Provider) { [void]$notes.Add("alias defined only in $($alias.Bitness)") }
+            $realServer = if ($alias) { $alias.Server } else { '' }
+            if ($alias -and $alias.Instance) { $realServer = "$($alias.Server)\$($alias.Instance)" }
+            [void]$aliasRows.Add([PSCustomObject]@{
+                    Farm        = $farmName
+                    Name        = $name
+                    IsAlias     = [bool]$alias
+                    RealServer  = $realServer
+                    Protocol    = if ($alias) { $alias.Protocol } else { 'DirectName' }
+                    Port        = if ($alias) { $alias.Port } else { '' }
+                    Bitness     = if ($alias) { $alias.Bitness } else { '' }
+                    Discovered  = $isDiscovered
+                    Declared    = $isDeclared
+                    Note        = ($notes -join '; ')
+                    IsInfo      = $true
+                })
+        }
+
+        # Query the servers SharePoint actually uses (declared-only entries are
+        # reported above but not queried, to avoid probing unrelated servers).
+        $sqlServers = $discoveredServers
 
         foreach ($sqlServer in $sqlServers) {
             try {
@@ -296,6 +376,7 @@ ORDER BY h.run_date DESC, h.run_time DESC
             Databases    = @($databases)
             Disks        = @($disks)
             Availability = @($availability)
+            Aliases      = @($aliasRows)
         }
     }
 

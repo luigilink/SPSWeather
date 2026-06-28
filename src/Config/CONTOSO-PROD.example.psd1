@@ -33,7 +33,7 @@
     # ExclusionRules : checks to skip. Authorized values: None, APIHttpStatus,
     # SPSiteHttpStatus, EvtViewerStatus, IISW3WPStatus, HealthStatus, WSPStatus,
     # FailedTimerJob, SQLInstanceStatus, SQLDatabaseStatus, SQLDiskStatus,
-    # SQLAvailabilityStatus.
+    # SQLAvailabilityStatus, SQLAliasStatus.
     ExclusionRules    = @(
         'SPSiteHttpStatus'
         'EvtViewerStatus'
@@ -48,10 +48,14 @@
     SQLBackupMaxAgeDays         = 3
 
     # Farms : one entry per trusted farm to check. Server is the short name; the
-    # Domain above is appended to build the FQDN targeted for remoting.
+    # Domain above is appended to build the FQDN targeted for remoting. SqlServers
+    # is OPTIONAL: the SQL client alias(es) (cliconfg) or server name(s) this farm
+    # uses. SPSWeather always auto-discovers the SQL servers from Get-SPDatabase;
+    # declaring them here lets it validate 'declared vs discovered' and resolve the
+    # cliconfg alias to the real server/instance/port.
     Farms = @(
-        @{ Name = 'SEARCH'; Server = 'srvcontososearch' }
-        @{ Name = 'SERVICES'; Server = 'srvcontososervices' }
-        @{ Name = 'CONTENT'; Server = 'srvcontosocontent' }
+        @{ Name = 'SEARCH'; Server = 'srvcontososearch'; SqlServers = @('SPSQLSEARCH') }
+        @{ Name = 'SERVICES'; Server = 'srvcontososervices'; SqlServers = @('SPSQLSERVICES') }
+        @{ Name = 'CONTENT'; Server = 'srvcontosocontent'; SqlServers = @('SPSQLCONTENT') }
     )
 }
