@@ -13,6 +13,7 @@
         'Add-SPSSheduledTask'
         'Add-SPSWeatherEvent'
         'Clear-SPSLog'
+        'ConvertTo-SPSWeatherReport'
         'Get-AppFabricStatus'
         'Get-SPSAPIHttpStatus'
         'Get-SPSContentDBStatus'
