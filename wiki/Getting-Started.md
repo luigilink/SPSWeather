@@ -27,7 +27,7 @@ In the above example, `$CredSSPDelegates` can be a wildcard name (such as "\*.co
 
 ## Installation
 
-1. [Download the latest release](https://github.com/luigilink/SPSWeather/releases/latest) and unzip to a directory on your SharePoint Server.
+1. [Download the latest release](https://github.com/luigilink/SPSWeather/releases/latest) and unzip to a directory on your SharePoint Server. The entry script `SPSWeather.ps1` and its `SPSWeather.Common` module live in the `src` folder; run the commands below from there.
 2. Prepare your JSON configuration file with the required SMTP and farm details.
 3. Add the script in task scheduler by running the following command:
 
