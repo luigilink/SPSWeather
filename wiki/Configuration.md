@@ -47,7 +47,7 @@ Copy `Config\CONTOSO-PROD.example.psd1` and edit it:
 | `SMTPFromAddress` / `SMTPServer` | Sender address and SMTP relay. |
 | `CredentialKey` | Name of the entry in `secrets.psd1` that holds the service credential. |
 | `ExclusionRules` | Checks to skip (see below). |
-| `Farms` | One entry per trusted farm: `Name` and the short `Server` name. |
+| `Farms` | One entry per trusted farm: `Name`, the short `Server` name, and an optional `SqlServers` array (the cliconfg alias(es) or SQL server name(s) the farm uses, for alias resolution and declared-vs-discovered validation). |
 
 ### ExclusionRules
 

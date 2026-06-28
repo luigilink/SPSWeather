@@ -48,10 +48,20 @@ unreachable instance produces a single red row instead of failing the run.
 
 | Check | Reports | ExclusionRules key |
 |---|---|---|
+| Alias mapping | cliconfg alias → real server\instance, protocol (TCP/NP), port, bitness (32/64); declared-vs-discovered validation | `SQLAliasStatus` |
 | Instances | Edition/version/build, MAXDOP (advisory if ≠ 1), max server memory, TempDB file count vs CPUs | `SQLInstanceStatus` |
 | Databases | State, recovery model, data/log size, last full backup age, compatibility level, AutoShrink/AutoClose | `SQLDatabaseStatus` |
 | Disk volumes | Free space per volume hosting SQL files (`sys.dm_os_volume_stats`) | `SQLDiskStatus` |
 | Availability | AlwaysOn AG replica sync health and recent failed SQL Agent jobs | `SQLAvailabilityStatus` |
+
+SharePoint best practice is to reach SQL through **cliconfg client aliases**, so
+`Get-SPDatabase` returns the alias rather than the real server. The alias is
+enough to connect (`System.Data.SqlClient` resolves it via SNI on the SharePoint
+server, exactly like SharePoint), and SPSWeather additionally **resolves the
+alias from the registry** to show the real target. You can optionally declare the
+SQL alias(es)/server(s) per farm with a `SqlServers` array in the config; SPSWeather
+then cross-checks **declared vs discovered** and flags any mismatch (and 32/64-bit
+alias inconsistencies) as advisories.
 
 SQL alert thresholds are configurable in the environment config: `SQLDiskFreeThresholdPercent`
 (default 15) and `SQLBackupMaxAgeDays` (default 3). Database offline state, a
@@ -74,7 +84,7 @@ In the HTML report, failing rows use the `tdfailed` (red) style, below-threshold
 
 Add the corresponding key to `ExclusionRules` in your config to skip a check. Authorized values:
 
-`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`, `SQLInstanceStatus`, `SQLDatabaseStatus`, `SQLDiskStatus`, `SQLAvailabilityStatus`.
+`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`, `SQLAliasStatus`, `SQLInstanceStatus`, `SQLDatabaseStatus`, `SQLDiskStatus`, `SQLAvailabilityStatus`.
 
 Checks marked _(always)_ above are not individually excludable.
 

@@ -5,6 +5,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-06-28
+
+### Added
+
+- SQL alias resolution and per-farm SQL declaration (#22). SharePoint reaches SQL
+  through cliconfg client aliases, so `Get-SPDatabase` returns the alias rather
+  than the real server. SPSWeather now:
+  - resolves each SQL alias from the cliconfg registry (64-bit `ConnectTo` and
+    32-bit `Wow6432Node`) to the real server\instance, protocol, port and bitness
+    (new `Resolve-SPSSqlAlias` public function and a new `SQLAliasStatus` report
+    section / ExclusionRules key);
+  - accepts an optional per-farm `SqlServers` array in the config and cross-checks
+    declared vs discovered SQL servers, flagging mismatches and 32/64-bit alias
+    inconsistencies as advisories.
+
 ## [2.1.0] - 2026-06-28
 
 ### Added
