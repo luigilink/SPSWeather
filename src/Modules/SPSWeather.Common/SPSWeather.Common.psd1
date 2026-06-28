@@ -39,6 +39,7 @@
         'Get-USPAudienceStatus'
         'Join-HtmlBodyFromPSo'
         'Remove-SPSSheduledTask'
+        'Resolve-SPSSqlAlias'
     )
 
     CmdletsToExport   = @()

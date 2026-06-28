@@ -70,13 +70,14 @@ Describe 'SPSWeather.Common module' {
             'Get-USPAudienceStatus'
             'Join-HtmlBodyFromPSo'
             'Remove-SPSSheduledTask'
+            'Resolve-SPSSqlAlias'
         )
         $actual = (Get-Command -Module SPSWeather.Common).Name | Sort-Object
         $actual | Should -Be ($expected | Sort-Object)
     }
 
     It 'does not export the private helpers' {
-        foreach ($name in @('Invoke-SPSCommand', 'Invoke-SPSWebRequestUrl', 'Join-HtmlTable')) {
+        foreach ($name in @('Invoke-SPSCommand', 'Join-HtmlTable', 'ConvertFrom-SPSSqlAliasValue')) {
             Get-Command -Name $name -Module SPSWeather.Common -ErrorAction SilentlyContinue |
                 Should -BeNullOrEmpty
         }
@@ -219,8 +220,46 @@ Describe 'Invoke-SPSCommand remoting' {    It 'throws and never runs the command
     }
 }
 
-Describe 'Report assembly (ConvertTo-SPSWeatherReport)' {
-    It 'adds every non-null section as a property, preserving order' {
+Describe 'SQL alias parsing (ConvertFrom-SPSSqlAliasValue)' {
+    It 'parses a TCP alias with instance and port' {
+        InModuleScope SPSWeather.Common {
+            $r = ConvertFrom-SPSSqlAliasValue -AliasName 'SPSQL' -RawValue 'DBMSSOCN,SQLPROD01\SP,1433'
+            $r.Protocol | Should -Be 'TCP'
+            $r.Server   | Should -Be 'SQLPROD01'
+            $r.Instance | Should -Be 'SP'
+            $r.Port     | Should -Be '1433'
+        }
+    }
+
+    It 'parses a default-instance TCP alias without a port' {
+        InModuleScope SPSWeather.Common {
+            $r = ConvertFrom-SPSSqlAliasValue -AliasName 'SPDEF' -RawValue 'DBMSSOCN,SQLPROD02'
+            $r.Protocol | Should -Be 'TCP'
+            $r.Server   | Should -Be 'SQLPROD02'
+            $r.Instance | Should -BeNullOrEmpty
+            $r.Port     | Should -BeNullOrEmpty
+        }
+    }
+
+    It 'parses a named-pipes alias' {
+        InModuleScope SPSWeather.Common {
+            $r = ConvertFrom-SPSSqlAliasValue -AliasName 'SPNP' -RawValue 'DBNMPNTW,\\SQLPROD03\pipe\MSSQL$SP\sql\query'
+            $r.Protocol | Should -Be 'NamedPipes'
+            $r.Server   | Should -Be 'SQLPROD03'
+            $r.Instance | Should -Be 'SP'
+        }
+    }
+
+    It 'does not throw on an empty value' {
+        InModuleScope SPSWeather.Common {
+            $r = ConvertFrom-SPSSqlAliasValue -AliasName 'SPBAD' -RawValue ''
+            $r.Alias    | Should -Be 'SPBAD'
+            $r.Protocol | Should -Be 'Unknown'
+        }
+    }
+}
+
+Describe 'Report assembly (ConvertTo-SPSWeatherReport)' {    It 'adds every non-null section as a property, preserving order' {
         $sections = [ordered]@{
             SectionA = @([pscustomobject]@{ IsInfo = $true })
             SectionB = @([pscustomobject]@{ IsInfo = $true })
