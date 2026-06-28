@@ -170,6 +170,37 @@ Describe 'Public function contracts' {
     }
 }
 
+Describe 'Readiness script (Test-SPSWeatherReadiness.ps1)' {
+    BeforeAll {
+        $repoRoot = Split-Path -Path $PSScriptRoot -Parent
+        $scriptPath = Join-Path -Path $repoRoot -ChildPath 'src/Test-SPSWeatherReadiness.ps1'
+    }
+
+    It 'exists next to the entry script' {
+        Test-Path -Path $scriptPath | Should -BeTrue
+    }
+
+    It 'parses without errors' {
+        $tokens = $null; $errs = $null
+        [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$errs) | Out-Null
+        $errs | Should -BeNullOrEmpty
+    }
+
+    It 'declares a mandatory -ConfigFile parameter' {
+        $cmd = Get-Command -Name $scriptPath
+        $cmd.Parameters.Keys | Should -Contain 'ConfigFile'
+        $cmd.Parameters['ConfigFile'].Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
+        $cmd.Parameters.Keys | Should -Contain 'SkipNetwork'
+    }
+
+    It 'is stored as UTF-8 with BOM' {
+        $bytes = [System.IO.File]::ReadAllBytes($scriptPath)
+        $bytes[0] | Should -Be 0xEF
+        $bytes[1] | Should -Be 0xBB
+        $bytes[2] | Should -Be 0xBF
+    }
+}
+
 Describe 'Invoke-SPSCommand remoting' {    It 'throws and never runs the command locally when the session cannot be opened' -Skip:(-not $IsWindows) {
         InModuleScope SPSWeather.Common {
             Mock New-PSSession { throw 'CredSSP not configured' }

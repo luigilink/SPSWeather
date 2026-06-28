@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Test-SPSWeatherReadiness.ps1`: a read-only pre-flight check that validates the
+  module import, the configuration `.psd1` and its required keys, the
+  DPAPI-decryptable `secrets.psd1` credential, Administrator rights and per-farm
+  WinRM/CredSSP reachability before a run (#19).
 - SQL Server health checks (`Get-SPSSqlStatus`), collected from a SharePoint
   server with dependency-free ADO.NET (no `SqlServer` module). SQL servers are
   discovered via `Get-SPDatabase`. Four new report sections / ExclusionRules
