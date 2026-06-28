@@ -24,9 +24,11 @@
     SMTPFromAddress   = 'noreply@contoso.com'
     SMTPServer        = 'smtp.contoso.com'
 
-    # StoredCredential : target name of the credential stored in Windows Credential
-    # Manager for the service account used to reach the farms (CredSSP remoting).
-    StoredCredential  = 'PROD-ADM'
+    # CredentialKey : name of the entry in Config\secrets.psd1 that holds the
+    # service account used to reach the farms (CredSSP remoting). Populate it by
+    # running -Install as that account, or generate it manually with
+    # ConvertFrom-SecureString. See Config\secrets.example.psd1.
+    CredentialKey     = 'PROD-ADM'
 
     # ExclusionRules : checks to skip. Authorized values: None, APIHttpStatus,
     # SPSiteHttpStatus, EvtViewerStatus, IISW3WPStatus, HealthStatus, WSPStatus,

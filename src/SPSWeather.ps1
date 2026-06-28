@@ -74,7 +74,6 @@ Clear-Host
 $Host.UI.RawUI.WindowTitle = "SPSWeather script running on $env:COMPUTERNAME"
 $script:HelperModulePath = Join-Path -Path $PSScriptRoot -ChildPath 'Modules'
 Import-Module -Name (Join-Path -Path $script:HelperModulePath -ChildPath 'SPSWeather.Common\SPSWeather.Common.psd1') -Force
-Import-Module -Name (Join-Path -Path (Join-Path -Path $script:HelperModulePath -ChildPath 'credentialmanager') -ChildPath 'CredentialManager.psd1') -Force
 
 if (Test-Path $ConfigFile) {
     $envCfg = Import-PowerShellDataFile -Path $ConfigFile
@@ -185,18 +184,14 @@ else {
         # Remove SPSWeather script from scheduled Task
         Remove-SPSSheduledTask -TaskName $spWeatherTaskName
 
-        # Remove Credential from Credential Manager
-        $credential = Get-StoredCredential -Target "$($envCfg.StoredCredential)" -ErrorAction SilentlyContinue
-        if ($null -ne $credential) {
-            Remove-StoredCredential -Target "$($envCfg.StoredCredential)"
-        }
+        # Remove the stored secret from secrets.psd1 (if present)
+        Set-SPSSecret -CredentialKey $envCfg.CredentialKey -ConfigPath $pathConfigFolder -Remove
     }
     elseif ($Install) {
-        # Add Credential in Credential Manager
-        $credential = Get-StoredCredential -Target "$($envCfg.StoredCredential)" -ErrorAction SilentlyContinue
-        if ($null -eq $credential) {
-            New-StoredCredential -Credentials $InstallAccount -Target "$($envCfg.StoredCredential)" -Type Generic -Persist LocalMachine
-        }
+        # Persist the service credential as a DPAPI-encrypted SecureString in
+        # secrets.psd1. Run -Install AS the service account so the value can be
+        # decrypted at run time by the scheduled task.
+        Set-SPSSecret -CredentialKey $envCfg.CredentialKey -Credential $InstallAccount -ConfigPath $pathConfigFolder
 
         # Add SPSWeather script in a new scheduled Task
         Add-SPSSheduledTask -ExecuteAsCredential $InstallAccount -TaskName $spWeatherTaskName -ActionArguments "-Execution Bypass $($scriptRootPath)\SPSWeather.ps1 -ConfigFile $($ConfigFile) -EnableSMTP"
@@ -204,12 +199,12 @@ else {
     else {
         # Initialize Security
         $scriptFQDN = $envCfg.Domain
-        $credential = Get-StoredCredential -Target "$($envCfg.StoredCredential)" -ErrorAction SilentlyContinue
+        $credential = Get-SPSSecret -CredentialKey $envCfg.CredentialKey -ConfigPath $pathConfigFolder
         if ($null -ne $credential) {
             New-Variable -Name 'ADM' -Value $credential -Force
         }
         else {
-            Throw "The Target $($envCfg.StoredCredential) not present in Credential Manager. Please contact your administrator."
+            Throw "Credential '$($envCfg.CredentialKey)' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Install as the service account, or populate secrets.psd1 manually. See the wiki for details."
         }
         $spFarms = $envCfg.Farms
         foreach ($spFarm in $spFarms) {

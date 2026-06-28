@@ -22,12 +22,7 @@
 *.md    text eol=lf
 *.json  text eol=lf
 
-# Binary artifacts (embedded CredentialManager dependency, release ZIP, screenshots)
+# Binary artifacts (release ZIP, screenshots)
 *.dll binary
 *.png binary
 *.zip binary
-
-# Third-party CredentialManager dependency -- store bytes verbatim (UTF-16 .psd1,
-# signed DLLs, prebuilt help XML). This block comes last so it overrides the
-# generic *.psd1 rule above and disables all eol/charset normalization for it.
-**/credentialmanager/** -text
