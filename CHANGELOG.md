@@ -5,6 +5,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.7] - 2026-06-29
+
+### Fixed
+
+- `Get-AppFabricStatus` (SE branch) builds the per-cache-host CredSSP target
+  as `<short>.<suffix>` (suffix derived from the farm entry FQDN), mirroring
+  the per-server SYS fix. Previously the call used the short name; on VMs
+  where DNS resolves to the short form, Kerberos failed silently
+  (`0x80090322`), the inner `Get-SPCacheHostConfig` was never reached and the
+  row fell back to the SE tier label. The Size column now shows the real
+  value in MB (e.g. `2048`) (#55).
+
 ## [2.3.6] - 2026-06-29
 
 ### Fixed
