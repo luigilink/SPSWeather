@@ -5,6 +5,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.4] - 2026-06-29
+
+### Fixed
+
+- `Get-AppFabricStatus` (SE branch) now uses `Get-SPCacheClusterHealth.Hosts`
+  (canonical FQDN list) and `Get-SPCacheClusterInfo.Size` as the source of
+  truth, instead of relying on `Get-SPCacheHostConfig` which returns null on
+  several SE builds. Port/Size/ServiceName/CacheStatus degrade gracefully to
+  the SP DC defaults (22233, AppFabricCachingService, Up when the SP service
+  instance is Online) when `Get-SPCacheHostConfig` cannot resolve the host.
+  Removes the dead AppFabric fallback added in 2.3.3 (those cmdlets are not
+  present on SE) (#49).
+
 ## [2.3.3] - 2026-06-29
 
 ### Fixed

@@ -42,72 +42,56 @@
             $productVersion = (Get-Command $fullPath).FileVersionInfo
         }
         if ($productVersion.FileMajorPart -eq 16 -and $productVersion.FileBuildPart -gt 13000) {
-            Write-Verbose -Message "Use-CacheCluster' cmdlet not required for SPSE - using newer Get-SPCacheHostConfig"
+            Write-Verbose -Message 'Subscription Edition: using Get-SPCacheClusterHealth/Info as the source of truth'
             $allSPServers = (Get-SPServer | Where-Object -FilterScript { $_.Role -ne 'Invalid' }).Name
-            $dcInstances = Get-SPServiceInstance | Where-Object -FilterScript {
-                $_.GetType().Name -eq 'SPDistributedCacheServiceInstance'
+            $dcInstances = @(Get-SPServiceInstance | Where-Object -FilterScript {
+                    $_.GetType().Name -eq 'SPDistributedCacheServiceInstance'
+                })
+            # Canonical host list (FQDNs) and cluster Size come from the SE-native cmdlets.
+            $clusterHealth = Get-SPCacheClusterHealth -ErrorAction SilentlyContinue
+            $clusterInfo   = Get-SPCacheClusterInfo -ErrorAction SilentlyContinue
+            $clusterSize   = if ($null -ne $clusterInfo) { "$($clusterInfo.Size)" } else { '' }
+            $clusterHosts  = @()
+            if ($null -ne $clusterHealth -and $null -ne $clusterHealth.Hosts) {
+                $clusterHosts = @($clusterHealth.Hosts | ForEach-Object { "$_" })
             }
             $reportedServers = New-Object -TypeName System.Collections.ArrayList
-            foreach ($dcInst in $dcInstances) {
-                $isMailInfo = $true
-                $hostFqdn = "$($dcInst.Server.Address)"
-                $cacheserver = $hostFqdn.Split('.')[0]
-                $cacheHostConfig = $null
+            foreach ($clusterFqdn in $clusterHosts) {
+                $cacheserver = $clusterFqdn.Split('.')[0]
+                # Match the SP service instance for this host (Server.Address is short)
+                $dcInst = $dcInstances | Where-Object -FilterScript {
+                    "$($_.Server.Address)" -eq $cacheserver -or
+                    "$($_.Server.Address)" -eq $clusterFqdn
+                } | Select-Object -First 1
+                $SPInstanceStatus = if ($null -ne $dcInst) { "$($dcInst.Status)" } else { 'Unknown' }
+                # Try Get-SPCacheHostConfig with the FQDN; degrade gracefully if it
+                # returns null (some SE builds cannot resolve the host name).
+                $cacheHostConfig = Get-SPCacheHostConfig -HostName $clusterFqdn -ErrorAction SilentlyContinue
                 $cacheHost = $null
-                if ($dcInst.Status -eq 'Online') {
-                    # The cluster may store the host as FQDN or as short name; try both.
-                    foreach ($tryHost in @($hostFqdn, $cacheserver)) {
-                        if ([string]::IsNullOrEmpty($tryHost)) { continue }
-                        $cacheHostConfig = Get-SPCacheHostConfig -HostName $tryHost -ErrorAction SilentlyContinue
-                        if ($null -ne $cacheHostConfig) { break }
-                    }
-                    if ($null -ne $cacheHostConfig) {
-                        $cacheHost = Get-SPCacheHost -HostName $cacheHostConfig.HostName -CachePort $cacheHostConfig.CachePort -ErrorAction SilentlyContinue
-                    }
-                    # Fallback: Get-SPCacheHostConfig occasionally returns null on SE
-                    # even when the SP service instance is Online. The underlying
-                    # AppFabric cmdlets are still installed - use them to recover
-                    # Port/Size/ServiceName/CacheStatus.
-                    if ($null -eq $cacheHostConfig) {
-                        try {
-                            Use-CacheCluster -ErrorAction Stop | Out-Null
-                            $afHosts = Get-CacheHost -ErrorAction SilentlyContinue
-                            $afHost = $afHosts | Where-Object -FilterScript {
-                                $_.HostName -eq $hostFqdn -or
-                                $_.HostName -eq $cacheserver -or
-                                ($_.HostName -like "$cacheserver.*")
-                            } | Select-Object -First 1
-                            if ($null -ne $afHost) {
-                                $cacheHost = $afHost
-                                $cacheHostConfig = Get-AFCacheHostConfiguration -ComputerName $afHost.HostName -CachePort $afHost.PortNo -ErrorAction SilentlyContinue
-                                if ($null -ne $cacheHostConfig -and -not ($cacheHostConfig.PSObject.Properties.Name -contains 'CachePort')) {
-                                    Add-Member -InputObject $cacheHostConfig -NotePropertyName CachePort -NotePropertyValue $afHost.PortNo -Force
-                                }
-                            }
-                        }
-                        catch {
-                            Write-Verbose -Message "AppFabric fallback failed for '$cacheserver': $($_.Exception.Message)"
-                        }
-                    }
+                if ($null -ne $cacheHostConfig) {
+                    $cacheHost = Get-SPCacheHost -HostName $cacheHostConfig.HostName -CachePort $cacheHostConfig.CachePort -ErrorAction SilentlyContinue
                 }
-                if ($null -ne $cacheHost -and $cacheHost.Status -ne 'Up') { $isMailInfo = $false }
-                $SPInstanceStatus = $dcInst.Status
-                if ($SPInstanceStatus -ne 'Online') { $isMailInfo = $false }
+                $port        = if ($null -ne $cacheHostConfig) { "$($cacheHostConfig.CachePort)" } else { '22233' }
+                $size        = if ($null -ne $cacheHostConfig) { "$($cacheHostConfig.Size)" } else { $clusterSize }
+                $serviceName = if ($null -ne $cacheHost) { "$($cacheHost.ServiceName)" } else { 'AppFabricCachingService' }
+                $cacheStatus = if ($null -ne $cacheHost) { "$($cacheHost.Status)" }
+                               elseif ($SPInstanceStatus -eq 'Online') { 'Up' }
+                               else { 'Unknown' }
+                $isMailInfo = ($SPInstanceStatus -eq 'Online' -and $cacheStatus -eq 'Up')
                 [void]$tbAppFabricStatus.Add([AppFabricStatus]@{
                         Farm             = $params.Farm
                         Server           = $cacheserver;
-                        Port             = $cacheHostConfig.CachePort;
-                        ServiceName      = $cacheHost.ServiceName;
-                        Size             = $cacheHostConfig.Size;
-                        CacheStatus      = $cacheHost.Status;
+                        Port             = $port;
+                        ServiceName      = $serviceName;
+                        Size             = $size;
+                        CacheStatus      = $cacheStatus;
                         SPInstanceStatus = $SPInstanceStatus;
                         IsInfo           = $isMailInfo;
                     })
                 [void]$reportedServers.Add($cacheserver)
             }
-            # SP servers that are not part of the cache cluster: report them as
-            # informational (IsInfo=$true) instead of red alerts, since hosting
-            # Distributed Cache on a subset of servers is a legitimate topology.
+            # Servers that are not part of the cache cluster: informational row
+            # (legitimate topology to host Distributed Cache on a subset of servers).
             foreach ($srv in $allSPServers) {
                 if ($reportedServers -notcontains $srv) {
                     [void]$tbAppFabricStatus.Add([AppFabricStatus]@{
