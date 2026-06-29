@@ -30,9 +30,9 @@
         }
         $spSearchEntSvc = Get-SPEnterpriseSearchServiceApplication -ErrorAction SilentlyContinue
         if ($null -ne $spSearchEntSvc) {
-            $getSchStatus = Get-SPEnterpriseSearchStatus -SearchApplication $spSearchEntSvc -Detailed
-            if ($null -ne $getSchStatus) {
-                $tbSearchTopologyStatus = New-Object -TypeName System.Collections.ArrayList
+            $tbSearchTopologyStatus = New-Object -TypeName System.Collections.ArrayList
+            try {
+                $getSchStatus = Get-SPEnterpriseSearchStatus -SearchApplication $spSearchEntSvc -Detailed -ErrorAction Stop
                 foreach ($compoSch in $getSchStatus) {
                     $isMailInfo = $True
                     if ($compoSch.State -ne 'Active') {
@@ -53,8 +53,18 @@
                         IsInfo           = $isMailInfo;
                     })
                 }
-                return $tbSearchTopologyStatus
             }
+            catch {
+                [void]$tbSearchTopologyStatus.Add([SearchTopologyStatus]@{
+                    Farm             = $params.Farm;
+                    SearchService    = $spSearchEntSvc.Name;
+                    ComponentHost    = 'Unreachable';
+                    ComponentName    = 'Search unavailable';
+                    State            = $_.Exception.Message;
+                    IsInfo           = $false;
+                })
+            }
+            return $tbSearchTopologyStatus
         }
     }
     return $result

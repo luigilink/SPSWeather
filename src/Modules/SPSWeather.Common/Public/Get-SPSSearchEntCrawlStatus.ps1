@@ -32,11 +32,10 @@
         }
         $spSearchEntSvc = Get-SPEnterpriseSearchServiceApplication -ErrorAction SilentlyContinue
         if ($null -ne $spSearchEntSvc) {
-            $spSchContentSources = Get-SPEnterpriseSearchCrawlContentSource -SearchApplication $spSearchEntSvc
-            if ($null -ne $spSchContentSources) {
-                #Initialize ArrayList variable
-                $tbSPSSearchEntCrawlStatus = New-Object -TypeName System.Collections.ArrayList
-
+            #Initialize ArrayList variable
+            $tbSPSSearchEntCrawlStatus = New-Object -TypeName System.Collections.ArrayList
+            try {
+                $spSchContentSources = Get-SPEnterpriseSearchCrawlContentSource -SearchApplication $spSearchEntSvc -ErrorAction Stop
                 foreach ($contentSource in $spSchContentSources) {
                     $spCrawlDuration = 'OK'
                     $isMailInfo = $true
@@ -57,8 +56,20 @@
                         IsInfo         = $isMailInfo;
                     })
                 }
-                return $tbSPSSearchEntCrawlStatus
             }
+            catch {
+                [void]$tbSPSSearchEntCrawlStatus.Add([SearchContentLastCrawl]@{
+                    Farm           = $params.Farm;
+                    SearchService  = $spSearchEntSvc.Name;
+                    ContentSource  = 'Search unavailable';
+                    CrawlState     = $_.Exception.Message;
+                    Duration       = 'Error';
+                    CrawlStarted   = '';
+                    CrawlCompleted = '';
+                    IsInfo         = $false;
+                })
+            }
+            return $tbSPSSearchEntCrawlStatus
         }
     }
     return $result

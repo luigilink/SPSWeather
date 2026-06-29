@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to Application): it now re-points the source to the SPSWeather log and only
   warns if the registration/write fails. This is why no SPSWeather log or events
   appeared on a fresh install (#35).
+- Per-server SYS checks (IIS app pools, W3WP, certs, last reboot, .NET, disks,
+  event log) wrap each server in try/catch: an unreachable node yields a single
+  'Unreachable' row instead of dumping a raw 0x80090322 double-hop error and
+  aborting the whole farm's collection (#33). Fixed a `$nulll` typo that always
+  blanked the .NET version.
+- Search checks (crawl status, crawl logs, topology) wrap the Search admin calls
+  in try/catch: a down Search topology host yields one 'Search unavailable' row
+  instead of a raw 503 stack trace (#34).
 
 ## [2.2.4] - 2026-06-29
 
