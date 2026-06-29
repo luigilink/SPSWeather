@@ -1,15 +1,13 @@
 # SPSWeather - Release Notes
 
-## [2.2.2] - 2026-06-29
+## [2.2.3] - 2026-06-29
 
-### Added
+### Changed
 
-- The readiness check now tests WinRM/CredSSP on **every server of the local
-  farm** (Get-SPServer, role <> Invalid), merged with the per-farm servers
-  declared in the config, instead of only the declared entry point. SharePoint is
-  loaded version-aware (2016/2019 snap-in, Subscription Edition module). Use
-  -SkipSharePoint to fall back to declared servers when run off-server.
-- New public helpers Get-SPSInstalledProductVersion and Import-SPSSharePointCommand
-  (ported from SPSUserSync).
+- The readiness check probes WinRM with a short, configurable timeout
+  (-TimeoutSeconds, default 5) and reports an unreachable server as WARN instead
+  of blocking FAIL, so the pre-flight cannot hang on a down node.
+- Invoke-SPSCommand opens the CredSSP PSSession with a 30s OpenTimeout so a down
+  server fails fast.
 
 A full list of changes can be found in the [change log](CHANGELOG.md).

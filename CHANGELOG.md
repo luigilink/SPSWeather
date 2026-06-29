@@ -5,6 +5,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-06-29
+
+### Changed
+
+- `Test-SPSWeatherReadiness.ps1` probes WinRM with a short, configurable timeout
+  (`-TimeoutSeconds`, default 5) via a CIM session, so an unreachable farm server
+  can no longer hang the pre-flight. An unreachable server is now a WARN (the run
+  skips it) instead of a blocking FAIL.
+- `Invoke-SPSCommand` opens the CredSSP PSSession with a 30s `-OpenTimeout` so a
+  down server fails fast instead of waiting the default connect timeout.
+
 ## [2.2.2] - 2026-06-29
 
 ### Added

@@ -53,7 +53,8 @@
             -Authentication CredSSP `
             -Name "Microsoft.SharePoint.PSSession" `
             -SessionOption (New-PSSessionOption -OperationTimeout 0 `
-                -IdleTimeout 60000) `
+                -IdleTimeout 60000 `
+                -OpenTimeout 30000) `
             -ErrorAction Stop
     }
     catch {
