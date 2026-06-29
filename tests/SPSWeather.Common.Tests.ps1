@@ -45,6 +45,7 @@ Describe 'SPSWeather.Common module' {
             'Add-SPSWeatherEvent'
             'Clear-SPSLog'
             'ConvertTo-SPSWeatherReport'
+            'Export-SPSWeatherReport'
             'Get-AppFabricStatus'
             'Get-SPSAPIHttpStatus'
             'Get-SPSContentDBStatus'

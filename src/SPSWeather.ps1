@@ -445,9 +445,16 @@ else {
         if ($mailAlert -eq 'ALERT') { $mailPriority = 'High' }
 
         $mailSubject = "[$($mailAlert)]$($Application)_$($Environment) - Meteo SharePoint $($DateEnded)"
-        $mailHTMLBody = Join-HtmlBodyFromPSo -PSObjectFromJson $jsonObject
+        $mailHTMLBody = Join-HtmlBodyFromPSo -PSObjectFromJson $jsonObject -Summary $reportResult.Summary
         $mailHTMLBody | Out-File -FilePath $pathHTMLFile -Force
         $jsonObject | ConvertTo-Json | Set-Content -Path $pathJSONFile -Force
+
+        # Generate the standalone rich report (next to the email body HTML)
+        $pathRichHtmlFile = Join-Path -Path $pathResultsFolder -ChildPath ($spWeatherFileName + '-rich.html')
+        [void](Export-SPSWeatherReport -InputObject $jsonObject `
+                -Summary $reportResult.Summary `
+                -OutputFile $pathRichHtmlFile `
+                -Title "SPSWeather $spsWeatherVersion - $Application/$Environment")
 
         # Record the run outcome in the SPSWeather event log
         if ($mailAlert -eq 'ALERT') {

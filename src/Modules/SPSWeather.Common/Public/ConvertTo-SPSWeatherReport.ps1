@@ -39,12 +39,17 @@
 
     $report = [PSCustomObject]@{}
     $isAlert = $false
+    $okCount = 0
+    $alertCount = 0
 
     foreach ($name in $Section.Keys) {
         $data = $Section[$name]
         if ($null -ne $data) {
-            if (@($data).IsInfo -contains $false) {
-                $isAlert = $true
+            foreach ($row in @($data)) {
+                if ($row.PSObject.Properties.Name -contains 'IsInfo') {
+                    if ($row.IsInfo -eq $false) { $alertCount++; $isAlert = $true }
+                    else { $okCount++ }
+                }
             }
             $report | Add-Member -MemberType NoteProperty -Name $name -Value $data
         }
@@ -53,5 +58,6 @@
     return [PSCustomObject]@{
         Report  = $report
         IsAlert = $isAlert
+        Summary = [PSCustomObject]@{ Ok = $okCount; Alert = $alertCount }
     }
 }
