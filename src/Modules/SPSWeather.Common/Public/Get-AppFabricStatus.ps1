@@ -42,42 +42,60 @@
             $productVersion = (Get-Command $fullPath).FileVersionInfo
         }
         if ($productVersion.FileMajorPart -eq 16 -and $productVersion.FileBuildPart -gt 13000) {
-            Write-Verbose -Message 'Get list of SharePoint Servers'
-            $listSPServer = (Get-SPServer | Where-Object -FilterScript {$_.Role -ne 'Invalid'}).Name
-            Write-Verbose -Message "'Use-CacheCluster' cmdlet not required for SPSE"
-            Write-Verbose -Message "Using newer 'Get-SPCacheHostConfig' cmdlet for SPSE"
-            foreach ($cacheserver in $listSPServer) {
-                $cacheHostConfig = Get-SPCacheHostConfig -HostName $cacheserver -ErrorAction SilentlyContinue
-                if ($null -ne $cacheHostConfig) {
-                    $isMailInfo  = $true
-                    $cacheHost   = Get-SPCacheHost -HostName $cacheHostConfig.HostName -CachePort $cacheHostConfig.CachePort
-                }
-                $spCacheSvc      = Get-SPServiceInstance -Server $cacheserver | Where-Object -FilterScript {
-                    $_.GetType().Name -eq 'SPDistributedCacheServiceInstance'
-                }
-                if ($cacheHost.Status -ne 'Up') {
-                    $isMailInfo = $false
-                }
-                if ($null -ne $spCacheSvc) {
-                    $SPInstanceStatus = $spCacheSvc.Status
-                    if ($SPInstanceStatus -ne 'Online') {
-                        $isMailInfo = $false
+            Write-Verbose -Message "Use-CacheCluster' cmdlet not required for SPSE - using newer Get-SPCacheHostConfig"
+            $allSPServers = (Get-SPServer | Where-Object -FilterScript { $_.Role -ne 'Invalid' }).Name
+            $dcInstances = Get-SPServiceInstance | Where-Object -FilterScript {
+                $_.GetType().Name -eq 'SPDistributedCacheServiceInstance'
+            }
+            $reportedServers = New-Object -TypeName System.Collections.ArrayList
+            foreach ($dcInst in $dcInstances) {
+                $isMailInfo = $true
+                $hostFqdn = "$($dcInst.Server.Address)"
+                $cacheserver = $hostFqdn.Split('.')[0]
+                $cacheHostConfig = $null
+                $cacheHost = $null
+                if ($dcInst.Status -eq 'Online') {
+                    # The cluster may store the host as FQDN or as short name; try both.
+                    foreach ($tryHost in @($hostFqdn, $cacheserver)) {
+                        if ([string]::IsNullOrEmpty($tryHost)) { continue }
+                        $cacheHostConfig = Get-SPCacheHostConfig -HostName $tryHost -ErrorAction SilentlyContinue
+                        if ($null -ne $cacheHostConfig) { break }
+                    }
+                    if ($null -ne $cacheHostConfig) {
+                        $cacheHost = Get-SPCacheHost -HostName $cacheHostConfig.HostName -CachePort $cacheHostConfig.CachePort -ErrorAction SilentlyContinue
                     }
                 }
-                else {
-                    $SPInstanceStatus = 'SPService Not Found'
-                    $isMailInfo = $false
-                }
+                if ($null -ne $cacheHost -and $cacheHost.Status -ne 'Up') { $isMailInfo = $false }
+                $SPInstanceStatus = $dcInst.Status
+                if ($SPInstanceStatus -ne 'Online') { $isMailInfo = $false }
                 [void]$tbAppFabricStatus.Add([AppFabricStatus]@{
-                    Farm             = $params.Farm
-                    Server           = $cacheserver;
-                    Port             = $cacheHostConfig.CachePort;
-                    ServiceName      = $cacheHost.ServiceName;
-                    Size             = $cacheHostConfig.Size;
-                    CacheStatus      = $cacheHost.Status;
-                    SPInstanceStatus = $SPInstanceStatus;
-                    IsInfo           = $isMailInfo;
-                })
+                        Farm             = $params.Farm
+                        Server           = $cacheserver;
+                        Port             = $cacheHostConfig.CachePort;
+                        ServiceName      = $cacheHost.ServiceName;
+                        Size             = $cacheHostConfig.Size;
+                        CacheStatus      = $cacheHost.Status;
+                        SPInstanceStatus = $SPInstanceStatus;
+                        IsInfo           = $isMailInfo;
+                    })
+                [void]$reportedServers.Add($cacheserver)
+            }
+            # SP servers that are not part of the cache cluster: report them as
+            # informational (IsInfo=$true) instead of red alerts, since hosting
+            # Distributed Cache on a subset of servers is a legitimate topology.
+            foreach ($srv in $allSPServers) {
+                if ($reportedServers -notcontains $srv) {
+                    [void]$tbAppFabricStatus.Add([AppFabricStatus]@{
+                            Farm             = $params.Farm
+                            Server           = $srv;
+                            Port             = '';
+                            ServiceName      = '';
+                            Size             = '';
+                            CacheStatus      = '';
+                            SPInstanceStatus = 'Not a cache host';
+                            IsInfo           = $true;
+                        })
+                }
             }
             return $tbAppFabricStatus
         }

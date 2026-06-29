@@ -5,6 +5,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.2] - 2026-06-29
+
+### Fixed
+
+- `Get-AppFabricStatus` (SE branch) iterates Distributed Cache hosts via
+  `Get-SPServiceInstance` (filtered on `SPDistributedCacheServiceInstance`) and
+  uses the instance's `Server.Address`, falling back to the short name when the
+  cluster stores a different form. This fixes the missing Port / Size /
+  ServiceName / CacheStatus on the actual DC host (typically a WFE) on
+  SharePoint Subscription Edition (#45).
+
+### Changed
+
+- Farm servers that are not part of the Distributed Cache cluster are now
+  reported as 'Not a cache host' (informational, `IsInfo = $true`) instead of
+  a red 'SPService Not Found' alert, since hosting Distributed Cache on a
+  subset of servers (often a single WFE) is a legitimate topology (#45).
+
 ## [2.3.1] - 2026-06-29
 
 ### Fixed

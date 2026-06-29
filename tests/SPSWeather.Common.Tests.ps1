@@ -36,7 +36,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'manifest version is 2.0.0 or higher' {
-        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.3.1')
+        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.3.2')
     }
 
     It 'exports exactly the expected public functions' {

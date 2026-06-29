@@ -247,17 +247,23 @@
             $htmlTableRows += "<td class=`"tddefault`">$($AppFabricStatusItem.Port)</td>"
             $htmlTableRows += "<td class=`"tddefault`">$($AppFabricStatusItem.ServiceName)</td>"
             $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($AppFabricStatusItem.Size)</td>"
-            if ($AppFabricStatusItem.CacheStatus -ne 'Up') {
-                $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($AppFabricStatusItem.CacheStatus)</td>"
-            }
-            else {
+            if ($AppFabricStatusItem.CacheStatus -eq 'Up') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($AppFabricStatusItem.CacheStatus)</td>"
             }
-            if ($AppFabricStatusItem.SPInstanceStatus -ne 'Online') {
-                $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($AppFabricStatusItem.SPInstanceStatus)</td></tr>"
+            elseif ([string]::IsNullOrEmpty([string]$AppFabricStatusItem.CacheStatus)) {
+                $htmlTableRows += "<td align=`"center`" class=`"tddefault`">-</td>"
             }
             else {
+                $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($AppFabricStatusItem.CacheStatus)</td>"
+            }
+            if ($AppFabricStatusItem.SPInstanceStatus -eq 'Online') {
                 $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($AppFabricStatusItem.SPInstanceStatus)</td></tr>"
+            }
+            elseif ($AppFabricStatusItem.SPInstanceStatus -eq 'Not a cache host') {
+                $htmlTableRows += "<td align=`"center`" class=`"tddefault`">$($AppFabricStatusItem.SPInstanceStatus)</td></tr>"
+            }
+            else {
+                $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">$($AppFabricStatusItem.SPInstanceStatus)</td></tr>"
             }
         }
         $htmlBodyMerge += Join-HtmlTable -TitleH1 'SharePoint Distributed Cache Status' `
