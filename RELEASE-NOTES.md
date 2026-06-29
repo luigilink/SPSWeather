@@ -1,5 +1,26 @@
 # SPSWeather - Release Notes
 
+## [2.3.0] - 2026-06-29
+
+### Added
+
+- A standalone, self-contained HTML report (`<file>-rich.html`) next to the
+  email body, with a top banner (overall + OK/Alert + trend), side nav,
+  sticky table headers, live filter and alert row highlight.
+- JSON history snapshots and a trend (`Alert N -> M`) rendered in the email
+  banner and in the rich report. New `JsonHistoryRetentionDays` config setting
+  (default 30 days, 0 disables pruning).
+
+### Changed
+
+- **Breaking**: `-Install` / `-Uninstall` switches replaced by a single
+  `-Action [Install|Uninstall|Default]` (default `Default`) - existing
+  scripts using the old switches must be updated.
+- Per-server checks now open one CredSSP session per server, so a multi-server
+  farm reports every node (no more `0x80090322` double-hop on WFE).
+
+A full list of changes can be found in the [change log](CHANGELOG.md).
+
 ## [2.2.5] - 2026-06-29
 
 ### Fixed

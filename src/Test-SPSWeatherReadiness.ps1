@@ -149,7 +149,7 @@ if ($null -ne $cfg -and $cfg.Contains('CredentialKey') -and $cfg.CredentialKey) 
     if ([string]::IsNullOrEmpty($configFolder)) { $configFolder = '.' }
     $secretsPath = Join-Path -Path $configFolder -ChildPath 'secrets.psd1'
     if (-not (Test-Path -Path $secretsPath)) {
-        Add-CheckResult -Section 'Secrets' -Name 'secrets.psd1' -Status 'FAIL' -Detail "Not found at $secretsPath. Run SPSWeather.ps1 -Install as the service account."
+        Add-CheckResult -Section 'Secrets' -Name 'secrets.psd1' -Status 'FAIL' -Detail "Not found at $secretsPath. Run SPSWeather.ps1 -Action Install as the service account."
     }
     else {
         # Get-SPSSecret is exported by the module; call it directly.

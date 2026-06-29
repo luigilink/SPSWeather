@@ -3,7 +3,15 @@
     [OutputType([System.String])]
     param (
         [Parameter()]
-        $PSObjectFromJson
+        $PSObjectFromJson,
+
+        [Parameter()]
+        [PSCustomObject]
+        $Summary,
+
+        [Parameter()]
+        [PSCustomObject]
+        $Trend
     )
 
     # Email-optimized HTML document wrapper. Defined locally so the function is
@@ -48,6 +56,34 @@
 "@
 
     $htmlBodyMerge = @()
+
+    # Outlook-safe synthesis banner at the very top of the body (table-based, no
+    # flex). Only rendered when a summary is provided.
+    if ($null -ne $Summary) {
+        $ok = [int]$Summary.Ok
+        $alert = [int]$Summary.Alert
+        $overall = if ($alert -gt 0) { 'ALERT' } else { 'OK' }
+        $overallClass = if ($alert -gt 0) { 'tdfailed' } else { 'tdsuccess' }
+        $trendCell = ''
+        if ($null -ne $Trend -and $Trend.HasPrevious) {
+            $arrow = if ($Trend.DeltaAlert -gt 0) { 'up' } elseif ($Trend.DeltaAlert -lt 0) { 'down' } else { '=' }
+            $trendCell = "Alert $($Trend.Previous.Alert) -> $($Trend.Current.Alert) ($arrow)"
+        }
+        $htmlBodyMerge += @"
+<table role="SPSWeatherSummary" style="margin:12px 0 6px 0;"><tr>
+<td class="tdheader" style="width:25%;">Overall</td>
+<td class="tdheader" style="width:25%;">OK</td>
+<td class="tdheader" style="width:25%;">Alert</td>
+<td class="tdheader" style="width:25%;">Trend</td>
+</tr><tr>
+<td align="center" class="$overallClass">$overall</td>
+<td align="center" class="tdsuccess">$ok</td>
+<td align="center" class="$(if ($alert -gt 0) { 'tdfailed' } else { 'tddefault' })">$alert</td>
+<td align="center" class="tddefault">$trendCell</td>
+</tr></table>
+"@
+    }
+
     if (($PSObjectFromJson.SPWeatherListInfo).Count -ne 0) {
         $htmlTableRows = @()
         foreach ($SPWeatherListInfoItem in ($PSObjectFromJson.SPWeatherListInfo)) {
@@ -318,7 +354,11 @@
             $htmlTableRows += "<td class=`"tddefault`">$($IISApplicationPoolItem.Server)</td>"
             $htmlTableRows += "<td class=`"tddefault`">$($IISApplicationPoolItem.ApplicationPool)</td>"
 
-            if ($IISApplicationPoolItem.ApplicationPool -eq 'SharePoint Web Services Root') {
+            if ($IISApplicationPoolItem.ApplicationPool -eq 'Unreachable') {
+                $htmlTableRows += "<td align=`"center`" class=`"tddefault`">-</td>"
+                $htmlTableRows += "<td align=`"center`" class=`"tdfailed`">Unreachable</td></tr>"
+            }
+            elseif ($IISApplicationPoolItem.ApplicationPool -eq 'SharePoint Web Services Root') {
                 $htmlTableRows += "<td align=`"center`" class=`"tddefault`">Stopped</td>"
                 if ($IISApplicationPoolItem.Status -eq 'Stopped') {
                     $htmlTableRows += "<td align=`"center`" class=`"tdsuccess`">$($IISApplicationPoolItem.Status)</td></tr>"

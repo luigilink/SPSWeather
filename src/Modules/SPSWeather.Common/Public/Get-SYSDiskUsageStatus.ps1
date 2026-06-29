@@ -24,61 +24,48 @@
         $WarningPercentage
     )
 
-    $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
-        $params = $args[0]
-        class SYSDiskUsageStatus {
-            [System.String]$Farm
-            [System.String]$Server
-            [System.String]$DriveLetter
-            [System.String]$Size
-            [System.String]$FreeSpace
-            [System.String]$Status
-            [System.Boolean]$IsInfo
-        }
-        $tbSYSDiskUsageStatus = New-Object -TypeName System.Collections.ArrayList
-        foreach ($spServer in $params.Servers) {
-            try {
-                [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-                $getDrives = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop { Get-Volume | Where-Object -FilterScript { $_.DriveType -eq 'Fixed' -and $null -ne $_.DriveLetter } }
+    if (-not $Servers) { $Servers = @($Server) }
+
+    # One direct CredSSP session per server (single hop) so each node is reached
+    # without a second hop from the entry server.
+    $tbSYSDiskUsageStatus = New-Object -TypeName System.Collections.ArrayList
+    foreach ($spServer in $Servers) {
+        try {
+            [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
+            if ($remoteServer -notmatch "\.") {
+                # DNS returned short name; rebuild FQDN from $spServer to keep its original casing.
+                $suffix = if ($Server -match "\.") { $Server.Substring($Server.IndexOf(".") + 1) } else { "" }
+                if ($suffix) { $remoteServer = "$spServer.$suffix" }
+            }
+            $rows = Invoke-SPSCommand -Credential $InstallAccount `
+                -Arguments @($Farm, $spServer, $WarningPercentage) `
+                -Server $remoteServer `
+                -ScriptBlock {
+                $cfgFarm = $args[0]; $cfgServer = $args[1]; $cfgWarn = $args[2]
+                $disks = New-Object -TypeName System.Collections.ArrayList
+                $getDrives = Get-Volume | Where-Object -FilterScript { $_.DriveType -eq 'Fixed' -and $null -ne $_.DriveLetter }
                 foreach ($getDrive in $getDrives) {
-                    $driveSize = [math]::Round($($getDrive.Size) / 1073741824, 2)
-                    $driveFree = [math]::Round($($getDrive.SizeRemaining) / 1073741824, 2)
                     $perFreeSpace = ($getDrive.SizeRemaining / $getDrive.Size) * 100
-                    if ($perFreeSpace -gt $params.WarningPercentage) {
-                        $freeSpaceStatus = 'OK'
-                        $isMailInfo      = $true
-                    }
-                    else {
-                        $freeSpaceStatus = "Less than $($params.WarningPercentage) %"
-                        $isMailInfo      = $false
-                    }
-                    [void]$tbSYSDiskUsageStatus.Add([SYSDiskUsageStatus]@{
-                            Farm        = $params.Farm;
-                            Server      = $spServer;
+                    if ($perFreeSpace -gt $cfgWarn) { $freeSpaceStatus = 'OK'; $isMailInfo = $true }
+                    else { $freeSpaceStatus = "Less than $cfgWarn %"; $isMailInfo = $false }
+                    [void]$disks.Add([PSCustomObject]@{
+                            Farm        = $cfgFarm; Server = $cfgServer;
                             DriveLetter = $getDrive.DriveLetter;
-                            Size        = $driveSize;
-                            FreeSpace   = $driveFree;
-                            Status      = $freeSpaceStatus;
-                            IsInfo      = $isMailInfo
+                            Size        = [math]::Round($getDrive.Size / 1073741824, 2);
+                            FreeSpace   = [math]::Round($getDrive.SizeRemaining / 1073741824, 2);
+                            Status      = $freeSpaceStatus; IsInfo = $isMailInfo
                         })
                 }
+                return $disks
             }
-            catch {
-                [void]$tbSYSDiskUsageStatus.Add([SYSDiskUsageStatus]@{
-                        Farm        = $params.Farm;
-                        Server      = $spServer;
-                        DriveLetter = '';
-                        Size        = '';
-                        FreeSpace   = '';
-                        Status      = 'Unreachable';
-                        IsInfo      = $false
-                    })
-            }
+            foreach ($r in $rows) { [void]$tbSYSDiskUsageStatus.Add($r) }
         }
-        return $tbSYSDiskUsageStatus
+        catch {
+            [void]$tbSYSDiskUsageStatus.Add([PSCustomObject]@{
+                    Farm        = $Farm; Server = $spServer; DriveLetter = '';
+                    Size        = ''; FreeSpace = ''; Status = 'Unreachable'; IsInfo = $false
+                })
+        }
     }
-    return $result
+    return $tbSYSDiskUsageStatus
 }

@@ -26,7 +26,7 @@
 
     # CredentialKey : name of the entry in Config\secrets.psd1 that holds the
     # service account used to reach the farms (CredSSP remoting). Populate it by
-    # running -Install as that account, or generate it manually with
+    # running -Action Install as that account, or generate it manually with
     # ConvertFrom-SecureString. See Config\secrets.example.psd1.
     CredentialKey     = 'PROD-ADM'
 
@@ -46,6 +46,11 @@
     # older than SQLBackupMaxAgeDays, raises an alert.
     SQLDiskFreeThresholdPercent = 15
     SQLBackupMaxAgeDays         = 3
+
+    # JsonHistoryRetentionDays: how many days of JSON snapshots are kept under
+    # Results\history for the report trend (Backup-SPSWeatherJsonFile). 0 disables
+    # pruning. Default: 30.
+    JsonHistoryRetentionDays    = 30
 
     # Farms : one entry per trusted farm to check. Server is the short name; the
     # Domain above is appended to build the FQDN targeted for remoting. SqlServers

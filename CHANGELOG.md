@@ -5,6 +5,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-06-29
+
+### Added
+
+- New `Export-SPSWeatherReport` produces a self-contained rich HTML report
+  (sticky top banner with overall status + OK/Alert counts, side nav, sticky
+  table headers, live filter, alert row highlight). Written next to the email
+  body as `<file>-rich.html`. The Outlook email body keeps its inline-style
+  layout and now embeds a small Outlook-safe summary banner (#38).
+- New `Backup-SPSWeatherJsonFile` + `Compare-SPSWeatherSnapshots` and a
+  `Results\history\` folder of timestamped JSON snapshots; the previous run is
+  archived before overwrite and a trend (`Alert N -> M`) is rendered in the
+  email banner and as a KPI in the standalone report. New config setting
+  `JsonHistoryRetentionDays` (default 30 days; 0 disables pruning) (#39).
+
+### Changed
+
+- **Breaking**: replaced the `-Install` / `-Uninstall` switches with a single
+  `-Action [Install|Uninstall|Default]` parameter (default `Default`),
+  mirroring SPSUpdate/SPSWakeUp. There is no back-compat alias - existing
+  scheduled tasks installed by 2.2.x still run the same `-ConfigFile` argument
+  set, only the install/uninstall command lines change (#40).
+- Per-server SYS checks (IIS app pools, W3WP, certs, last reboot, .NET, disks,
+  event log) now open one direct CredSSP session per server via
+  `Invoke-SPSCommand` instead of fanning out `Invoke-Command` from the entry
+  session. This removes the double-hop and collects nodes that previously
+  failed with `0x80090322` (e.g. WFE1) (#37).
+- IIS Application Pool report renders 'Unreachable' rows explicitly (red) so
+  the cell is no longer empty when a node is down.
+
 ## [2.2.5] - 2026-06-29
 
 ### Fixed

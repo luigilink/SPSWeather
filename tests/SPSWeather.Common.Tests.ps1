@@ -36,15 +36,18 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'manifest version is 2.0.0 or higher' {
-        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.2.5')
+        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.3.0')
     }
 
     It 'exports exactly the expected public functions' {
         $expected = @(
             'Add-SPSSheduledTask'
             'Add-SPSWeatherEvent'
+            'Backup-SPSWeatherJsonFile'
             'Clear-SPSLog'
+            'Compare-SPSWeatherSnapshots'
             'ConvertTo-SPSWeatherReport'
+            'Export-SPSWeatherReport'
             'Get-AppFabricStatus'
             'Get-SPSAPIHttpStatus'
             'Get-SPSContentDBStatus'
@@ -546,5 +549,24 @@ Describe 'Example secrets file (secrets.example.psd1)' {    BeforeAll {
             $secrets[$key].Username | Should -Not -BeNullOrEmpty
             $secrets[$key].PasswordSecure | Should -Match '^PASTE-'
         }
+    }
+}
+
+Describe 'Entry script -Action contract' {
+    BeforeAll {
+        $repoRoot   = Split-Path -Path $PSScriptRoot -Parent
+        $entryPath  = Join-Path -Path $repoRoot -ChildPath 'src/SPSWeather.ps1'
+        $tokens = $null; $errs = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($entryPath, [ref]$tokens, [ref]$errs)
+        $script:entryParams = $ast.ParamBlock.Parameters.Name.VariablePath.UserPath
+    }
+
+    It 'exposes an -Action parameter' {
+        $entryParams | Should -Contain 'Action'
+    }
+
+    It 'no longer exposes -Install or -Uninstall switches' {
+        $entryParams | Should -Not -Contain 'Install'
+        $entryParams | Should -Not -Contain 'Uninstall'
     }
 }

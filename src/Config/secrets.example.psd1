@@ -16,7 +16,7 @@
     # Paste the resulting string between the single quotes below. The encrypted value
     # can only be decrypted by the same user account on the same machine.
     #
-    # Tip: running  .\SPSWeather.ps1 -Install -InstallAccount (Get-Credential) ...
+    # Tip: running  .\SPSWeather.ps1 -Action Install -InstallAccount (Get-Credential) ...
     # AS that service account writes this entry for you automatically.
     # =================================================================================
     'PROD-ADM' = @{

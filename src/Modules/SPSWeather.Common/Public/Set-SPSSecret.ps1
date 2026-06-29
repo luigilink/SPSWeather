@@ -15,7 +15,7 @@
         UTF-8 with BOM so Windows PowerShell 5.1 reads it correctly. secrets.psd1
         is gitignored and must never be committed.
 
-        Run -Install as the service account that will run the scheduled task, so
+        Run -Action Install as the service account that will run the scheduled task, so
         the DPAPI blob is decryptable at run time.
 
         .PARAMETER CredentialKey
