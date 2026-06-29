@@ -112,7 +112,12 @@
         $sectionRows = $rows | Where-Object { $null -ne $_ }
         if ($sectionRows.Count -eq 0) { continue }
 
-        $columns = @($sectionRows[0].PSObject.Properties.Name | Where-Object { $_ -ne 'IsInfo' })
+        $columns = @($sectionRows[0].PSObject.Properties.Name | Where-Object {
+                $_ -ne 'IsInfo' -and
+                $_ -ne 'PSComputerName' -and
+                $_ -ne 'RunspaceId' -and
+                $_ -ne 'PSShowComputerName'
+            })
         [void]$navHtml.AppendLine("<li><a href=`"#$sectionId`">$(_enc $prop.Name) ($($sectionRows.Count))</a></li>")
 
         [void]$sectionsHtml.AppendLine("<section id=`"$sectionId`"><h2>$(_enc $prop.Name) <span class=`"badge`">$($sectionRows.Count)</span></h2><div class=`"table-wrap`"><table><thead><tr>")

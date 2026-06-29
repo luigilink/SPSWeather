@@ -55,14 +55,14 @@
                     }
                     $useragent = [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
                     $authentUrl = ("$($rootSPSiteUrl)" + '/_windows/default.aspx?ReturnUrl=/_layouts/15/Authenticate.aspx?Source=%2f')
-                    Write-Output "Getting webSession by opening $($authentUrl) with Invoke-WebRequest"
+                    Write-Verbose -Message "Getting webSession by opening $($authentUrl) with Invoke-WebRequest"
                     try {
-                        Invoke-WebRequest -Uri $authentUrl `
-                            -SessionVariable webSession `
-                            -TimeoutSec 90 `
-                            -UserAgent $useragent `
-                            -UseDefaultCredentials `
-                            -UseBasicParsing
+                        [void](Invoke-WebRequest -Uri $authentUrl `
+                                -SessionVariable webSession `
+                                -TimeoutSec 90 `
+                                -UserAgent $useragent `
+                                -UseDefaultCredentials `
+                                -UseBasicParsing)
                     }
                     catch {
                         Write-Warning -Message $_.Exception.Message
