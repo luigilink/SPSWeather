@@ -5,6 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.3] - 2026-06-29
+
+### Fixed
+
+- `Get-AppFabricStatus` (SE branch) falls back to the historical AppFabric
+  cmdlets (`Use-CacheCluster` + `Get-CacheHost` + `Get-AFCacheHostConfiguration`)
+  when `Get-SPCacheHostConfig` returns null on Subscription Edition. Port / Size
+  / ServiceName / CacheStatus are now populated on hosts where the SE-native
+  cmdlet cannot resolve the host name (#47).
+
 ## [2.3.2] - 2026-06-29
 
 ### Fixed

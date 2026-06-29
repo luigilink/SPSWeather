@@ -64,6 +64,31 @@
                     if ($null -ne $cacheHostConfig) {
                         $cacheHost = Get-SPCacheHost -HostName $cacheHostConfig.HostName -CachePort $cacheHostConfig.CachePort -ErrorAction SilentlyContinue
                     }
+                    # Fallback: Get-SPCacheHostConfig occasionally returns null on SE
+                    # even when the SP service instance is Online. The underlying
+                    # AppFabric cmdlets are still installed - use them to recover
+                    # Port/Size/ServiceName/CacheStatus.
+                    if ($null -eq $cacheHostConfig) {
+                        try {
+                            Use-CacheCluster -ErrorAction Stop | Out-Null
+                            $afHosts = Get-CacheHost -ErrorAction SilentlyContinue
+                            $afHost = $afHosts | Where-Object -FilterScript {
+                                $_.HostName -eq $hostFqdn -or
+                                $_.HostName -eq $cacheserver -or
+                                ($_.HostName -like "$cacheserver.*")
+                            } | Select-Object -First 1
+                            if ($null -ne $afHost) {
+                                $cacheHost = $afHost
+                                $cacheHostConfig = Get-AFCacheHostConfiguration -ComputerName $afHost.HostName -CachePort $afHost.PortNo -ErrorAction SilentlyContinue
+                                if ($null -ne $cacheHostConfig -and -not ($cacheHostConfig.PSObject.Properties.Name -contains 'CachePort')) {
+                                    Add-Member -InputObject $cacheHostConfig -NotePropertyName CachePort -NotePropertyValue $afHost.PortNo -Force
+                                }
+                            }
+                        }
+                        catch {
+                            Write-Verbose -Message "AppFabric fallback failed for '$cacheserver': $($_.Exception.Message)"
+                        }
+                    }
                 }
                 if ($null -ne $cacheHost -and $cacheHost.Status -ne 'Up') { $isMailInfo = $false }
                 $SPInstanceStatus = $dcInst.Status
