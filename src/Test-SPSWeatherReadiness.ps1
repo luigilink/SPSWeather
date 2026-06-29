@@ -44,7 +44,11 @@ param
 
     [Parameter()]
     [switch]
-    $SkipSharePoint
+    $SkipSharePoint,
+
+    [Parameter()]
+    [System.Int32]
+    $TimeoutSeconds = 5
 )
 
 $script:results = New-Object System.Collections.Generic.List[object]
@@ -219,12 +223,20 @@ elseif ($null -ne $cfg -and $cfg.Contains('Farms') -and $cfg.Farms) {
     }
 
     foreach ($target in ($targets | Sort-Object -Unique)) {
+        # Probe WinRM with a short timeout so an unreachable server cannot hang the
+        # pre-flight (Test-WSMan has no timeout). An unreachable server is a WARN,
+        # not a FAIL: the run's per-farm resilience skips it, so it should not block.
+        $cim = $null
         try {
-            $null = Test-WSMan -ComputerName $target -ErrorAction Stop
+            $opt = New-CimSessionOption -Protocol Wsman
+            $cim = New-CimSession -ComputerName $target -OperationTimeoutSec $TimeoutSeconds -SessionOption $opt -ErrorAction Stop
             Add-CheckResult -Section 'Network' -Name "WinRM to $target" -Status 'PASS' -Detail 'Confirm CredSSP is enabled for the full run'
         }
         catch {
-            Add-CheckResult -Section 'Network' -Name "WinRM to $target" -Status 'FAIL' -Detail $_.Exception.Message
+            Add-CheckResult -Section 'Network' -Name "WinRM to $target" -Status 'WARN' -Detail "Unreachable within ${TimeoutSeconds}s (the run will skip it): $($_.Exception.Message)"
+        }
+        finally {
+            if ($cim) { Remove-CimSession -CimSession $cim -ErrorAction SilentlyContinue }
         }
     }
 }

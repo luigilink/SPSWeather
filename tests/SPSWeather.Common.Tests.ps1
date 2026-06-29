@@ -36,7 +36,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'manifest version is 2.0.0 or higher' {
-        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.2.2')
+        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.2.3')
     }
 
     It 'exports exactly the expected public functions' {
@@ -202,6 +202,8 @@ Describe 'Readiness script (Test-SPSWeatherReadiness.ps1)' {
         $cmd.Parameters.Keys | Should -Contain 'ConfigFile'
         $cmd.Parameters['ConfigFile'].Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
         $cmd.Parameters.Keys | Should -Contain 'SkipNetwork'
+        $cmd.Parameters.Keys | Should -Contain 'SkipSharePoint'
+        $cmd.Parameters.Keys | Should -Contain 'TimeoutSeconds'
     }
 
     It 'is stored as UTF-8 with BOM' {
