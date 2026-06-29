@@ -29,8 +29,9 @@
         try {
             [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
             if ($remoteServer -notmatch "\.") {
+                # DNS returned short name; rebuild FQDN from $spServer to keep its original casing.
                 $suffix = if ($Server -match "\.") { $Server.Substring($Server.IndexOf(".") + 1) } else { "" }
-                if ($suffix) { $remoteServer = "$remoteServer.$suffix" }
+                if ($suffix) { $remoteServer = "$spServer.$suffix" }
             }
             $rows = Invoke-SPSCommand -Credential $InstallAccount `
                 -Arguments @($Farm, $spServer) `
