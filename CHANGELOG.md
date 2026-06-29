@@ -5,6 +5,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.5] - 2026-06-29
+
+### Fixed
+
+- `Get-AppFabricStatus` (SE branch) no longer reports a phantom 'Microsoft'
+  cache host: v2.3.4 iterated `(Get-SPCacheClusterHealth).Hosts`, which is a
+  collection of HostInfo objects whose `ToString()` starts with
+  `Microsoft.SharePoint.Internal.Caching...`, yielding 'Microsoft' as a fake
+  short name and pushing the real DC host into the 'Not a cache host' list.
+  Iteration is back on `SPDistributedCacheServiceInstance` (Server.Address is
+  the correct short name); `Get-SPCacheClusterInfo.Size` is still used for
+  the cluster Size (#51).
+
 ## [2.3.4] - 2026-06-29
 
 ### Fixed
