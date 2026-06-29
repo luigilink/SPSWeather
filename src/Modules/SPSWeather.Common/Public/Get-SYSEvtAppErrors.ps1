@@ -20,64 +20,47 @@
         $Servers
     )
 
-    $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
-        $params = $args[0]
-        class SYSEventViewerAppError {
-            [System.String]$Farm
-            [System.String]$Server
-            [System.String]$ID
-            [System.String]$Severity
-            [System.String]$Name
-            [System.String]$Count
-        }
-        $tbSYSEventViewerAppErrors = New-Object -TypeName System.Collections.ArrayList
-        foreach ($pSserver in $params.Servers) {
-            [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($pSserver).HostName
-            try {
-                $appErrors = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop -ScriptBlock {
-                    Get-WinEvent -FilterHashTable @{LogName = 'Application'; Level = 2; StartTime = ((Get-Date) - (New-TimeSpan -Days 1)) } `
-                                 -ErrorAction SilentlyContinue
-                }
+    if (-not $Servers) { $Servers = @($Server) }
+
+    # One direct CredSSP session per server (single hop) so each node is reached
+    # without a second hop from the entry server.
+    $tbSYSEventViewerAppErrors = New-Object -TypeName System.Collections.ArrayList
+    foreach ($spServer in $Servers) {
+        try {
+            [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
+            $rows = Invoke-SPSCommand -Credential $InstallAccount `
+                -Arguments @($Farm, $spServer) `
+                -Server $remoteServer `
+                -ScriptBlock {
+                $cfgFarm = $args[0]; $cfgServer = $args[1]
+                $errs = New-Object -TypeName System.Collections.ArrayList
+                $appErrors = Get-WinEvent -FilterHashTable @{LogName = 'Application'; Level = 2; StartTime = ((Get-Date) - (New-TimeSpan -Days 1)) } -ErrorAction SilentlyContinue
                 if ($null -eq $appErrors) {
-                    [void]$tbSYSEventViewerAppErrors.Add([SYSEventViewerAppError]@{
-                        Farm     = $params.Farm
-                        Server   = $pSserver;
-                        ID       = 'Non Applicable';
-                        Severity = 'Non Applicable';
-                        Name     = 'No error found the last 24h';
-                        Count    = '0';
-                    })
+                    [void]$errs.Add([PSCustomObject]@{
+                            Farm = $cfgFarm; Server = $cfgServer; ID = 'Non Applicable';
+                            Severity = 'Non Applicable'; Name = 'No error found the last 24h'; Count = '0';
+                        })
                 }
                 else {
                     $grpAppErrors = $appErrors | Group-Object Id | Select-Object -Property Count, Name
                     foreach ($grpAppError in $grpAppErrors) {
                         $currentAppError = $appErrors | Where-Object -FilterScript { $_.ID -eq $grpAppError.Name } | Get-Unique
-                        [void]$tbSYSEventViewerAppErrors.Add([SYSEventViewerAppError]@{
-                            Farm     = $params.Farm
-                            Server   = $pSserver;
-                            ID       = $currentAppError.Id;
-                            Severity = $currentAppError.LevelDisplayName;
-                            Name     = $currentAppError.ProviderName;
-                            Count    = $grpAppError.Count;
-                        })
+                        [void]$errs.Add([PSCustomObject]@{
+                                Farm = $cfgFarm; Server = $cfgServer; ID = $currentAppError.Id;
+                                Severity = $currentAppError.LevelDisplayName; Name = $currentAppError.ProviderName; Count = $grpAppError.Count;
+                            })
                     }
                 }
+                return $errs
             }
-            catch {
-                [void]$tbSYSEventViewerAppErrors.Add([SYSEventViewerAppError]@{
-                    Farm     = $params.Farm
-                    Server   = $pSserver;
-                    ID       = 'Non Applicable';
-                    Severity = 'Warning';
-                    Name     = 'Unreachable';
-                    Count    = '0';
-                })
-            }
+            foreach ($r in $rows) { [void]$tbSYSEventViewerAppErrors.Add($r) }
         }
-        return $tbSYSEventViewerAppErrors
+        catch {
+            [void]$tbSYSEventViewerAppErrors.Add([PSCustomObject]@{
+                    Farm = $Farm; Server = $spServer; ID = 'Non Applicable';
+                    Severity = 'Warning'; Name = 'Unreachable'; Count = '0';
+                })
+        }
     }
-    return $result
+    return $tbSYSEventViewerAppErrors
 }

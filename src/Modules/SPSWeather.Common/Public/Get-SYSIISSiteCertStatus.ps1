@@ -24,75 +24,50 @@
         $Expiration
     )
 
-    $result = Invoke-SPSCommand -Credential $InstallAccount `
-                                -Arguments $PSBoundParameters `
-                                -Server $Server `
-                                -ScriptBlock {
-        $params = $args[0]
-        class IISWebSiteCertStatus {
-            [System.String]$Farm
-            [System.String]$Server
-            [System.String]$WebSiteName
-            [System.String]$ExpirationDate
-            [System.String]$Status
-            [System.Boolean]$IsInfo
-        }
+    if (-not $Servers) { $Servers = @($Server) }
 
-        $tbIISSiteCertStatus = New-Object -TypeName System.Collections.ArrayList
-        $expirationDate = (Get-Date).AddDays($params.Expiration)
-        foreach ($spServer in $params.Servers) {
-            try {
-                [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-                $spSvcInstanceIIS = Get-SPServiceInstance -Server $spServer | Where-Object -FilterScript {
+    # One direct CredSSP session per server (single hop) so each node is reached
+    # without a second hop from the entry server.
+    $tbIISSiteCertStatus = New-Object -TypeName System.Collections.ArrayList
+    foreach ($spServer in $Servers) {
+        try {
+            [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
+            $rows = Invoke-SPSCommand -Credential $InstallAccount `
+                -Arguments @($Farm, $spServer, $Expiration) `
+                -Server $remoteServer `
+                -ScriptBlock {
+                $cfgFarm = $args[0]; $cfgServer = $args[1]; $cfgExpiration = $args[2]
+                $certs = New-Object -TypeName System.Collections.ArrayList
+                $expirationDate = (Get-Date).AddDays($cfgExpiration)
+                $spSvcInstanceIIS = Get-SPServiceInstance -Server $cfgServer | Where-Object -FilterScript {
                     $_.Status -eq 'Online' -and $_.GetType().Name -eq 'SPWebServiceInstance'
                 }
-
                 if ($null -ne $spSvcInstanceIIS) {
-                    $getWebBindings = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop { Get-WebBinding }
-                    $getSSLBindings = $getWebBindings | Where-Object -FilterScript {
+                    $getSSLBindings = Get-WebBinding | Where-Object -FilterScript {
                         $_.protocol -eq 'https' -and $_.bindingInformation -like '*443*'
                     }
-                    if ($getSSLBindings) {
-                        foreach ($binding in $getSSLBindings) {
-                            $iisSiteName = (($binding.ItemXPath -split ([RegEx]::Escape("[@name='")))[1]).split("'")[0]
-
-                            $getCertMyStore = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop { Get-ChildItem 'Cert:LocalMachine\My' }
-                            $getCertificate = $getCertMyStore | Where-Object -FilterScript {
-                                $_.Thumbprint -eq $binding.certificateHash
-                            }
-                            $certExpiration = $getCertificate.NotAfter
-                            if ($certExpiration -gt $expirationDate) {
-                                $certStatus    = 'OK'
-                                $isMailInfo    = $true
-                            }
-                            else {
-                                $certStatus    = 'Renew cert'
-                                $isMailInfo    = $false
-                            }
-                            [void]$tbIISSiteCertStatus.Add([IISWebSiteCertStatus]@{
-                                Farm           = $params.Farm;
-                                Server         = $spServer;
-                                WebSiteName    = $iisSiteName;
-                                ExpirationDate = $certExpiration;
-                                Status         = $certStatus;
-                                IsInfo         = $isMailInfo;
+                    foreach ($binding in $getSSLBindings) {
+                        $iisSiteName = (($binding.ItemXPath -split ([RegEx]::Escape("[@name='")))[1]).split("'")[0]
+                        $getCertificate = Get-ChildItem 'Cert:LocalMachine\My' | Where-Object -FilterScript { $_.Thumbprint -eq $binding.certificateHash }
+                        $certExpiration = $getCertificate.NotAfter
+                        if ($certExpiration -gt $expirationDate) { $certStatus = 'OK'; $isMailInfo = $true }
+                        else { $certStatus = 'Renew cert'; $isMailInfo = $false }
+                        [void]$certs.Add([PSCustomObject]@{
+                                Farm           = $cfgFarm; Server = $cfgServer; WebSiteName = $iisSiteName;
+                                ExpirationDate = $certExpiration; Status = $certStatus; IsInfo = $isMailInfo;
                             })
-                        }
                     }
                 }
+                return $certs
             }
-            catch {
-                [void]$tbIISSiteCertStatus.Add([IISWebSiteCertStatus]@{
-                    Farm           = $params.Farm;
-                    Server         = $spServer;
-                    WebSiteName    = '';
-                    ExpirationDate = '';
-                    Status         = 'Unreachable';
-                    IsInfo         = $false;
-                })
-            }
+            foreach ($r in $rows) { [void]$tbIISSiteCertStatus.Add($r) }
         }
-        return $tbIISSiteCertStatus
+        catch {
+            [void]$tbIISSiteCertStatus.Add([PSCustomObject]@{
+                    Farm           = $Farm; Server = $spServer; WebSiteName = '';
+                    ExpirationDate = ''; Status = 'Unreachable'; IsInfo = $false;
+                })
+        }
     }
-    return $result
+    return $tbIISSiteCertStatus
 }
