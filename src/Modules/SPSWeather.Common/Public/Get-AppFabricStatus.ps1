@@ -64,13 +64,19 @@
     $tbAppFabricStatus = New-Object -TypeName System.Collections.ArrayList
 
     if ($inventory.IsSE) {
+        # FQDN suffix derived from the farm entry server, used to build a
+        # single-hop CredSSP target per cache host (avoids 0x80090322 when DNS
+        # returns the short name).
+        $suffix = if ($Server -match '\.') { $Server.Substring($Server.IndexOf('.') + 1) } else { '' }
+
         # Pass 2 (SE): query Get-SPCacheHostConfig LOCALLY on each cache host.
         # That is where the cmdlet returns the real Size (in MB), ports, etc.
         foreach ($dcHost in $inventory.DcHosts) {
+            $remoteTarget = if ($suffix) { "$($dcHost.Server).$suffix" } else { $dcHost.Server }
             $hostConfig = $null
             try {
                 $hostConfig = Invoke-SPSCommand -Credential $InstallAccount `
-                    -Server $dcHost.Server `
+                    -Server $remoteTarget `
                     -ScriptBlock {
                     Use-SPCacheCluster -ErrorAction SilentlyContinue
                     $cfg = Get-SPCacheHostConfig -HostName $env:COMPUTERNAME -ErrorAction SilentlyContinue
