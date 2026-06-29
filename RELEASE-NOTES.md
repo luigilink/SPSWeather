@@ -1,14 +1,14 @@
 # SPSWeather - Release Notes
 
-## [2.3.4] - 2026-06-29
+## [2.3.5] - 2026-06-29
 
 ### Fixed
 
-- Distributed Cache report on SharePoint Subscription Edition now populates
-  Port / Size / ServiceName / CacheStatus from the SE-native cluster cmdlets
-  (`Get-SPCacheClusterHealth` + `Get-SPCacheClusterInfo`), with a graceful
-  degradation to the SP DC defaults (22233, AppFabricCachingService) when
-  `Get-SPCacheHostConfig` cannot resolve the host. Removes the AppFabric
-  fallback from 2.3.3 (those cmdlets do not exist on SE).
+- Distributed Cache report on SharePoint Subscription Edition no longer shows
+  a phantom 'Microsoft' row (a 2.3.4 regression caused by iterating cluster
+  health HostInfo objects whose ToString starts with
+  'Microsoft.SharePoint.Internal.Caching...'). The function iterates the
+  SPDistributedCacheServiceInstance set again; cluster Size still comes from
+  Get-SPCacheClusterInfo.
 
 A full list of changes can be found in the [change log](CHANGELOG.md).

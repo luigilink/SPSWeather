@@ -42,32 +42,27 @@
             $productVersion = (Get-Command $fullPath).FileVersionInfo
         }
         if ($productVersion.FileMajorPart -eq 16 -and $productVersion.FileBuildPart -gt 13000) {
-            Write-Verbose -Message 'Subscription Edition: using Get-SPCacheClusterHealth/Info as the source of truth'
+            Write-Verbose -Message 'Subscription Edition: iterating SPDistributedCacheServiceInstance + Get-SPCacheClusterInfo for Size'
             $allSPServers = (Get-SPServer | Where-Object -FilterScript { $_.Role -ne 'Invalid' }).Name
             $dcInstances = @(Get-SPServiceInstance | Where-Object -FilterScript {
                     $_.GetType().Name -eq 'SPDistributedCacheServiceInstance'
                 })
-            # Canonical host list (FQDNs) and cluster Size come from the SE-native cmdlets.
-            $clusterHealth = Get-SPCacheClusterHealth -ErrorAction SilentlyContinue
-            $clusterInfo   = Get-SPCacheClusterInfo -ErrorAction SilentlyContinue
-            $clusterSize   = if ($null -ne $clusterInfo) { "$($clusterInfo.Size)" } else { '' }
-            $clusterHosts  = @()
-            if ($null -ne $clusterHealth -and $null -ne $clusterHealth.Hosts) {
-                $clusterHosts = @($clusterHealth.Hosts | ForEach-Object { "$_" })
-            }
+            # Cluster Size comes from the SE-native cmdlet (string like 'Small'/'Medium'/...).
+            $clusterInfo = Get-SPCacheClusterInfo -ErrorAction SilentlyContinue
+            $clusterSize = if ($null -ne $clusterInfo) { "$($clusterInfo.Size)" } else { '' }
             $reportedServers = New-Object -TypeName System.Collections.ArrayList
-            foreach ($clusterFqdn in $clusterHosts) {
-                $cacheserver = $clusterFqdn.Split('.')[0]
-                # Match the SP service instance for this host (Server.Address is short)
-                $dcInst = $dcInstances | Where-Object -FilterScript {
-                    "$($_.Server.Address)" -eq $cacheserver -or
-                    "$($_.Server.Address)" -eq $clusterFqdn
-                } | Select-Object -First 1
-                $SPInstanceStatus = if ($null -ne $dcInst) { "$($dcInst.Status)" } else { 'Unknown' }
-                # Try Get-SPCacheHostConfig with the FQDN; degrade gracefully if it
-                # returns null (some SE builds cannot resolve the host name).
-                $cacheHostConfig = Get-SPCacheHostConfig -HostName $clusterFqdn -ErrorAction SilentlyContinue
+            foreach ($dcInst in $dcInstances) {
+                $cacheserver = "$($dcInst.Server.Address)".Split('.')[0]
+                $SPInstanceStatus = "$($dcInst.Status)"
+                # Try Get-SPCacheHostConfig with the FQDN then short name; some SE
+                # builds return null for both - degrade gracefully to SP DC defaults.
+                $cacheHostConfig = $null
                 $cacheHost = $null
+                foreach ($tryHost in @("$($dcInst.Server.Address)", $cacheserver)) {
+                    if ([string]::IsNullOrEmpty($tryHost)) { continue }
+                    $cacheHostConfig = Get-SPCacheHostConfig -HostName $tryHost -ErrorAction SilentlyContinue
+                    if ($null -ne $cacheHostConfig) { break }
+                }
                 if ($null -ne $cacheHostConfig) {
                     $cacheHost = Get-SPCacheHost -HostName $cacheHostConfig.HostName -CachePort $cacheHostConfig.CachePort -ErrorAction SilentlyContinue
                 }
