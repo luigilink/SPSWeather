@@ -23,6 +23,7 @@
         'Get-SPSSearchEntCrawlLogs'
         'Get-SPSSearchEntCrawlStatus'
         'Get-SPSSearchEntTopology'
+        'Get-SPSSecret'
         'Get-SPSServer'
         'Get-SPSSiteHttpStatus'
         'Get-SPSSolutionStatus'
@@ -42,6 +43,7 @@
         'Join-HtmlBodyFromPSo'
         'Remove-SPSSheduledTask'
         'Resolve-SPSSqlAlias'
+        'Set-SPSSecret'
     )
 
     CmdletsToExport   = @()

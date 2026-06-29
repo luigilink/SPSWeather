@@ -54,6 +54,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SPSSearchEntCrawlLogs'
             'Get-SPSSearchEntCrawlStatus'
             'Get-SPSSearchEntTopology'
+            'Get-SPSSecret'
             'Get-SPSServer'
             'Get-SPSSiteHttpStatus'
             'Get-SPSSolutionStatus'
@@ -73,6 +74,7 @@ Describe 'SPSWeather.Common module' {
             'Join-HtmlBodyFromPSo'
             'Remove-SPSSheduledTask'
             'Resolve-SPSSqlAlias'
+            'Set-SPSSecret'
         )
         $actual = (Get-Command -Module SPSWeather.Common).Name | Sort-Object
         $actual | Should -Be ($expected | Sort-Object)

@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reliably creates or refreshes the SharePoint task. Registration failures now
   `throw` (with arguments and exception detail) instead of being swallowed by
   `Write-Error`, so a failed install is visible (#30).
+- `Get-SPSSecret` / `Set-SPSSecret` are now exported by the module. The entry
+  script called them directly, but they lived in `Private/`, so the scheduled run
+  could not resolve the stored credential and fell back to an interactive
+  credential prompt. Exporting them fixes the unattended run (#32).
 - `-Install` / `-Uninstall` write a dedicated entry to the SPSWeather Event Log
   (EventID 1003 / 1002) and print an explicit success line, so the installation
   outcome is traceable in Event Viewer.
