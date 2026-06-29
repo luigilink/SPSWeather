@@ -28,6 +28,10 @@
     foreach ($spServer in $Servers) {
         try {
             [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
+            if ($remoteServer -notmatch "\.") {
+                $suffix = if ($Server -match "\.") { $Server.Substring($Server.IndexOf(".") + 1) } else { "" }
+                if ($suffix) { $remoteServer = "$remoteServer.$suffix" }
+            }
             $row = Invoke-SPSCommand -Credential $InstallAccount `
                 -Arguments @($Farm, $spServer) `
                 -Server $remoteServer `
