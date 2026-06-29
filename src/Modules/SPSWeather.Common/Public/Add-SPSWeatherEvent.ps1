@@ -59,20 +59,31 @@
 
     $LogName = 'SPSWeather'
 
-    if ([System.Diagnostics.EventLog]::SourceExists($Source)) {
-        $sourceLogName = [System.Diagnostics.EventLog]::LogNameFromSourceName($Source, '.')
-        if ($LogName -ne $sourceLogName) {
-            Write-Verbose -Message "[ERROR] Specified source {$Source} already exists on log {$sourceLogName}"
-            return
-        }
-    }
-    else {
-        if ([System.Diagnostics.EventLog]::Exists($LogName) -eq $false) {
-            $null = New-EventLog -LogName $LogName -Source $Source
+    # Ensure the event source exists and is mapped to the SPSWeather log. The
+    # legacy flat scripts could register some sources under 'Application'; in that
+    # case re-point them to SPSWeather instead of silently giving up (which is why
+    # no SPSWeather log/events appeared). Requires admin (the script validates it).
+    try {
+        if ([System.Diagnostics.EventLog]::SourceExists($Source)) {
+            $sourceLogName = [System.Diagnostics.EventLog]::LogNameFromSourceName($Source, '.')
+            if ($LogName -ne $sourceLogName) {
+                Write-Verbose -Message "Source '$Source' is mapped to log '$sourceLogName'; re-pointing it to '$LogName'."
+                [System.Diagnostics.EventLog]::DeleteEventSource($Source)
+                [System.Diagnostics.EventLog]::CreateEventSource($Source, $LogName)
+            }
         }
         else {
-            [System.Diagnostics.EventLog]::CreateEventSource($Source, $LogName)
+            if ([System.Diagnostics.EventLog]::Exists($LogName) -eq $false) {
+                $null = New-EventLog -LogName $LogName -Source $Source
+            }
+            else {
+                [System.Diagnostics.EventLog]::CreateEventSource($Source, $LogName)
+            }
         }
+    }
+    catch {
+        Write-Warning -Message "Could not register event source '$Source' on log '$LogName' (need admin?): $($_.Exception.Message)"
+        return
     }
 
     $autoVersion = $MyInvocation.MyCommand.Module.Version
@@ -92,7 +103,7 @@ ComputerName: $($env:COMPUTERNAME)
         Write-EventLog -LogName $LogName -Source $Source -EventId $EventID -Message ($headerMessage + "`r`n" + $Message) -EntryType $EntryType
     }
     catch {
-        Write-Error -Message @"
+        Write-Warning -Message @"
 SPSWeather Version: $scriptVersion
 An error occurred while writing to Event Log in Source: $Source
 User: $userName

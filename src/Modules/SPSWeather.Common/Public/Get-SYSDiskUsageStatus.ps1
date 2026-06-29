@@ -40,28 +40,41 @@
         }
         $tbSYSDiskUsageStatus = New-Object -TypeName System.Collections.ArrayList
         foreach ($spServer in $params.Servers) {
-            [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-            $getDrives = Invoke-Command -ComputerName $remoteServer { Get-Volume | Where-Object -FilterScript { $_.DriveType -eq 'Fixed' -and $null -ne $_.DriveLetter } }
-            foreach ($getDrive in $getDrives) {
-                $driveSize = [math]::Round($($getDrive.Size) / 1073741824, 2)
-                $driveFree = [math]::Round($($getDrive.SizeRemaining) / 1073741824, 2)
-                $perFreeSpace = ($getDrive.SizeRemaining / $getDrive.Size) * 100
-                if ($perFreeSpace -gt $params.WarningPercentage) {
-                    $freeSpaceStatus = 'OK'
-                    $isMailInfo      = $true
+            try {
+                [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
+                $getDrives = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop { Get-Volume | Where-Object -FilterScript { $_.DriveType -eq 'Fixed' -and $null -ne $_.DriveLetter } }
+                foreach ($getDrive in $getDrives) {
+                    $driveSize = [math]::Round($($getDrive.Size) / 1073741824, 2)
+                    $driveFree = [math]::Round($($getDrive.SizeRemaining) / 1073741824, 2)
+                    $perFreeSpace = ($getDrive.SizeRemaining / $getDrive.Size) * 100
+                    if ($perFreeSpace -gt $params.WarningPercentage) {
+                        $freeSpaceStatus = 'OK'
+                        $isMailInfo      = $true
+                    }
+                    else {
+                        $freeSpaceStatus = "Less than $($params.WarningPercentage) %"
+                        $isMailInfo      = $false
+                    }
+                    [void]$tbSYSDiskUsageStatus.Add([SYSDiskUsageStatus]@{
+                            Farm        = $params.Farm;
+                            Server      = $spServer;
+                            DriveLetter = $getDrive.DriveLetter;
+                            Size        = $driveSize;
+                            FreeSpace   = $driveFree;
+                            Status      = $freeSpaceStatus;
+                            IsInfo      = $isMailInfo
+                        })
                 }
-                else {
-                    $freeSpaceStatus = "Less than $WarningPercentage %"
-                    $isMailInfo      = $false
-                }
+            }
+            catch {
                 [void]$tbSYSDiskUsageStatus.Add([SYSDiskUsageStatus]@{
                         Farm        = $params.Farm;
                         Server      = $spServer;
-                        DriveLetter = $getDrive.DriveLetter;
-                        Size        = $driveSize;
-                        FreeSpace   = $driveFree;
-                        Status      = $freeSpaceStatus;
-                        IsInfo      = $isMailInfo
+                        DriveLetter = '';
+                        Size        = '';
+                        FreeSpace   = '';
+                        Status      = 'Unreachable';
+                        IsInfo      = $false
                     })
             }
         }

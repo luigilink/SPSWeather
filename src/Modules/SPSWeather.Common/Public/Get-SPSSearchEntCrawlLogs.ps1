@@ -30,11 +30,10 @@
         }
         $spSearchEntSvc = Get-SPEnterpriseSearchServiceApplication -ErrorAction SilentlyContinue
         if ($null -ne $spSearchEntSvc) {
-            $spSchContentSources = Get-SPEnterpriseSearchCrawlContentSource -SearchApplication $spSearchEntSvc
-            if ($null -ne $spSchContentSources) {
+            $tbSPSSearchEntCrawlLogs = New-Object -TypeName System.Collections.ArrayList
+            try {
+                $spSchContentSources = Get-SPEnterpriseSearchCrawlContentSource -SearchApplication $spSearchEntSvc -ErrorAction Stop
                 $spSchCrawlLogPso = New-Object Microsoft.Office.Server.Search.Administration.CrawlLog $spSearchEntSvc
-                $tbSPSSearchEntCrawlLogs = New-Object -TypeName System.Collections.ArrayList
-
                 foreach ($contentSource in $spSchContentSources) {
                     $getSPCrawlErrors = $spSchCrawlLogPso.GetCrawlErrors($contentSource.ID, -1)
                     if ($getSPCrawlErrors.Rows.Count -ne 0) {
@@ -50,8 +49,18 @@
                         }
                     }
                 }
-                return $tbSPSSearchEntCrawlLogs
             }
+            catch {
+                [void]$tbSPSSearchEntCrawlLogs.Add([SearchContentCrawlLog]@{
+                    Farm          = $params.Farm;
+                    SearchService = $spSearchEntSvc.Name;
+                    ContentSource = 'Search unavailable';
+                    ErrorID       = '503';
+                    Message       = $_.Exception.Message;
+                    Count         = '0';
+                })
+            }
+            return $tbSPSSearchEntCrawlLogs
         }
     }
     return $result

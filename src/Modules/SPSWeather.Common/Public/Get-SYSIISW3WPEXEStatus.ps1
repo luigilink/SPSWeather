@@ -34,21 +34,32 @@
         }
         $tbIISWorkerProcessStatus = New-Object -TypeName System.Collections.ArrayList
         foreach ($spServer in $params.Servers) {
-            [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-            $w3wpProcess = Invoke-Command -ComputerName $remoteServer -ScriptBlock {
-                Get-CimInstance Win32_Process -Filter "name = 'w3wp.exe'" | Sort-Object CommandLine
+            try {
+                [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
+                $w3wpProcess = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop -ScriptBlock {
+                    Get-CimInstance Win32_Process -Filter "name = 'w3wp.exe'" | Sort-Object CommandLine
+                }
+                foreach ($w3wpProc in $w3wpProcess) {
+                    $w3wpProcCmdLine = $w3wpProc.CommandLine.Replace('c:\windows\system32\inetsrv\w3wp.exe -ap "', '')
+                    $pos = $w3wpProcCmdLine.IndexOf('"')
+                    $appPoolName = $w3wpProcCmdLine.Substring(0, $pos)
+                    $w3wpMemoryUsage = [Math]::Round($w3wpProc.WorkingSetSize / 1MB)
+                    [void]$tbIISWorkerProcessStatus.Add([IISWorkerProcessStatus]@{
+                            Farm            = $params.Farm
+                            Server          = $spServer;
+                            CreationDate    = $w3wpProc.CreationDate;
+                            Memory          = $w3wpMemoryUsage;
+                            ApplicationPool = $appPoolName;
+                        })
+                }
             }
-            foreach ($w3wpProc in $w3wpProcess) {
-                $w3wpProcCmdLine = $w3wpProc.CommandLine.Replace('c:\windows\system32\inetsrv\w3wp.exe -ap "', '')
-                $pos = $w3wpProcCmdLine.IndexOf('"')
-                $appPoolName = $w3wpProcCmdLine.Substring(0, $pos)
-                $w3wpMemoryUsage = [Math]::Round($w3wpProc.WorkingSetSize / 1MB)
+            catch {
                 [void]$tbIISWorkerProcessStatus.Add([IISWorkerProcessStatus]@{
                         Farm            = $params.Farm
                         Server          = $spServer;
-                        CreationDate    = $w3wpProc.CreationDate;
-                        Memory          = $w3wpMemoryUsage;
-                        ApplicationPool = $appPoolName;
+                        CreationDate    = '';
+                        Memory          = '';
+                        ApplicationPool = 'Unreachable';
                     })
             }
         }
