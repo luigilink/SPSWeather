@@ -47,6 +47,11 @@
     SQLDiskFreeThresholdPercent = 15
     SQLBackupMaxAgeDays         = 3
 
+    # JsonHistoryRetentionDays: how many days of JSON snapshots are kept under
+    # Results\history for the report trend (Backup-SPSWeatherJsonFile). 0 disables
+    # pruning. Default: 30.
+    JsonHistoryRetentionDays    = 30
+
     # Farms : one entry per trusted farm to check. Server is the short name; the
     # Domain above is appended to build the FQDN targeted for remoting. SqlServers
     # is OPTIONAL: the SQL client alias(es) (cliconfg) or server name(s) this farm

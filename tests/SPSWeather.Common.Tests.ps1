@@ -43,7 +43,9 @@ Describe 'SPSWeather.Common module' {
         $expected = @(
             'Add-SPSSheduledTask'
             'Add-SPSWeatherEvent'
+            'Backup-SPSWeatherJsonFile'
             'Clear-SPSLog'
+            'Compare-SPSWeatherSnapshots'
             'ConvertTo-SPSWeatherReport'
             'Export-SPSWeatherReport'
             'Get-AppFabricStatus'

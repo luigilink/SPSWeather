@@ -51,6 +51,10 @@
         [PSCustomObject]
         $Summary,
 
+        [Parameter()]
+        [PSCustomObject]
+        $Trend,
+
         [Parameter(Mandatory = $true)]
         [System.String]
         $OutputFile,
@@ -85,6 +89,11 @@
     $overall = if ($alertCount -gt 0) { 'ALERT' } else { 'OK' }
     $overallClass = if ($alertCount -gt 0) { 'banner-alert' } else { 'banner-ok' }
     $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+    $trendHtml = ''
+    if ($null -ne $Trend -and $Trend.HasPrevious) {
+        $arrow = if ($Trend.DeltaAlert -gt 0) { '&uarr;' } elseif ($Trend.DeltaAlert -lt 0) { '&darr;' } else { '=' }
+        $trendHtml = "<span class=`"kpi kpi-trend`">Alert $($Trend.Previous.Alert) &rarr; $($Trend.Current.Alert) $arrow</span>"
+    }
 
     # HTML-encode helper (works on Windows PowerShell 5.1 and pwsh 7).
     function _enc([object]$v) {
@@ -140,6 +149,7 @@ header.banner h1 { margin:0; font-size:16px; font-weight:600; }
 .banner-alert { background:var(--alert-bg); color:var(--alert-ink); }
 .kpi-ok { background:var(--ok-bg); color:var(--ok-ink); }
 .kpi-alert { background:var(--alert-bg); color:var(--alert-ink); }
+.kpi-trend { background:#fff; color:var(--brand); border:1px solid #ffffff55; }
 .meta { color:#e5e7eb; font-size:12px; }
 .layout { max-width:1200px; margin:16px auto; padding:0 16px; display:grid; grid-template-columns:240px 1fr; gap:16px; }
 nav.toc { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px; position:sticky; top:64px; max-height:calc(100vh - 80px); overflow:auto; }
@@ -169,6 +179,7 @@ footer { color:var(--muted); font-size:12px; text-align:center; padding:12px 0; 
     <span class="kpi $overallClass">$overall</span>
     <span class="kpi kpi-ok">OK $okCount</span>
     <span class="kpi kpi-alert">Alert $alertCount</span>
+    $trendHtml
     <span class="meta">generated $generated</span>
   </div>
 </header>

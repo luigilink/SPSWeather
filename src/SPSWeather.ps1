@@ -215,6 +215,8 @@ else {
         # Optional SQL thresholds (config overrides, with safe defaults)
         $sqlDiskThreshold = if ($null -ne $envCfg.SQLDiskFreeThresholdPercent) { [int]$envCfg.SQLDiskFreeThresholdPercent } else { 15 }
         $sqlBackupMaxAge = if ($null -ne $envCfg.SQLBackupMaxAgeDays) { [int]$envCfg.SQLBackupMaxAgeDays } else { 3 }
+        $jsonHistoryRetentionDays = if ($null -ne $envCfg.JsonHistoryRetentionDays) { [int]$envCfg.JsonHistoryRetentionDays } else { 30 }
+        $pathHistoryFolder = Join-Path -Path $pathResultsFolder -ChildPath 'history'
         Add-SPSWeatherEvent -Message "SPSWeather $spsWeatherVersion started for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1000
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
@@ -445,14 +447,20 @@ else {
         if ($mailAlert -eq 'ALERT') { $mailPriority = 'High' }
 
         $mailSubject = "[$($mailAlert)]$($Application)_$($Environment) - Meteo SharePoint $($DateEnded)"
-        $mailHTMLBody = Join-HtmlBodyFromPSo -PSObjectFromJson $jsonObject -Summary $reportResult.Summary
+        # Trend vs previous snapshot (history compare). Safe if history is empty.
+        $trend = Compare-SPSWeatherSnapshots -CurrentObject $jsonObject -HistoryFolder $pathHistoryFolder -ErrorAction SilentlyContinue
+        $mailHTMLBody = Join-HtmlBodyFromPSo -PSObjectFromJson $jsonObject -Summary $reportResult.Summary -Trend $trend
         $mailHTMLBody | Out-File -FilePath $pathHTMLFile -Force
+
+        # Archive the previous JSON snapshot before overwriting and prune by retention.
+        [void](Backup-SPSWeatherJsonFile -Path $pathJsonFile -HistoryFolder $pathHistoryFolder -RetentionDays $jsonHistoryRetentionDays -ErrorAction SilentlyContinue)
         $jsonObject | ConvertTo-Json | Set-Content -Path $pathJSONFile -Force
 
         # Generate the standalone rich report (next to the email body HTML)
         $pathRichHtmlFile = Join-Path -Path $pathResultsFolder -ChildPath ($spWeatherFileName + '-rich.html')
         [void](Export-SPSWeatherReport -InputObject $jsonObject `
                 -Summary $reportResult.Summary `
+                -Trend $trend `
                 -OutputFile $pathRichHtmlFile `
                 -Title "SPSWeather $spsWeatherVersion - $Application/$Environment")
 
