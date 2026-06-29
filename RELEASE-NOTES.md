@@ -1,5 +1,15 @@
 # SPSWeather - Release Notes
 
+## [2.2.5] - 2026-06-29
+
+### Fixed
+
+- The SPSWeather Event Log is now created reliably: Add-SPSWeatherEvent re-points
+  a source that legacy scripts bound to the Application log, instead of giving up
+  silently, so install/run/alert events are recorded.
+
+A full list of changes can be found in the [change log](CHANGELOG.md).
+
 ## [2.2.4] - 2026-06-29
 
 ### Fixed

@@ -5,6 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.5] - 2026-06-29
+
+### Fixed
+
+- `Add-SPSWeatherEvent` no longer returns silently when its source is already
+  registered against another log (legacy flat scripts could bind 'SPSWeather'
+  to Application): it now re-points the source to the SPSWeather log and only
+  warns if the registration/write fails. This is why no SPSWeather log or events
+  appeared on a fresh install (#35).
+
 ## [2.2.4] - 2026-06-29
 
 ### Fixed
