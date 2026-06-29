@@ -15,6 +15,10 @@
 
         [Parameter()]
         [System.String]
+        $Description = 'SPSWeather daily health-check', # Task description
+
+        [Parameter()]
+        [System.String]
         $TaskPath = 'SharePoint' # Path of the task folder
     )
 
@@ -40,57 +44,51 @@
         Write-Output "Successfully created task folder '$TaskPath'"
     }
 
-    # Retrieve the scheduled task
-    $getScheduledTask = $TaskFolder.GetTasks(0) | Where-Object -FilterScript {
-        $_.Name -eq $TaskName
+    # Create or update the task (no skip): adopt the SPSUpdate pattern so an
+    # existing task is refreshed rather than silently skipped.
+    Write-Output '--------------------------------------------------------------'
+    Write-Output "Adding or updating '$TaskName' script in Task Scheduler Service ..."
+
+    # Get credentials for Task Schedule
+    $TaskAuthor = ([Security.Principal.WindowsIdentity]::GetCurrent()).Name # Author of the task
+    $TaskUser = $UserName # Username for task registration
+    $TaskUserPwd = $Password # Password for task registration
+
+    # Add a new Task Schedule
+    $TaskSchd = $TaskSvc.NewTask(0)
+    $TaskSchd.RegistrationInfo.Description = "$($Description)" # Task description
+    $TaskSchd.RegistrationInfo.Author = $TaskAuthor # Task author
+    $TaskSchd.Principal.RunLevel = 1 # Task run level (1 = Highest)
+
+    # Task Schedule - Modify Settings Section
+    $TaskSettings = $TaskSchd.Settings
+    $TaskSettings.AllowDemandStart = $true
+    $TaskSettings.Enabled = $true
+    $TaskSettings.Hidden = $false
+    $TaskSettings.StartWhenAvailable = $true
+
+    # Task Schedule - Trigger Section: daily at 06:00
+    $TaskTriggers = $TaskSchd.Triggers
+    $TaskTrigger1 = $TaskTriggers.Create(2) # 2 = Daily trigger
+    $TaskTrigger1.StartBoundary = $TaskDate + 'T06:00:00' # Start time
+    $TaskTrigger1.DaysInterval = 1 # Interval of 1 day
+    $TaskTrigger1.Enabled = $true
+
+    # Define the task action
+    $TaskAction = $TaskSchd.Actions.Create(0) # 0 = Executable action
+    $TaskAction.Path = $TaskCmd # Path to the executable
+    $TaskAction.Arguments = $ActionArguments # Arguments for the executable
+
+    try {
+        # Register/update the task (6 = create or update, 1 = TASK_LOGON_PASSWORD)
+        [void]$TaskFolder.RegisterTaskDefinition($TaskName, $TaskSchd, 6, $TaskUser, $TaskUserPwd, 1)
+        Write-Output "Successfully added or updated '$TaskName' script in Task Scheduler Service"
     }
-    
-    if ($getScheduledTask) {
-        Write-Warning -Message 'Scheduled Task already exists - skipping.' # Task already exists
-    }
-    else {
-        Write-Output '--------------------------------------------------------------'
-        Write-Output "Adding '$TaskName' script in Task Scheduler Service ..."
-        
-        # Get credentials for Task Schedule
-        $TaskAuthor = ([Security.Principal.WindowsIdentity]::GetCurrent()).Name # Author of the task
-        $TaskUser = $UserName # Username for task registration
-        $TaskUserPwd = $Password # Password for task registration
-        
-        # Add a new Task Schedule
-        $TaskSchd = $TaskSvc.NewTask(0)
-        $TaskSchd.RegistrationInfo.Description = "$($TaskName) Task - Start at 6:00 daily" # Task description
-        $TaskSchd.RegistrationInfo.Author = $TaskAuthor # Task author
-        $TaskSchd.Principal.RunLevel = 1 # Task run level (1 = Highest)
-        
-        # Task Schedule - Modify Settings Section
-        $TaskSettings = $TaskSchd.Settings
-        $TaskSettings.AllowDemandStart = $true
-        $TaskSettings.Enabled = $true
-        $TaskSettings.Hidden = $false
-        $TaskSettings.StartWhenAvailable = $true
-        
-        # Task Schedule - Trigger Section
-        $TaskTriggers = $TaskSchd.Triggers
-        
-        # Add Trigger Type 2 OnSchedule Daily Start at 6:00 AM
-        $TaskTrigger1 = $TaskTriggers.Create(2) # 2 = Daily trigger
-        $TaskTrigger1.StartBoundary = $TaskDate + 'T06:00:00' # Start time
-        $TaskTrigger1.DaysInterval = 1 # Interval of 1 day
-        $TaskTrigger1.Enabled = $true
-        
-        # Define the task action
-        $TaskAction = $TaskSchd.Actions.Create(0) # 0 = Executable action
-        $TaskAction.Path = $TaskCmd # Path to the executable
-        $TaskAction.Arguments = $ActionArguments # Arguments for the executable
-        
-        try {
-            # Register the task
-            $TaskFolder.RegisterTaskDefinition($TaskName, $TaskSchd, 6, $TaskUser, $TaskUserPwd, 1)
-            Write-Output "Successfully added '$TaskName' script in Task Scheduler Service"
-        }
-        catch {
-            Write-Error -Message $_ # Handle any errors during task registration
-        }
+    catch {
+        throw @"
+An error occurred while adding/updating the scheduled task: $($TaskName)
+ActionArguments: $($ActionArguments)
+Exception: $($_.Exception.Message)
+"@
     }
 }

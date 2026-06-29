@@ -135,6 +135,19 @@ Describe 'Public function contracts' {
         $param.Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
     }
 
+    It 'Add-SPSSheduledTask exposes an optional -Description parameter' {
+        $param = (Get-Command -Name Add-SPSSheduledTask -Module SPSWeather.Common).Parameters['Description']
+        $param | Should -Not -BeNullOrEmpty
+        $param.Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeFalse
+    }
+
+    It 'Add-SPSSheduledTask creates or updates the task (mode 6, no silent skip)' {
+        $src = (Get-Command -Name Add-SPSSheduledTask -Module SPSWeather.Common).Definition
+        $src | Should -Match 'RegisterTaskDefinition\([^)]*6,'
+        $src | Should -Not -Match 'already exists - skipping'
+        $src | Should -Match 'throw'
+    }
+
     It 'Get-SPSVersion requires a mandatory -Server' {
         $param = (Get-Command -Name Get-SPSVersion -Module SPSWeather.Common).Parameters['Server']
         $param | Should -Not -BeNullOrEmpty
