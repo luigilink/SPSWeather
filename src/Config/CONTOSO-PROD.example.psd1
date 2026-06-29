@@ -26,7 +26,7 @@
 
     # CredentialKey : name of the entry in Config\secrets.psd1 that holds the
     # service account used to reach the farms (CredSSP remoting). Populate it by
-    # running -Install as that account, or generate it manually with
+    # running -Action Install as that account, or generate it manually with
     # ConvertFrom-SecureString. See Config\secrets.example.psd1.
     CredentialKey     = 'PROD-ADM'
 

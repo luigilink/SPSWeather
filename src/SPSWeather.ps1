@@ -13,23 +13,20 @@
     Use the switch EnableSmtp parameter if you want to enable Email notifications using SMTP
     PS D:\> E:\SCRIPT\SPSWeather.ps1 -EnableSmtp
 
-    .PARAMETER Install
-    Use the switch Install parameter if you want to add the SPSWeather script in taskscheduler
-    InstallAccount parameter need to be set
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.psd1'
+    .PARAMETER Action
+    Use the Action parameter to manage the scheduled task. Accepted values:
+    Install (add the SPSWeather task, InstallAccount required), Uninstall (remove
+    the task and stored secret), or Default (run the health check). Defaults to Default.
+    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Action Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.psd1'
 
     .PARAMETER InstallAccount
-    Need parameter InstallAccount when you use the switch Install parameter
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.psd1'
-
-    .PARAMETER Uninstall
-    Use the switch Uninstall parameter if you want to remove the SPSWeather script from taskscheduler
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Uninstall
+    Need parameter InstallAccount when you use -Action Install
+    PS D:\> E:\SCRIPT\SPSWeather.ps1 -Action Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.psd1'
 
     .EXAMPLE
     SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -EnableSmtp
-    SPSWeather.ps1 -Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.psd1'
-    SPSWeather.ps1 -Uninstall -ConfigFile 'contoso-PROD.psd1'
+    SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -Action Install -InstallAccount (Get-Credential)
+    SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -Action Uninstall
 
     .NOTES
     FileName:	SPSWeather.ps1
@@ -52,16 +49,13 @@ param
     $EnableSmtp,
 
     [Parameter(Position = 3)]
-    [switch]
-    $Install,
+    [ValidateSet('Install', 'Uninstall', 'Default', IgnoreCase = $true)]
+    [System.String]
+    $Action = 'Default',
 
     [Parameter(Position = 4)]
     [System.Management.Automation.PSCredential]
-    $InstallAccount,
-
-    [Parameter(Position = 5)]
-    [switch]
-    $Uninstall
+    $InstallAccount
 )
 
 #region Main
@@ -111,10 +105,10 @@ Write-Output "| Started on : $DateStarted by $currentUser"
 Write-Output "| PowerShell Version: $psVersion"
 Write-Output '-------------------------------------'
 
-# Check UserName and Password if Install parameter is used
-if ($Install) {
+# Check UserName and Password if Install action is used
+if ($Action -eq 'Install') {
     if ($null -eq $InstallAccount) {
-        Write-Warning -Message ('SPSWeather: Install parameter is set. Please set also InstallAccount ' + `
+        Write-Warning -Message ('SPSWeather: -Action Install is set. Please set also InstallAccount ' + `
                 "parameter. `nSee https://github.com/luigilink/SPSWeather/wiki for details.")
         Break
     }
@@ -185,7 +179,7 @@ else {
         -ArgumentList '/s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c' `
         -NoNewWindow
 
-    if ($Uninstall) {
+    if ($Action -eq 'Uninstall') {
         # Remove SPSWeather script from scheduled Task
         Remove-SPSSheduledTask -TaskName $spWeatherTaskName
 
@@ -195,9 +189,9 @@ else {
         Add-SPSWeatherEvent -Message "SPSWeather scheduled task '$spWeatherTaskName' removed on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1002
         Write-Output "SPSWeather uninstalled: task '$spWeatherTaskName' and secret '$($envCfg.CredentialKey)' removed."
     }
-    elseif ($Install) {
+    elseif ($Action -eq 'Install') {
         # Persist the service credential as a DPAPI-encrypted SecureString in
-        # secrets.psd1. Run -Install AS the service account so the value can be
+        # secrets.psd1. Run -Action Install AS the service account so the value can be
         # decrypted at run time by the scheduled task.
         Set-SPSSecret -CredentialKey $envCfg.CredentialKey -Credential $InstallAccount -ConfigPath $pathConfigFolder
 
@@ -215,7 +209,7 @@ else {
             New-Variable -Name 'ADM' -Value $credential -Force
         }
         else {
-            Throw "Credential '$($envCfg.CredentialKey)' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Install as the service account, or populate secrets.psd1 manually. See the wiki for details."
+            Throw "Credential '$($envCfg.CredentialKey)' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Action Install as the service account, or populate secrets.psd1 manually. See the wiki for details."
         }
         $spFarms = $envCfg.Farms
         # Optional SQL thresholds (config overrides, with safe defaults)
