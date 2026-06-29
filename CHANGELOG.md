@@ -5,6 +5,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.6] - 2026-06-29
+
+### Fixed
+
+- `Get-AppFabricStatus` (SE branch) now reports the real cache Size in MB
+  (e.g. '2048 MB') and the actual CachePort. `Get-SPCacheHostConfig` only
+  returns its full payload when executed locally on the cache host after
+  `Use-SPCacheCluster`; the function now does exactly that, opening a
+  CredSSP session per cache host and calling `Get-SPCacheHostConfig
+  -HostName $env:COMPUTERNAME` from inside. When the local lookup still
+  fails, the row falls back to the SE cluster tier (Small/Medium/Large)
+  suffixed ' (tier)'. The 2016/2019 (AppFabric) branch is unchanged
+  (#51, #53).
+
+## [2.3.6] - 2026-06-29
+
+### Fixed
+
+- Distributed Cache: the email body header for the cache size column is now
+  'Size' (it was 'Size (MB)' but the value was the SE sizing tier - Small /
+  Medium / Large - when Get-SPCacheHostConfig is null). The fallback value
+  is now displayed as 'Small (tier)' / 'Medium (tier)' / ... to make clear
+  it is not a raw MB number (#53).
+
 ## [2.3.5] - 2026-06-29
 
 ### Fixed
