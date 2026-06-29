@@ -1,15 +1,15 @@
 # SPSWeather - Release Notes
 
-## [2.2.1] - 2026-06-29
+## [2.2.2] - 2026-06-29
 
-A patch release fixing the readiness secret check.
+### Added
 
-### Fixed
-
-- `Test-SPSWeatherReadiness.ps1` no longer skips the secret validation with
-  "Module not loaded; cannot validate the secret". It used `Get-Command` to look
-  up `Get-SPSSecret`, which is a private function and therefore invisible; it now
-  calls it inside the SPSWeather.Common session state and actually verifies that
-  the credential in secrets.psd1 decrypts under the current account.
+- The readiness check now tests WinRM/CredSSP on **every server of the local
+  farm** (Get-SPServer, role <> Invalid), merged with the per-farm servers
+  declared in the config, instead of only the declared entry point. SharePoint is
+  loaded version-aware (2016/2019 snap-in, Subscription Edition module). Use
+  -SkipSharePoint to fall back to declared servers when run off-server.
+- New public helpers Get-SPSInstalledProductVersion and Import-SPSSharePointCommand
+  (ported from SPSUserSync).
 
 A full list of changes can be found in the [change log](CHANGELOG.md).

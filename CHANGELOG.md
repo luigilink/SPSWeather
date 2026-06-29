@@ -5,6 +5,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-06-29
+
+### Added
+
+- Port `Get-SPSInstalledProductVersion` and `Import-SPSSharePointCommand` from
+  SPSUserSync: detect the SharePoint version and load the right command surface
+  (2016/2019 -> Microsoft.SharePoint.PowerShell snap-in, Subscription Edition ->
+  SharePointServer module).
+- `Test-SPSWeatherReadiness.ps1` now enumerates every server of the local farm
+  with `Get-SPServer` (role <> Invalid) and tests WinRM/CredSSP on each, merged
+  with the per-farm servers declared in the config, instead of only the declared
+  entry point. Use `-SkipSharePoint` to fall back to declared servers (#26).
+
 ## [2.2.1] - 2026-06-29
 
 ### Fixed
