@@ -67,7 +67,14 @@
                 }
             }
             catch {
-                return $_
+                [void]$tbSYSEventViewerAppErrors.Add([SYSEventViewerAppError]@{
+                    Farm     = $params.Farm
+                    Server   = $pSserver;
+                    ID       = 'Non Applicable';
+                    Severity = 'Warning';
+                    Name     = 'Unreachable';
+                    Count    = '0';
+                })
             }
         }
         return $tbSYSEventViewerAppErrors

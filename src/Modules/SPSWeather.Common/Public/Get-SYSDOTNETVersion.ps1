@@ -33,32 +33,42 @@
         }
         $tbSYSDOTNETVersion = New-Object -TypeName System.Collections.ArrayList
         foreach ($spServer in $params.Servers) {
-            [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-            $resultReg = Invoke-Command -ComputerName $remoteServer -ScriptBlock {
-                try {
-                    $getItemProperty = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full"
+            try {
+                [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
+                $resultReg = Invoke-Command -ComputerName $remoteServer -ScriptBlock {
+                    try {
+                        $getItemProperty = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full"
+                    }
+                    catch {
+                        $null = $getItemProperty
+                    }
+                    return $getItemProperty
                 }
-                catch {
-                    $null = $getItemProperty
+                if ($null -ne $resultReg) {
+                    [System.Boolean]$NetRequiredBool = ($resultReg.Release -ge 528040)
+                    [void]$tbSYSDOTNETVersion.Add([SYSDOTNETVersion]@{
+                            Farm               = $params.Farm;
+                            Server             = $spServer;
+                            NetVersion         = "$($resultReg.Version)";
+                            NetRequiredVersion = $NetRequiredBool;
+                        })
                 }
-                return $getItemProperty
+                else {
+                    [void]$tbSYSDOTNETVersion.Add([SYSDOTNETVersion]@{
+                            Farm               = $params.Farm;
+                            Server             = $spServer;
+                            NetVersion         = $null;
+                            NetRequiredVersion = $null;
+                        })
+                }
             }
-            if ($nulll -ne $resultReg){
-                [System.Boolean]$NetRequiredBool = ($resultReg.Release -ge 528040)
+            catch {
                 [void]$tbSYSDOTNETVersion.Add([SYSDOTNETVersion]@{
-                    Farm               = $params.Farm;
-                    Server             = $spServer;
-                    NetVersion         = "$($resultReg.Version)";
-                    NetRequiredVersion = $NetRequiredBool;
-                })
-            }
-            else {
-                [void]$tbSYSDOTNETVersion.Add([SYSDOTNETVersion]@{
-                    Farm               = $params.Farm;
-                    Server             = $spServer;
-                    NetVersion         = $null;
-                    NetRequiredVersion = $null;
-                })
+                        Farm               = $params.Farm;
+                        Server             = $spServer;
+                        NetVersion         = 'Unreachable';
+                        NetRequiredVersion = $false;
+                    })
             }
         }
         return $tbSYSDOTNETVersion

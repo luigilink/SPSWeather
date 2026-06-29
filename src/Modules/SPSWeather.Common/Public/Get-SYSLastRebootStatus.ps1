@@ -34,15 +34,26 @@
         }
         $tbSYSLastRebootStatus = New-Object -TypeName System.Collections.ArrayList
         foreach ($spServer in $params.Servers) {
-            [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-            $cimWin32_OS = Get-CimInstance -ComputerName $remoteServer -ClassName win32_operatingsystem
-            [void]$tbSYSLastRebootStatus.Add([SYSLastRebootStatus]@{
-                    Farm           = $params.Farm;
-                    Server         = $spServer;
-                    OSName         = $cimWin32_OS.Caption;
-                    OSVersion      = $cimWin32_OS.Version;
-                    LastRebootTime = $cimWin32_OS.LastBootUpTime;
-                })
+            try {
+                [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
+                $cimWin32_OS = Get-CimInstance -ComputerName $remoteServer -ClassName win32_operatingsystem
+                [void]$tbSYSLastRebootStatus.Add([SYSLastRebootStatus]@{
+                        Farm           = $params.Farm;
+                        Server         = $spServer;
+                        OSName         = $cimWin32_OS.Caption;
+                        OSVersion      = $cimWin32_OS.Version;
+                        LastRebootTime = $cimWin32_OS.LastBootUpTime;
+                    })
+            }
+            catch {
+                [void]$tbSYSLastRebootStatus.Add([SYSLastRebootStatus]@{
+                        Farm           = $params.Farm;
+                        Server         = $spServer;
+                        OSName         = 'Unreachable';
+                        OSVersion      = '';
+                        LastRebootTime = '';
+                    })
+            }
         }
         return $tbSYSLastRebootStatus
     }
