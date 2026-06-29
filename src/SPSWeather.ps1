@@ -216,6 +216,7 @@ else {
         $sqlDiskThreshold = if ($null -ne $envCfg.SQLDiskFreeThresholdPercent) { [int]$envCfg.SQLDiskFreeThresholdPercent } else { 15 }
         $sqlBackupMaxAge = if ($null -ne $envCfg.SQLBackupMaxAgeDays) { [int]$envCfg.SQLBackupMaxAgeDays } else { 3 }
         $jsonHistoryRetentionDays = if ($null -ne $envCfg.JsonHistoryRetentionDays) { [int]$envCfg.JsonHistoryRetentionDays } else { 30 }
+        $logRetentionDays = if ($null -ne $envCfg.LogRetentionDays) { [int]$envCfg.LogRetentionDays } else { 180 }
         $pathHistoryFolder = Join-Path -Path $pathResultsFolder -ChildPath 'history'
         Add-SPSWeatherEvent -Message "SPSWeather $spsWeatherVersion started for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1000
         foreach ($spFarm in $spFarms) {
@@ -473,7 +474,7 @@ else {
         }
 
         # Clean the folder of log files
-        Clear-SPSLog -path $pathLogsFolder -Retention 180
+        Clear-SPSLog -path $pathLogsFolder -Retention $logRetentionDays
 
         # Send Email
         if ($EnableSmtp) {

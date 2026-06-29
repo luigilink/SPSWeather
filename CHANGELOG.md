@@ -5,6 +5,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-06-29
+
+### Fixed
+
+- `Clear-SPSLog` no longer filters on an undefined `$logFileName` variable (which
+  resolved to `*`, accidentally working but never targeting `.log` files
+  specifically). It now takes a `-Filter` parameter (default `*.log`) and honors
+  `-Retention 0` to disable pruning (#42).
+
+### Changed
+
+- Log retention is no longer hardcoded to 180 days: new config setting
+  `LogRetentionDays` (default 180, 0 disables pruning), mirroring
+  `JsonHistoryRetentionDays` (#42).
+
 ## [2.3.0] - 2026-06-29
 
 ### Added

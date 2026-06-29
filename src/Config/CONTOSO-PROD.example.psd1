@@ -52,6 +52,10 @@
     # pruning. Default: 30.
     JsonHistoryRetentionDays    = 30
 
+    # LogRetentionDays: how many days of *.log transcript files are kept under
+    # Logs\ by Clear-SPSLog. 0 disables pruning. Default: 180.
+    LogRetentionDays            = 180
+
     # Farms : one entry per trusted farm to check. Server is the short name; the
     # Domain above is appended to build the FQDN targeted for remoting. SqlServers
     # is OPTIONAL: the SQL client alias(es) (cliconfg) or server name(s) this farm
