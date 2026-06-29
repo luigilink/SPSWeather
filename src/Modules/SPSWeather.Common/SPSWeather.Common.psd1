@@ -1,6 +1,6 @@
 ﻿@{
     RootModule        = 'SPSWeather.Common.psm1'
-    ModuleVersion     = '2.2.3'
+    ModuleVersion     = '2.2.4'
     GUID              = 'c39bd612-8520-4e65-9037-80060894d654'
     Author            = 'Jean-Cyril DROUHIN'
     CompanyName       = 'luigilink'
@@ -23,6 +23,7 @@
         'Get-SPSSearchEntCrawlLogs'
         'Get-SPSSearchEntCrawlStatus'
         'Get-SPSSearchEntTopology'
+        'Get-SPSSecret'
         'Get-SPSServer'
         'Get-SPSSiteHttpStatus'
         'Get-SPSSolutionStatus'
@@ -42,6 +43,7 @@
         'Join-HtmlBodyFromPSo'
         'Remove-SPSSheduledTask'
         'Resolve-SPSSqlAlias'
+        'Set-SPSSecret'
     )
 
     CmdletsToExport   = @()

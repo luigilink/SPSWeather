@@ -54,6 +54,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SPSSearchEntCrawlLogs'
             'Get-SPSSearchEntCrawlStatus'
             'Get-SPSSearchEntTopology'
+            'Get-SPSSecret'
             'Get-SPSServer'
             'Get-SPSSiteHttpStatus'
             'Get-SPSSolutionStatus'
@@ -73,6 +74,7 @@ Describe 'SPSWeather.Common module' {
             'Join-HtmlBodyFromPSo'
             'Remove-SPSSheduledTask'
             'Resolve-SPSSqlAlias'
+            'Set-SPSSecret'
         )
         $actual = (Get-Command -Module SPSWeather.Common).Name | Sort-Object
         $actual | Should -Be ($expected | Sort-Object)
@@ -133,6 +135,19 @@ Describe 'Public function contracts' {
         $param = (Get-Command -Name $_ -Module SPSWeather.Common).Parameters['TaskName']
         $param | Should -Not -BeNullOrEmpty
         $param.Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeTrue
+    }
+
+    It 'Add-SPSSheduledTask exposes an optional -Description parameter' {
+        $param = (Get-Command -Name Add-SPSSheduledTask -Module SPSWeather.Common).Parameters['Description']
+        $param | Should -Not -BeNullOrEmpty
+        $param.Attributes.Where{ $_.TypeId.Name -eq 'ParameterAttribute' }[0].Mandatory | Should -BeFalse
+    }
+
+    It 'Add-SPSSheduledTask creates or updates the task (mode 6, no silent skip)' {
+        $src = (Get-Command -Name Add-SPSSheduledTask -Module SPSWeather.Common).Definition
+        $src | Should -Match 'RegisterTaskDefinition\([^)]*6,'
+        $src | Should -Not -Match 'already exists - skipping'
+        $src | Should -Match 'throw'
     }
 
     It 'Get-SPSVersion requires a mandatory -Server' {

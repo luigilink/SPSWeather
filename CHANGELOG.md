@@ -5,6 +5,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.4] - 2026-06-29
+
+### Fixed
+
+- `Add-SPSSheduledTask` no longer warns and skips when the task already exists:
+  it now registers the task in create-or-update mode (logon type 6) so `-Install`
+  reliably creates or refreshes the SharePoint task. Registration failures now
+  `throw` (with arguments and exception detail) instead of being swallowed by
+  `Write-Error`, so a failed install is visible (#30).
+- `Get-SPSSecret` / `Set-SPSSecret` are now exported by the module. The entry
+  script called them directly, but they lived in `Private/`, so the scheduled run
+  could not resolve the stored credential and fell back to an interactive
+  credential prompt. Exporting them fixes the unattended run (#32).
+- `-Install` / `-Uninstall` write a dedicated entry to the SPSWeather Event Log
+  (EventID 1003 / 1002) and print an explicit success line, so the installation
+  outcome is traceable in Event Viewer.
+
+### Added
+
+- `Add-SPSSheduledTask` gains an optional `-Description` parameter for the task
+  registration metadata.
+
 ## [2.2.3] - 2026-06-29
 
 ### Changed

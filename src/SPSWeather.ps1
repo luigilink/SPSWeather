@@ -191,6 +191,9 @@ else {
 
         # Remove the stored secret from secrets.psd1 (if present)
         Set-SPSSecret -CredentialKey $envCfg.CredentialKey -ConfigPath $pathConfigFolder -Remove
+
+        Add-SPSWeatherEvent -Message "SPSWeather scheduled task '$spWeatherTaskName' removed on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1002
+        Write-Output "SPSWeather uninstalled: task '$spWeatherTaskName' and secret '$($envCfg.CredentialKey)' removed."
     }
     elseif ($Install) {
         # Persist the service credential as a DPAPI-encrypted SecureString in
@@ -200,6 +203,9 @@ else {
 
         # Add SPSWeather script in a new scheduled Task
         Add-SPSSheduledTask -ExecuteAsCredential $InstallAccount -TaskName $spWeatherTaskName -ActionArguments "-Execution Bypass $($scriptRootPath)\SPSWeather.ps1 -ConfigFile $($ConfigFile) -EnableSMTP"
+
+        Add-SPSWeatherEvent -Message "SPSWeather scheduled task '$spWeatherTaskName' installed/updated for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1003
+        Write-Output "SPSWeather installed: task '$spWeatherTaskName' created/updated and secret '$($envCfg.CredentialKey)' stored."
     }
     else {
         # Initialize Security

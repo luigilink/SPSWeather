@@ -152,15 +152,13 @@ if ($null -ne $cfg -and $cfg.Contains('CredentialKey') -and $cfg.CredentialKey) 
         Add-CheckResult -Section 'Secrets' -Name 'secrets.psd1' -Status 'FAIL' -Detail "Not found at $secretsPath. Run SPSWeather.ps1 -Install as the service account."
     }
     else {
-        # Get-SPSSecret is private (not exported), so call it inside the module's
-        # session state where private functions are visible.
-        $module = Get-Module -Name SPSWeather.Common
-        if ($null -eq $module) {
+        # Get-SPSSecret is exported by the module; call it directly.
+        if ($null -eq (Get-Module -Name SPSWeather.Common)) {
             Add-CheckResult -Section 'Secrets' -Name 'Get-SPSSecret' -Status 'SKIP' -Detail 'Module not loaded; cannot validate the secret'
         }
         else {
             try {
-                $cred = & $module { param($k, $p) Get-SPSSecret -CredentialKey $k -ConfigPath $p -ErrorAction Stop } $cfg.CredentialKey $configFolder
+                $cred = Get-SPSSecret -CredentialKey $cfg.CredentialKey -ConfigPath $configFolder -ErrorAction Stop
                 if ($null -ne $cred -and $cred.GetNetworkCredential().Password.Length -gt 0) {
                     Add-CheckResult -Section 'Secrets' -Name "Credential '$($cfg.CredentialKey)'" -Status 'PASS' -Detail "DPAPI decrypt OK (user: $($cred.UserName))"
                 }
