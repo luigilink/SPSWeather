@@ -40,7 +40,11 @@ param
 
     [Parameter()]
     [switch]
-    $SkipNetwork
+    $SkipNetwork,
+
+    [Parameter()]
+    [switch]
+    $SkipSharePoint
 )
 
 $script:results = New-Object System.Collections.Generic.List[object]
@@ -186,8 +190,35 @@ if ($SkipNetwork) {
     Add-CheckResult -Section 'Network' -Name 'Farm reachability' -Status 'SKIP' -Detail '-SkipNetwork specified'
 }
 elseif ($null -ne $cfg -and $cfg.Contains('Farms') -and $cfg.Farms) {
+    # Start from the per-farm servers declared in the config.
+    $targets = New-Object System.Collections.Generic.List[string]
     foreach ($farm in $cfg.Farms) {
-        $target = "$($farm.Server).$($cfg.Domain)"
+        if ($farm.Server) { $targets.Add("$($farm.Server).$($cfg.Domain)") }
+    }
+
+    # Enrich with every server of the local farm (Get-SPServer), so all the
+    # machines that SPSWeather will reach are checked - not just the declared
+    # entry point. This needs the SharePoint command surface; load it the same
+    # version-aware way the run does (2016/2019 -> snap-in, SE -> module).
+    if (-not $SkipSharePoint -and (Get-Command -Name Import-SPSSharePointCommand -ErrorAction SilentlyContinue)) {
+        try {
+            $null = Import-SPSSharePointCommand
+            $farmServers = @(Get-SPServer | Where-Object { $_.Role -ne 'Invalid' } | Select-Object -ExpandProperty Name)
+            foreach ($s in $farmServers) {
+                $fqdn = if ($s -like "*.*") { $s } else { "$s.$($cfg.Domain)" }
+                if ($targets -notcontains $fqdn) { $targets.Add($fqdn) }
+            }
+            Add-CheckResult -Section 'Network' -Name 'Farm server enumeration' -Status 'PASS' -Detail "$($farmServers.Count) server(s) via Get-SPServer"
+        }
+        catch {
+            Add-CheckResult -Section 'Network' -Name 'Farm server enumeration' -Status 'SKIP' -Detail "Get-SPServer unavailable: $($_.Exception.Message)"
+        }
+    }
+    else {
+        Add-CheckResult -Section 'Network' -Name 'Farm server enumeration' -Status 'SKIP' -Detail 'SharePoint not loaded; using declared servers only'
+    }
+
+    foreach ($target in ($targets | Sort-Object -Unique)) {
         try {
             $null = Test-WSMan -ComputerName $target -ErrorAction Stop
             Add-CheckResult -Section 'Network' -Name "WinRM to $target" -Status 'PASS' -Detail 'Confirm CredSSP is enabled for the full run'

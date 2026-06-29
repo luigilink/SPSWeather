@@ -36,7 +36,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'manifest version is 2.0.0 or higher' {
-        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.2.1')
+        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.2.2')
     }
 
     It 'exports exactly the expected public functions' {
@@ -50,6 +50,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SPSContentDBStatus'
             'Get-SPSFailedTimerJob'
             'Get-SPSHealthStatusFromCA'
+            'Get-SPSInstalledProductVersion'
             'Get-SPSSearchEntCrawlLogs'
             'Get-SPSSearchEntCrawlStatus'
             'Get-SPSSearchEntTopology'
@@ -68,6 +69,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SYSIISW3WPEXEStatus'
             'Get-SYSLastRebootStatus'
             'Get-USPAudienceStatus'
+            'Import-SPSSharePointCommand'
             'Join-HtmlBodyFromPSo'
             'Remove-SPSSheduledTask'
             'Resolve-SPSSqlAlias'
@@ -159,6 +161,14 @@ Describe 'Public function contracts' {
         $cmd.Parameters['Source'].Attributes.Where{ $_ -is [System.Management.Automation.ParameterAttribute] } |
             Should -Not -BeNullOrEmpty
         $cmd.Parameters.Keys | Should -Contain 'EventID'
+    }
+
+    It 'Get-SPSInstalledProductVersion returns null off a SharePoint server' -Skip:($IsWindows -and (Test-Path 'C:\Program Files\Common Files\microsoft shared\Web Server Extensions')) {
+        Get-SPSInstalledProductVersion | Should -BeNullOrEmpty
+    }
+
+    It 'Import-SPSSharePointCommand throws when SharePoint is not installed' -Skip:($IsWindows -and (Test-Path 'C:\Program Files\Common Files\microsoft shared\Web Server Extensions')) {
+        { Import-SPSSharePointCommand -ErrorAction Stop } | Should -Throw '*SharePoint is not installed*'
     }
 
     It 'Get-SPSSqlStatus requires Server and InstallAccount and has threshold defaults' {
