@@ -36,7 +36,7 @@
         foreach ($spServer in $params.Servers) {
             try {
                 [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-                $cimWin32_OS = Get-CimInstance -ComputerName $remoteServer -ClassName win32_operatingsystem
+                $cimWin32_OS = Get-CimInstance -ComputerName $remoteServer -ClassName win32_operatingsystem -ErrorAction Stop
                 [void]$tbSYSLastRebootStatus.Add([SYSLastRebootStatus]@{
                         Farm           = $params.Farm;
                         Server         = $spServer;

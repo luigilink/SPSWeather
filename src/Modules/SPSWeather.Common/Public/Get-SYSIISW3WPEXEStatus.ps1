@@ -36,7 +36,7 @@
         foreach ($spServer in $params.Servers) {
             try {
                 [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-                $w3wpProcess = Invoke-Command -ComputerName $remoteServer -ScriptBlock {
+                $w3wpProcess = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop -ScriptBlock {
                     Get-CimInstance Win32_Process -Filter "name = 'w3wp.exe'" | Sort-Object CommandLine
                 }
                 foreach ($w3wpProc in $w3wpProcess) {

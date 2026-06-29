@@ -36,7 +36,7 @@
         foreach ($spServer in $params.Servers) {
             try {
                 [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-                $spWebAppStatus = Invoke-Command -ComputerName $remoteServer -ScriptBlock {
+                $spWebAppStatus = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop -ScriptBlock {
                     Import-Module WebAdministration; Get-WebAppPoolState
                 }
                 $spWebAppStatusList = $spWebAppStatus.SyncRoot | Select-Object -property Value, ITemXPath

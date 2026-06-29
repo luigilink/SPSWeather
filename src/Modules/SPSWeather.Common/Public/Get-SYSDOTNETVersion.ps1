@@ -35,7 +35,7 @@
         foreach ($spServer in $params.Servers) {
             try {
                 [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-                $resultReg = Invoke-Command -ComputerName $remoteServer -ScriptBlock {
+                $resultReg = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop -ScriptBlock {
                     try {
                         $getItemProperty = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full"
                     }

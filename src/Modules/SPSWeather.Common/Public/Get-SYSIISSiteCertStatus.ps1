@@ -48,7 +48,7 @@
                 }
 
                 if ($null -ne $spSvcInstanceIIS) {
-                    $getWebBindings = Invoke-Command -ComputerName $remoteServer { Get-WebBinding }
+                    $getWebBindings = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop { Get-WebBinding }
                     $getSSLBindings = $getWebBindings | Where-Object -FilterScript {
                         $_.protocol -eq 'https' -and $_.bindingInformation -like '*443*'
                     }
@@ -56,7 +56,7 @@
                         foreach ($binding in $getSSLBindings) {
                             $iisSiteName = (($binding.ItemXPath -split ([RegEx]::Escape("[@name='")))[1]).split("'")[0]
 
-                            $getCertMyStore = Invoke-Command -ComputerName $remoteServer { Get-ChildItem 'Cert:LocalMachine\My' }
+                            $getCertMyStore = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop { Get-ChildItem 'Cert:LocalMachine\My' }
                             $getCertificate = $getCertMyStore | Where-Object -FilterScript {
                                 $_.Thumbprint -eq $binding.certificateHash
                             }

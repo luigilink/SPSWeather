@@ -37,7 +37,7 @@
         foreach ($pSserver in $params.Servers) {
             [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($pSserver).HostName
             try {
-                $appErrors = Invoke-Command -ComputerName $remoteServer -ScriptBlock {
+                $appErrors = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop -ScriptBlock {
                     Get-WinEvent -FilterHashTable @{LogName = 'Application'; Level = 2; StartTime = ((Get-Date) - (New-TimeSpan -Days 1)) } `
                                  -ErrorAction SilentlyContinue
                 }

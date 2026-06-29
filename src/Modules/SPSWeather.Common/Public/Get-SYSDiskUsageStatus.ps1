@@ -42,7 +42,7 @@
         foreach ($spServer in $params.Servers) {
             try {
                 [System.String]$remoteServer = [System.Net.Dns]::GetHostByName($spServer).HostName
-                $getDrives = Invoke-Command -ComputerName $remoteServer { Get-Volume | Where-Object -FilterScript { $_.DriveType -eq 'Fixed' -and $null -ne $_.DriveLetter } }
+                $getDrives = Invoke-Command -ComputerName $remoteServer -ErrorAction Stop { Get-Volume | Where-Object -FilterScript { $_.DriveType -eq 'Fixed' -and $null -ne $_.DriveLetter } }
                 foreach ($getDrive in $getDrives) {
                     $driveSize = [math]::Round($($getDrive.Size) / 1073741824, 2)
                     $driveFree = [math]::Round($($getDrive.SizeRemaining) / 1073741824, 2)
