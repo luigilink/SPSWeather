@@ -143,22 +143,27 @@ if ($null -ne $cfg -and $cfg.Contains('CredentialKey') -and $cfg.CredentialKey) 
     if (-not (Test-Path -Path $secretsPath)) {
         Add-CheckResult -Section 'Secrets' -Name 'secrets.psd1' -Status 'FAIL' -Detail "Not found at $secretsPath. Run SPSWeather.ps1 -Install as the service account."
     }
-    elseif (Get-Command -Name Get-SPSSecret -ErrorAction SilentlyContinue) {
-        try {
-            $cred = Get-SPSSecret -CredentialKey $cfg.CredentialKey -ConfigPath $configFolder -ErrorAction Stop
-            if ($null -ne $cred -and $cred.GetNetworkCredential().Password.Length -gt 0) {
-                Add-CheckResult -Section 'Secrets' -Name "Credential '$($cfg.CredentialKey)'" -Status 'PASS' -Detail "DPAPI decrypt OK (user: $($cred.UserName))"
-            }
-            else {
-                Add-CheckResult -Section 'Secrets' -Name "Credential '$($cfg.CredentialKey)'" -Status 'FAIL' -Detail 'Not found in secrets.psd1'
-            }
-        }
-        catch {
-            Add-CheckResult -Section 'Secrets' -Name "Credential '$($cfg.CredentialKey)'" -Status 'FAIL' -Detail "Decrypt failed (wrong account/machine?): $($_.Exception.Message)"
-        }
-    }
     else {
-        Add-CheckResult -Section 'Secrets' -Name 'Get-SPSSecret' -Status 'SKIP' -Detail 'Module not loaded; cannot validate the secret'
+        # Get-SPSSecret is private (not exported), so call it inside the module's
+        # session state where private functions are visible.
+        $module = Get-Module -Name SPSWeather.Common
+        if ($null -eq $module) {
+            Add-CheckResult -Section 'Secrets' -Name 'Get-SPSSecret' -Status 'SKIP' -Detail 'Module not loaded; cannot validate the secret'
+        }
+        else {
+            try {
+                $cred = & $module { param($k, $p) Get-SPSSecret -CredentialKey $k -ConfigPath $p -ErrorAction Stop } $cfg.CredentialKey $configFolder
+                if ($null -ne $cred -and $cred.GetNetworkCredential().Password.Length -gt 0) {
+                    Add-CheckResult -Section 'Secrets' -Name "Credential '$($cfg.CredentialKey)'" -Status 'PASS' -Detail "DPAPI decrypt OK (user: $($cred.UserName))"
+                }
+                else {
+                    Add-CheckResult -Section 'Secrets' -Name "Credential '$($cfg.CredentialKey)'" -Status 'FAIL' -Detail 'Not found in secrets.psd1'
+                }
+            }
+            catch {
+                Add-CheckResult -Section 'Secrets' -Name "Credential '$($cfg.CredentialKey)'" -Status 'FAIL' -Detail "Decrypt failed (wrong account/machine?): $($_.Exception.Message)"
+            }
+        }
     }
 }
 else {

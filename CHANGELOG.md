@@ -5,6 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-06-29
+
+### Fixed
+
+- `Test-SPSWeatherReadiness.ps1` skipped the secret check ("Module not loaded;
+  cannot validate the secret") because it looked up the private `Get-SPSSecret`
+  with `Get-Command`, which only sees exported functions. It now calls
+  `Get-SPSSecret` inside the module session state, so secrets.psd1 is actually
+  validated (DPAPI decrypt).
+
 ## [2.2.0] - 2026-06-28
 
 ### Added
