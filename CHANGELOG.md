@@ -5,6 +5,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-08-25
+
+### Removed
+
+- **BREAKING**: dropped SharePoint Server 2016 and 2019 support. Both reached
+  end of support on 14 July 2026; only Subscription Edition remains a
+  supported on-premises SharePoint release, and SPSWeather now targets it
+  exclusively (#60).
+- Removed the `Microsoft.SharePoint.PowerShell` PSSnapin loader path from
+  `Import-SPSSharePointCommand` and from `Invoke-SPSCommand`'s remote
+  baseScript. SPSWeather now always loads the `SharePointServer` module.
+- Removed the AppFabric branch of `Get-AppFabricStatus` (`Use-CacheCluster` /
+  `Get-CacheHost` / `Get-AFCacheHostConfiguration`); only the SE cluster path
+  (`Get-SPCacheClusterInfo` + local `Use-SPCacheCluster` +
+  `Get-SPCacheHostConfig`) remains.
+
+### Changed
+
+- `Get-SPSInstalledProductVersion` is now a plain "SharePoint installed?"
+  check; the 2013/2016/2019 vs Subscription Edition build heuristic is gone.
+- Documentation (`README.md`, `wiki/Home.md`, `wiki/Usage.md`) states the
+  Subscription Edition requirement and points 2016/2019 customers at the
+  previous major release (v2.3.7).
+
+### Migration
+
+Customers still running SharePoint Server 2016 or 2019 must stay on
+**SPSWeather v2.3.7** and are encouraged to migrate their farm to
+Subscription Edition. Upgrading a farm to SPSWeather 3.0.0 requires no
+config change: the `SharePointServer` module is already loaded by
+Subscription Edition's built-in module auto-loading.
+
 ## [2.3.7] - 2026-06-29
 
 ### Fixed
