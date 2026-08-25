@@ -200,8 +200,8 @@ elseif ($null -ne $cfg -and $cfg.Contains('Farms') -and $cfg.Farms) {
 
     # Enrich with every server of the local farm (Get-SPServer), so all the
     # machines that SPSWeather will reach are checked - not just the declared
-    # entry point. This needs the SharePoint command surface; load it the same
-    # version-aware way the run does (2016/2019 -> snap-in, SE -> module).
+    # entry point. This needs the SharePoint command surface; load it via the
+    # SharePointServer module (Subscription Edition).
     if (-not $SkipSharePoint -and (Get-Command -Name Import-SPSSharePointCommand -ErrorAction SilentlyContinue)) {
         try {
             $null = Import-SPSSharePointCommand

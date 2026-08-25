@@ -61,7 +61,7 @@ The email subject is prefixed with the overall status, e.g. `[ALERT]contoso_PROD
 | Run with highest privileges | Yes |
 
 > [!IMPORTANT]
-> The scheduled task action must run via `powershell.exe` (Windows PowerShell 5.1), not `pwsh.exe`: SPSWeather relies on the `Microsoft.SharePoint.PowerShell` snap-in and CredSSP remoting.
+> The scheduled task action must run via `powershell.exe` (Windows PowerShell 5.1), not `pwsh.exe`: SPSWeather relies on the `SharePointServer` module (Subscription Edition) and CredSSP remoting.
 
 ## Windows Event Log
 

@@ -1,13 +1,32 @@
 # SPSWeather - Release Notes
 
-## [2.3.7] - 2026-06-29
+## [3.0.0] - 2026-08-25
 
-### Fixed
+### Removed
 
-- Distributed Cache table on SharePoint Subscription Edition now shows the
-  real cache Size in MB (e.g. 2048). The function now opens the per-cache-host
-  CredSSP session with the FQDN target derived from the farm entry server,
-  so Kerberos no longer fails silently with 0x80090322 on hosts whose DNS
-  returns the short name.
+- **BREAKING**: dropped SharePoint Server 2016 and 2019 support. Both reached
+  end of support on 14 July 2026; SPSWeather now targets **SharePoint Server
+  Subscription Edition** exclusively.
+- The `Microsoft.SharePoint.PowerShell` PSSnapin loader path (`Add-PSSnapin`)
+  is gone from `Import-SPSSharePointCommand` and from `Invoke-SPSCommand`'s
+  remote baseScript. SPSWeather now always loads the `SharePointServer`
+  module.
+- The AppFabric branch of `Get-AppFabricStatus` (`Use-CacheCluster` /
+  `Get-CacheHost` / `Get-AFCacheHostConfiguration`) is gone. Only the
+  Subscription Edition cluster path remains.
+
+### Changed
+
+- `Get-SPSInstalledProductVersion` is now a plain "SharePoint installed?"
+  check (no version heuristic).
+- README and wiki state the Subscription Edition requirement and point
+  2016/2019 users at the previous major release (v2.3.7).
+
+### Migration
+
+Customers still running SharePoint Server 2016 or 2019 must stay on
+**SPSWeather v2.3.7** and are encouraged to migrate their farm to
+Subscription Edition. Upgrading a Subscription Edition farm to
+SPSWeather 3.0.0 requires no config change.
 
 A full list of changes can be found in the [change log](CHANGELOG.md).

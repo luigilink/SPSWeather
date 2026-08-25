@@ -8,7 +8,12 @@
 
 **SPSWeather** is a PowerShell tool that produces a health-check report of a SharePoint Server farm and emails it to administrators. It collects SharePoint, Search, system/IIS and SQL signals over CredSSP remoting and renders a single HTML report that highlights any alert.
 
-Compatible with SharePoint Server **2016**, **2019**, and **Subscription Edition**.
+Compatible with **SharePoint Server Subscription Edition**.
+
+> SharePoint Server 2016 and 2019 reached end of support on **14 July 2026**.
+> Customers still running SharePoint Server 2016 or 2019 must stay on
+> [SPSWeather v2.3.7](https://github.com/luigilink/SPSWeather/releases/tag/v2.3.7)
+> and are encouraged to migrate their farm to Subscription Edition.
 
 ## Quick links
 
