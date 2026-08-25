@@ -6,12 +6,12 @@
         .DESCRIPTION
         Reads the file version of the highest-numbered Microsoft.SharePoint.dll under
         the Web Server Extensions ISAPI folder. This is the most reliable way to tell
-        SharePoint 2013 (15.x), 2016/2019 (16.x, build <= 12999) and Subscription
-        Edition (16.x, build >= 14000) apart without loading any SharePoint command.
+        whether SharePoint Server Subscription Edition is installed on the host,
+        without loading any SharePoint command.
 
-        Returns a [System.Diagnostics.FileVersionInfo], or $null when SharePoint is not
-        installed on the host. The function is silent (no Write-Error) so callers can
-        branch on $null themselves.
+        Returns a [System.Diagnostics.FileVersionInfo], or $null when SharePoint is
+        not installed on the host. The function is silent (no Write-Error) so callers
+        can branch on $null themselves.
 
         .EXAMPLE
         $v = Get-SPSInstalledProductVersion
