@@ -58,6 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   403.18 for the static dashboard; the virtual directory (SPSUpdate's model) avoids it (#76).
 - `Get-SPSWeatherHistory` is now exported, so the entry script can build the dashboard
   history series instead of failing with "term not recognized" (it was private) (#77).
+- `-Action Install` now extends the CredSSP client delegation beyond the farm entry
+  point: it enumerates each farm's member servers remotely through the entry point and
+  delegates fresh credentials to all of them, so the per-server system collectors
+  (which open a CredSSP session to every member) are no longer refused. Enumeration
+  failures degrade gracefully, keeping the entry-point delegation (#78).
 
 ### Changed
 
