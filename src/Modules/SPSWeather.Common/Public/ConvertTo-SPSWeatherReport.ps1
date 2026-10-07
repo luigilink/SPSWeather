@@ -5,10 +5,10 @@
 
         .DESCRIPTION
         ConvertTo-SPSWeatherReport takes an ordered map of section name -> collected
-        rows and builds the PSCustomObject consumed by Join-HtmlBodyFromPSo and the
-        JSON snapshot. It also returns whether any section reported a
-        non-informational row (an item whose IsInfo flag is $false), which the entry
-        script uses to raise the [ALERT] state.
+        rows and builds the PSCustomObject consumed by Export-SPSWeatherReport,
+        ConvertTo-SPSWeatherEmailBody and the JSON snapshot. It also returns whether
+        any section reported a non-informational row (an item whose IsInfo flag is
+        $false), which the entry script uses to raise the [ALERT] state.
 
         A section is added whenever its value is not $null (empty collections are kept,
         matching the historical behavior so the JSON shape is stable). Sections whose
