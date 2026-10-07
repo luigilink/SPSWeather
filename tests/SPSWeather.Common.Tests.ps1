@@ -435,6 +435,26 @@ Describe 'Dashboard renderer (Export-SPSWeatherReport)' {
     It 'renders an area card for the failing section' {
         $dash | Should -Match 'Trust Farm'
     }
+
+    It 'counts OK consistently with the report Summary (excludes pure-info rows)' {
+        $r = [PSCustomObject]@{}
+        $r | Add-Member -MemberType NoteProperty -Name SYSLastRebootStatus -Value @(
+            [PSCustomObject]@{ Server = 'S1'; LastRebootTime = 'x' })               # pure info
+        $r | Add-Member -MemberType NoteProperty -Name SYSDiskUsageStatus -Value @(
+            [PSCustomObject]@{ Server = 'S1'; DriveLetter = 'C'; Status = 'OK'; IsInfo = $true }
+            [PSCustomObject]@{ Server = 'S2'; DriveLetter = 'C'; Status = 'Low'; IsInfo = $false })
+        $sections = [ordered]@{}
+        foreach ($p in $r.PSObject.Properties) { $sections[$p.Name] = $p.Value }
+        $summary = (ConvertTo-SPSWeatherReport -Section $sections).Summary
+
+        $tmp2 = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ("spsw-" + [guid]::NewGuid().ToString('N') + '.html')
+        [void](Export-SPSWeatherReport -InputObject $r -OutputFile $tmp2 -Farm 'F' -Application 'a' -Environment 'e' -Version 'v' -ExecutedBy 'x' -Duration 'd' -History @())
+        $html2 = Get-Content -Path $tmp2 -Raw
+
+        # The donut legend OK must equal the report Summary Ok (1), not inflate with the info row.
+        [regex]::Match($html2, 'dot ok"></i>OK (\d+)').Groups[1].Value | Should -Be ([string]$summary.Ok)
+        $summary.Ok | Should -Be 1
+    }
 }
 
 

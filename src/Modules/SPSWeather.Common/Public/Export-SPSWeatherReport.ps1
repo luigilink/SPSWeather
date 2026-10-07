@@ -98,14 +98,28 @@
         SQLDiskStatus = 'SQL - Disk Volumes'; SQLAvailabilityStatus = 'SQL - Availability Groups'; SQLAliasStatus = 'SQL - Alias Mapping'
     }
 
-    # Per-section and global counts.
+    # Per-section and global counts. Only rows that are actual checks (carrying IsInfo or a
+    # severity) count toward OK, so pure info-only rows (reboot time, .NET version) do not
+    # inflate the healthy total - keeping the donut/KPI consistent with the email and the
+    # report Summary.
+    function _isCheck($r) {
+        if ($null -eq $r) { return $false }
+        $n = $r.PSObject.Properties.Name
+        return (($n -contains 'IsInfo') -or ($n -contains 'severity'))
+    }
     $gOk = 0; $gWarn = 0; $gFail = 0
     $sectionStats = @{}
     foreach ($prop in $InputObject.PSObject.Properties) {
         $rows = @($prop.Value | Where-Object { $null -ne $_ })
-        $o = 0; $w = 0; $f = 0
-        foreach ($r in $rows) { switch (_sev $r) { 'ok' { $o++ } 'warn' { $w++ } 'fail' { $f++ } } }
-        $sectionStats[$prop.Name] = [PSCustomObject]@{ Count = $rows.Count; Ok = $o; Warn = $w; Fail = $f }
+        $o = 0; $w = 0; $f = 0; $info = 0
+        foreach ($r in $rows) {
+            switch (_sev $r) {
+                'warn' { $w++ }
+                'fail' { $f++ }
+                default { if (_isCheck $r) { $o++ } else { $info++ } }
+            }
+        }
+        $sectionStats[$prop.Name] = [PSCustomObject]@{ Count = $rows.Count; Ok = $o; Warn = $w; Fail = $f; Info = $info }
         $gOk += $o; $gWarn += $w; $gFail += $f
     }
     $gTotal = $gOk + $gWarn + $gFail
@@ -149,7 +163,8 @@
             $lbl = if ($sectionLabel.ContainsKey($sk)) { $sectionLabel[$sk] } else { $sk }
             if ($st.Fail -gt 0) { $vcls = 'fail'; $vtxt = "$($st.Fail) alert" }
             elseif ($st.Warn -gt 0) { $vcls = 'warn'; $vtxt = "$($st.Warn) warn" }
-            else { $vcls = 'ok'; $vtxt = "$($st.Count) OK" }
+            elseif ($st.Ok -gt 0) { $vcls = 'ok'; $vtxt = "$($st.Ok) OK" }
+            else { $vcls = 'ok'; $vtxt = "$($st.Count) info" }
             [void]$cardsHtml.Append("<div class=`"rowline`"><span>$(_enc $lbl)</span><span class=`"v $vcls`">$(_enc $vtxt)</span></div>")
         }
         [void]$cardsHtml.Append("</div><div class=`"foot`"><a href=`"#$anchor`">View detail &rarr;</a></div></div>")

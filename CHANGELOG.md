@@ -58,6 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   403.18 for the static dashboard; the virtual directory (SPSUpdate's model) avoids it (#76).
 - `Get-SPSWeatherHistory` is now exported, so the entry script can build the dashboard
   history series instead of failing with "term not recognized" (it was private) (#77).
+- The dashboard donut/KPI now counts only actual checks toward OK (excluding pure
+  info-only rows such as reboot time and .NET version), so its OK total matches the short
+  email KPI and the report Summary for the same run. Info-only section cards show "N info"
+  instead of "N OK", and the email alert lines carry a meaningful detail per section
+  (upgrade status/build, SQL recommendation/state, certificate expiry, free disk %, ...) (#80).
 - `-Action Install` now extends the CredSSP client delegation beyond the farm entry
   point: it enumerates each farm's member servers remotely through the entry point and
   delegates fresh credentials to all of them, so the per-server system collectors
