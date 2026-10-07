@@ -61,10 +61,29 @@
     # 2. Fresh-credentials delegation policy, scoped to the farm SPNs.
     $polRoot = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation'
     $polLeaf = "$polRoot\AllowFreshCredentials"
+
+    # Detect a pre-existing fresh-credentials delegation policy before touching it.
+    # The CredentialsDelegation key lives under the Policies hive, which is where both
+    # local gpedit and a domain GPO write; when AllowFreshCredentials is already enabled
+    # we must NOT overwrite the policy switches (they may be GPO-enforced) - we only
+    # append our own farm SPNs and warn.
+    $existingAllow = $null
+    if (Test-Path -Path $polRoot) {
+        $existingAllow = (Get-ItemProperty -Path $polRoot -Name 'AllowFreshCredentials' -ErrorAction SilentlyContinue).AllowFreshCredentials
+    }
+    $policyPreset = ($existingAllow -eq 1)
+    if ($policyPreset) {
+        Write-Warning 'A fresh-credentials delegation policy is already configured (possibly enforced by Group Policy). SPSWeather will only append its farm SPNs and will not change the policy switches; GPO-managed values may be reconciled at the next policy refresh.'
+    }
+
     if ($PSCmdlet.ShouldProcess($polRoot, 'Enable fresh-credentials delegation')) {
         if (-not (Test-Path -Path $polRoot)) { $null = New-Item -Path $polRoot -Force }
-        $null = New-ItemProperty -Path $polRoot -Name 'AllowFreshCredentials' -Value 1 -PropertyType DWord -Force
-        $null = New-ItemProperty -Path $polRoot -Name 'ConcatenateDefaults_AllowFresh' -Value 1 -PropertyType DWord -Force
+        # Only set the policy switches when they are not already enabled, so a
+        # GPO/local-policy-owned value is left in charge.
+        if (-not $policyPreset) {
+            $null = New-ItemProperty -Path $polRoot -Name 'AllowFreshCredentials' -Value 1 -PropertyType DWord -Force
+            $null = New-ItemProperty -Path $polRoot -Name 'ConcatenateDefaults_AllowFresh' -Value 1 -PropertyType DWord -Force
+        }
         if (-not (Test-Path -Path $polLeaf)) { $null = New-Item -Path $polLeaf -Force }
     }
 
