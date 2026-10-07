@@ -94,6 +94,12 @@ $pathLogFile = Join-Path -Path $pathLogsFolder -ChildPath ($spWeatherFileName + 
 $DateStarted = Get-date
 $psVersion = ($host).Version.ToString()
 
+# The Logs folder must exist before Start-Transcript (it is not created by the
+# Results/Config init below, which runs later).
+if (-Not (Test-Path -Path $pathLogsFolder)) {
+    $null = New-Item -ItemType Directory -Path $pathLogsFolder -Force
+}
+
 Start-Transcript -Path $pathLogFile -IncludeInvocationHeader
 Write-Output '-------------------------------------'
 Write-Output "| Automated Script - SPSWeather v$spsWeatherVersion"
