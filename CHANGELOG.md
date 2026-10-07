@@ -5,6 +5,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-07
+
+### Added
+
+- New cards dashboard: `Export-SPSWeatherReport` now renders a modern per-farm
+  dashboard (overall-health donut, 30-run history bar chart with trend arrows,
+  functional-area cards (up to nine) with collapsible detail tables) in place of the
+  legacy table report. One `<App>-<Env>-<Farm>-dashboard.html` per farm, meant
+  to be hosted on an IIS site like SPSUpdate (#62).
+- `ConvertTo-SPSWeatherEmailBody`: short, Outlook-safe alert email that lists
+  only the items needing attention, grouped by area, with a KPI strip and a CTA
+  button linking to the hosted dashboard (#63).
+- `New-SPSDashboardSite.ps1`: standalone, idempotent, `-WhatIf`-aware helper that
+  provisions the IIS hosting target (folder + SMB share + NTFS + static-file
+  `web.config` + dedicated site or sub-application) for the dashboard (#64).
+- `Get-SPSWeatherHistory` (private): builds the Ok/Warn/Fail history series for
+  the dashboard chart from the per-farm JSON snapshots (#62).
+- Config: new `Dashboard = @{ OutputPath; Url }` block — `OutputPath` is where the
+  per-farm HTML is written (fallback `Results\`), `Url` is the public IIS base used
+  to build the email CTA link (#64).
+- `Set-SPSCredSSPClient`: enables the CredSSP **client** role and fresh-credentials
+  delegation (scoped to the farm FQDNs) so SPSWeather can run from a non-SharePoint
+  host (e.g. an orchestration/PULL server). Called automatically by `-Action Install`,
+  deriving the targets from `Farms[].Server` + `Domain`; the CredSSP server role stays
+  owned by DSC on the farms. Idempotent, `-WhatIf`-aware, Windows-only (#67). It now
+  detects a pre-existing (possibly GPO-enforced) delegation policy and appends only its
+  SPNs without overwriting the policy switches (#73).
+- A single shared severity model (`Get-SPSWeatherRowSeverity`) used by the dashboard,
+  the email, the history chart and the per-farm outcome, so unreachable servers and
+  advisory SQL/alias recommendations are classified consistently (#72).
+- `Invoke-SPSCommand` gained an opt-in `-AllowFallback` switch: when CredSSP cannot be
+  established it falls back to a Negotiate session with a clear warning, and reports an
+  aggregated error listing every attempted method when all fail (#74).
+
+### Fixed
+
+- `Start-Transcript` no longer fails on a fresh host: the `Logs\` folder is created
+  before transcription starts (previously only `Results\` and `Config\` were
+  initialized, and after `Start-Transcript`) (#66).
+- The per-farm block no longer called `Export-SPSWeatherReport` with removed
+  `-Summary`/`-Trend` parameters, and the broad `Trap { Continue }` that hid such
+  failures is replaced by a per-farm `try/catch`. Only farms actually reached are
+  rendered (an unreachable farm is no longer published/emailed as healthy), the history
+  chart requests 29 past runs (not the day-based retention value), and the per-farm
+  outcome/subject derives from the shared severity counts (#71).
+- Dashboard Expand/Collapse controls are real `<button>` elements (keyboard-focusable),
+  and `New-SPSDashboardSite.ps1` normalizes the existing-share path before comparing (#75).
+
+### Changed
+
+- The entry script now produces one dashboard and one short email per farm
+  (Opt.1): the aggregate report is sliced by farm, and each farm gets its own
+  dashboard file, JSON snapshot, history folder and alert email (#65).
+
+### Removed
+
+- `Join-HtmlBodyFromPSo` and the private `Join-HtmlTable` helper (the legacy
+  full-table HTML report) are replaced by the dashboard and the short email (#63).
+
 ## [3.0.0] - 2026-08-25
 
 ### Removed

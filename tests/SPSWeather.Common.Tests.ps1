@@ -36,7 +36,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'manifest version is 2.0.0 or higher' {
-        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'3.0.0')
+        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'3.1.0')
     }
 
     It 'exports exactly the expected public functions' {
@@ -74,9 +74,10 @@ Describe 'SPSWeather.Common module' {
             'Get-SYSLastRebootStatus'
             'Get-USPAudienceStatus'
             'Import-SPSSharePointCommand'
-            'Join-HtmlBodyFromPSo'
+            'ConvertTo-SPSWeatherEmailBody'
             'Remove-SPSSheduledTask'
             'Resolve-SPSSqlAlias'
+            'Set-SPSCredSSPClient'
             'Set-SPSSecret'
         )
         $actual = (Get-Command -Module SPSWeather.Common).Name | Sort-Object
@@ -84,7 +85,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'does not export the private helpers' {
-        foreach ($name in @('Invoke-SPSCommand', 'Join-HtmlTable', 'ConvertFrom-SPSSqlAliasValue')) {
+        foreach ($name in @('Invoke-SPSCommand', 'ConvertFrom-SPSSqlAliasValue', 'Get-SPSWeatherHistory', 'Get-SPSWeatherRowSeverity')) {
             Get-Command -Name $name -Module SPSWeather.Common -ErrorAction SilentlyContinue |
                 Should -BeNullOrEmpty
         }
@@ -360,14 +361,18 @@ Describe 'Report assembly (ConvertTo-SPSWeatherReport)' {    It 'adds every non-
     }
 }
 
-Describe 'HTML report (Join-HtmlBodyFromPSo)' {
+Describe 'Short alert email (ConvertTo-SPSWeatherEmailBody)' {
     BeforeAll {
         $report = [PSCustomObject]@{}
-        $report | Add-Member -MemberType NoteProperty -Name SPSiteHttpStatus -Value @(
-            [PSCustomObject]@{ Server = 'SRV1'; Url = 'https://sp'; HTTPCode = 200; Time = 0.4; Status = 'OK' }
-            [PSCustomObject]@{ Server = 'SRV2'; Url = 'https://sp2'; HTTPCode = 500; Time = 2.1; Status = 'KO' }
+        $report | Add-Member -MemberType NoteProperty -Name SPAPIHttpStatus -Value @(
+            [PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Search REST'; Url = 'https://sp/_api/search'; HTTPCode = 500; Status = 'Failed'; IsInfo = $false }
+            [PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Root'; Url = 'https://sp'; HTTPCode = 200; Status = 'OK'; IsInfo = $true }
         )
-        $html = Join-HtmlBodyFromPSo -PSObjectFromJson $report
+        $report | Add-Member -MemberType NoteProperty -Name SPHealthAnalyzer -Value @(
+            [PSCustomObject]@{ farm = 'CONTENT'; title = 'STS not available'; severity = '2 - Warning'; category = 'Availability' }
+        )
+        $summary = [PSCustomObject]@{ Ok = 10; Alert = 2 }
+        $html = ConvertTo-SPSWeatherEmailBody -InputObject $report -Summary $summary -Farm 'CONTENT' -Application 'zebes' -Environment 'PROD' -Version '3.1.0' -ExecutedBy 'DOM\jc' -Duration '00:04:31' -DashboardUrl 'https://pull/sp/zebes-PROD-CONTENT-dashboard.html'
     }
 
     It 'returns a single self-contained HTML document string' {
@@ -376,55 +381,248 @@ Describe 'HTML report (Join-HtmlBodyFromPSo)' {
         $html.TrimEnd().EndsWith('</html>') | Should -BeTrue
     }
 
-    It 'embeds the head, style block and container (regression guard for the dropped CSS)' {
-        $html | Should -Match '<head>'
-        $html | Should -Match '<style>'
-        $html | Should -Match 'id="spweathermain"'
-    }
-
     It 'keeps the Outlook MSO conditional comment' {
         $html | Should -Match '\[if mso\]'
     }
 
-    It 'does not leak an unexpanded caller-scope header/footer variable' {
-        $html | Should -Not -Match '\$htmlHEADER'
-        $html | Should -Not -Match '\$htmlFOOTER'
+    It 'lists only the items needing attention, grouped by area' {
+        $html | Should -Match 'Search'
+        $html | Should -Match 'Health Analyzer'
+        $html | Should -Match 'Search REST'
     }
 
-    It 'renders a failed status cell for a non-OK row' {
-        $html | Should -Match 'tdfailed'
+    It 'omits healthy rows from the alert list' {
+        $html | Should -Not -Match '>Root<'
     }
 
-    It 'renders the SQL sections with 3-state coloring' {
-        $sqlReport = [PSCustomObject]@{}
-        $sqlReport | Add-Member -MemberType NoteProperty -Name SQLInstanceStatus -Value @(
-            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Edition = 'Std'; Version = '15.0'; MaxDop = 1; TempDbDataFiles = 8; Recommendation = ''; IsInfo = $true }
-            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Edition = 'Std'; Version = '15.0'; MaxDop = 0; TempDbDataFiles = 1; Recommendation = 'MAXDOP=0 (SharePoint requires 1)'; IsInfo = $true }
-        )
-        $sqlReport | Add-Member -MemberType NoteProperty -Name SQLDiskStatus -Value @(
-            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Volume = 'D:\'; TotalGB = 100; FreeGB = 5; FreePercent = 5; IsInfo = $false }
-        )
-        $sqlHtml = Join-HtmlBodyFromPSo -PSObjectFromJson $sqlReport
-        $sqlHtml | Should -Match 'SQL - Instance Status'
-        $sqlHtml | Should -Match 'SQL - Disk Volume Status'
-        $sqlHtml | Should -Match 'tdwarning'   # advisory MAXDOP row
-        $sqlHtml | Should -Match 'tdfailed'    # low free disk
-        $sqlHtml | Should -Match 'tdsuccess'   # healthy instance row
+    It 'renders the CTA button pointing at the dashboard URL' {
+        $html | Should -Match 'zebes-PROD-CONTENT-dashboard\.html'
+        $html | Should -Match 'Open full dashboard'
     }
 
-    It 'renders the SQL alias mapping section with advisory coloring' {
-        $aliasReport = [PSCustomObject]@{}
-        $aliasReport | Add-Member -MemberType NoteProperty -Name SQLAliasStatus -Value @(
-            [PSCustomObject]@{ Farm = 'C'; Name = 'SPSQL'; RealServer = 'SQLPROD01\SP'; Protocol = 'TCP'; Port = '1433'; Bitness = 'both'; Note = ''; IsInfo = $true }
-            [PSCustomObject]@{ Farm = 'C'; Name = 'SPSQL2'; RealServer = 'SQLPROD02'; Protocol = 'TCP'; Port = ''; Bitness = '64-bit'; Note = 'alias defined only in 64-bit'; IsInfo = $true }
-        )
-        $aliasHtml = Join-HtmlBodyFromPSo -PSObjectFromJson $aliasReport
-        $aliasHtml | Should -Match 'SQL - Alias Mapping'
-        $aliasHtml | Should -Match 'SQLPROD01\\SP'
-        $aliasHtml | Should -Match 'tdwarning'   # bitness advisory
-        $aliasHtml | Should -Match 'tdsuccess'   # clean mapping
+    It 'does not double-encode the middot separator' {
+        $html | Should -Not -Match '&amp;middot;'
     }
 }
+
+Describe 'Dashboard renderer (Export-SPSWeatherReport)' {
+    BeforeAll {
+        $report = [PSCustomObject]@{}
+        $report | Add-Member -MemberType NoteProperty -Name SPAPIHttpStatus -Value @(
+            [PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Search REST'; Url = 'https://sp/_api/search'; HTTPCode = 500; Status = 'Failed'; IsInfo = $false }
+            [PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Root'; Url = 'https://sp'; HTTPCode = 200; Status = 'OK'; IsInfo = $true }
+        )
+        $history = @(
+            [PSCustomObject]@{ Date = '06-01'; Ok = 12; Warn = 0; Fail = 1 }
+            [PSCustomObject]@{ Date = '06-02'; Ok = 11; Warn = 1; Fail = 2 }
+        )
+        $tmp = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ("spsw-" + [guid]::NewGuid().ToString('N') + '.html')
+        $result = Export-SPSWeatherReport -InputObject $report -OutputFile $tmp -Farm 'CONTENT' -Application 'zebes' -Environment 'PROD' -Version '3.1.0' -ExecutedBy 'DOM\jc' -Duration '00:04:31' -History $history
+        $dash = Get-Content -Path $tmp -Raw
+    }
+
+    It 'returns the output file path and writes an HTML document' {
+        $result | Should -Match 'spsw-.*\.html$'
+        $dash.StartsWith('<!DOCTYPE html>') | Should -BeTrue
+    }
+
+    It 'renders the history chart bars (past runs + current)' {
+        ([regex]::Matches($dash, 'class="bcol')).Count | Should -BeGreaterOrEqual 3
+        $dash | Should -Match 'class="bcol now"'
+    }
+
+    It 'renders an area card for the failing section' {
+        $dash | Should -Match 'Trust Farm'
+    }
+}
+
+
+Describe 'CredSSP client setup (Set-SPSCredSSPClient)' {
+    It 'is Windows-only: returns $false and warns off Windows' -Skip:($IsWindows) {
+        $warn = $null
+        $result = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com' -WarningVariable warn -WarningAction SilentlyContinue
+        $result | Should -BeFalse
+        $warn | Should -Not -BeNullOrEmpty
+    }
+
+    Context 'on Windows' -Skip:(-not $IsWindows) {
+        BeforeAll {
+            Mock -ModuleName SPSWeather.Common -CommandName Get-Item -MockWith { [PSCustomObject]@{ Value = 'false'; SourceOfValue = '' } }
+            Mock -ModuleName SPSWeather.Common -CommandName Set-Item -MockWith { }
+            Mock -ModuleName SPSWeather.Common -CommandName Test-Path -MockWith { $true }
+            Mock -ModuleName SPSWeather.Common -CommandName New-Item -MockWith { }
+            Mock -ModuleName SPSWeather.Common -CommandName Get-ItemProperty -MockWith { $null }
+            Mock -ModuleName SPSWeather.Common -CommandName New-ItemProperty -MockWith { }
+        }
+
+        It 'enables CredSSP client authentication' {
+            $null = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com'
+            Should -Invoke -ModuleName SPSWeather.Common -CommandName Set-Item -Times 1 -ParameterFilter { $Value -eq $true }
+        }
+
+        It 'adds a WSMAN/<fqdn> delegation SPN for each server' {
+            $null = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com', 'app2.contoso.com'
+            Should -Invoke -ModuleName SPSWeather.Common -CommandName New-ItemProperty -ParameterFilter { $Value -eq 'WSMAN/app1.contoso.com' }
+            Should -Invoke -ModuleName SPSWeather.Common -CommandName New-ItemProperty -ParameterFilter { $Value -eq 'WSMAN/app2.contoso.com' }
+        }
+
+        It 'does not write anything under -WhatIf' {
+            $null = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com' -WhatIf
+            Should -Invoke -ModuleName SPSWeather.Common -CommandName Set-Item -Times 0
+            Should -Invoke -ModuleName SPSWeather.Common -CommandName New-ItemProperty -Times 0
+        }
+    }
+}
+
+
+Describe 'Severity model (Get-SPSWeatherRowSeverity)' {
+    It 'classifies IsInfo = $false as fail' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $false }) | Should -Be 'fail'
+        }
+    }
+
+    It 'classifies a healthy IsInfo = $true row as ok' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $true }) | Should -Be 'ok'
+        }
+    }
+
+    It 'treats an IsInfo = $true row carrying an advisory Recommendation as warn' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $true; Recommendation = 'MAXDOP should be 1' }) | Should -Be 'warn'
+        }
+    }
+
+    It 'treats an IsInfo = $true alias row with a Note as warn' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $true; Note = 'alias defined only in 64-bit' }) | Should -Be 'warn'
+        }
+    }
+
+    It 'maps Health Analyzer severity strings (no IsInfo) to warn/fail' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ severity = '2 - Warning' }) | Should -Be 'warn'
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ severity = '1 - Error' }) | Should -Be 'fail'
+        }
+    }
+
+    It 'treats an Unreachable row with no IsInfo as fail' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ Server = 'SRV1'; OSName = 'Unreachable' }) | Should -Be 'fail'
+        }
+    }
+
+    It 'returns ok for a pure info row and for $null' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ Server = 'SRV1'; Version = '4.8' }) | Should -Be 'ok'
+            Get-SPSWeatherRowSeverity -Row $null | Should -Be 'ok'
+        }
+    }
+}
+
+Describe 'Report outcome via shared severity (ConvertTo-SPSWeatherReport)' {
+    It 'reports Ok/Warn/Fail counts and raises IsAlert on warnings only' {
+        $sections = [ordered]@{
+            Health = @([PSCustomObject]@{ severity = '2 - Warning' })
+            Disk   = @([PSCustomObject]@{ IsInfo = $true })
+        }
+        $r = ConvertTo-SPSWeatherReport -Section $sections
+        $r.Summary.Warn | Should -Be 1
+        $r.Summary.Fail | Should -Be 0
+        $r.Summary.Ok | Should -Be 1
+        $r.IsAlert | Should -BeTrue
+    }
+
+    It 'counts an advisory IsInfo = $true row as a warning' {
+        $sections = [ordered]@{
+            Sql = @([PSCustomObject]@{ IsInfo = $true; Recommendation = 'MAXDOP should be 1' })
+        }
+        $r = ConvertTo-SPSWeatherReport -Section $sections
+        $r.Summary.Warn | Should -Be 1
+        $r.Summary.Ok | Should -Be 0
+    }
+
+    It 'does not count pure info rows toward Ok' {
+        $sections = [ordered]@{
+            SYSLastRebootStatus = @([PSCustomObject]@{ Server = 'SRV1'; LastRebootTime = '2026-06-28' })
+        }
+        $r = ConvertTo-SPSWeatherReport -Section $sections
+        $r.Summary.Ok | Should -Be 0
+        $r.IsAlert | Should -BeFalse
+    }
+}
+
+Describe 'Invoke-SPSCommand Negotiate fallback' {
+    It 'does not attempt Negotiate when fallback is off (CredSSP-only error)' {
+        InModuleScope SPSWeather.Common {
+            Mock New-PSSession { throw 'CredSSP not configured' }
+            Mock Invoke-Command { 'SHOULD-NOT-RUN' }
+            Mock Remove-PSSession {}
+            $cred = [System.Management.Automation.PSCredential]::new('CONTOSO\svc', (ConvertTo-SecureString 'p' -AsPlainText -Force))
+            { Invoke-SPSCommand -Credential $cred -Server 'SRV1' -ScriptBlock { 1 } -WarningAction SilentlyContinue } |
+                Should -Throw "*Failed to open a CredSSP PSSession to 'SRV1'*"
+            Should -Invoke New-PSSession -Times 0 -Exactly -ParameterFilter { $Authentication -eq 'Negotiate' }
+        }
+    }
+
+    It 'falls back to Negotiate and warns when CredSSP fails and -AllowFallback is set' {
+        InModuleScope SPSWeather.Common {
+            Mock New-PSSession {
+                if ($Authentication -eq 'CredSSP') { throw 'CredSSP not configured' }
+                New-MockObject -Type ([System.Management.Automation.Runspaces.PSSession])
+            }
+            Mock Invoke-Command { 'remote-output' }
+            Mock Remove-PSSession {}
+            $cred = [System.Management.Automation.PSCredential]::new('CONTOSO\svc', (ConvertTo-SecureString 'p' -AsPlainText -Force))
+            $warn = $null
+            $result = Invoke-SPSCommand -Credential $cred -Server 'SRV1' -ScriptBlock { 1 } -AllowFallback -WarningVariable warn -WarningAction SilentlyContinue
+            $result | Should -Be 'remote-output'
+            Should -Invoke New-PSSession -Times 1 -Exactly -ParameterFilter { $Authentication -eq 'CredSSP' }
+            Should -Invoke New-PSSession -Times 1 -Exactly -ParameterFilter { $Authentication -eq 'Negotiate' }
+            (@($warn) -join "`n") | Should -Match 'Negotiate'
+        }
+    }
+
+    It 'aggregates every authentication error when all methods fail with fallback on' {
+        InModuleScope SPSWeather.Common {
+            Mock New-PSSession {
+                if ($Authentication -eq 'CredSSP') { throw 'credssp-down' }
+                throw 'negotiate-down'
+            }
+            Mock Invoke-Command { 'x' }
+            Mock Remove-PSSession {}
+            $cred = [System.Management.Automation.PSCredential]::new('CONTOSO\svc', (ConvertTo-SecureString 'p' -AsPlainText -Force))
+            try {
+                Invoke-SPSCommand -Credential $cred -Server 'SRV1' -ScriptBlock { 1 } -AllowFallback -WarningAction SilentlyContinue
+                throw 'should have thrown'
+            }
+            catch {
+                $_.Exception.Message | Should -Match 'using any of: CredSSP, Negotiate'
+                $_.Exception.Message | Should -Match 'credssp-down'
+                $_.Exception.Message | Should -Match 'negotiate-down'
+            }
+        }
+    }
+}
+
+Describe 'CredSSP GPO conflict detection (Set-SPSCredSSPClient)' -Skip:(-not (($PSVersionTable.PSEdition -eq 'Desktop') -or [bool]$IsWindows)) {
+    It 'does not overwrite the policy switches when a delegation policy is already enabled' {
+        Mock -ModuleName SPSWeather.Common -CommandName Get-Item -MockWith { [PSCustomObject]@{ Value = 'false'; SourceOfValue = '' } }
+        Mock -ModuleName SPSWeather.Common -CommandName Set-Item -MockWith { }
+        Mock -ModuleName SPSWeather.Common -CommandName Test-Path -MockWith { $true }
+        Mock -ModuleName SPSWeather.Common -CommandName New-Item -MockWith { }
+        Mock -ModuleName SPSWeather.Common -CommandName Get-ItemProperty -MockWith { [PSCustomObject]@{ AllowFreshCredentials = 1 } }
+        Mock -ModuleName SPSWeather.Common -CommandName New-ItemProperty -MockWith { }
+
+        $warn = $null
+        $null = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com' -WarningVariable warn -WarningAction SilentlyContinue
+        # The AllowFreshCredentials / ConcatenateDefaults switches must NOT be rewritten.
+        Should -Invoke -ModuleName SPSWeather.Common -CommandName New-ItemProperty -Times 0 -ParameterFilter { $Name -eq 'AllowFreshCredentials' }
+        (@($warn) -join "`n") | Should -Match 'already configured'
+    }
+}
+
 
 Describe 'Example configuration (config.psd1)' {
     BeforeAll {
@@ -463,6 +661,12 @@ Describe 'Example configuration (config.psd1)' {
 
     It 'keeps SMTPToAddress as an array' {
         $cfg.SMTPToAddress -is [array] | Should -BeTrue
+    }
+
+    It 'exposes the Dashboard block with OutputPath and Url keys' {
+        $cfg.Keys | Should -Contain 'Dashboard'
+        $cfg.Dashboard.Keys | Should -Contain 'OutputPath'
+        $cfg.Dashboard.Keys | Should -Contain 'Url'
     }
 }
 

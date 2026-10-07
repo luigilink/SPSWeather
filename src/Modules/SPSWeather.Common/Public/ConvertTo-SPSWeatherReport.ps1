@@ -5,16 +5,16 @@
 
         .DESCRIPTION
         ConvertTo-SPSWeatherReport takes an ordered map of section name -> collected
-        rows and builds the PSCustomObject consumed by Join-HtmlBodyFromPSo and the
-        JSON snapshot. It also returns whether any section reported a
-        non-informational row (an item whose IsInfo flag is $false), which the entry
-        script uses to raise the [ALERT] state.
+        rows and builds the PSCustomObject consumed by Export-SPSWeatherReport,
+        ConvertTo-SPSWeatherEmailBody and the JSON snapshot. It also classifies every
+        row through the shared severity model (Get-SPSWeatherRowSeverity) and returns
+        Ok/Warn/Fail counts plus IsAlert (true when any row is a warning or a failure),
+        which the entry script uses to set the per-farm outcome.
 
         A section is added whenever its value is not $null (empty collections are kept,
-        matching the historical behavior so the JSON shape is stable). Sections whose
-        rows have no IsInfo property never raise an alert, so info-only sections
-        (SYSLastRebootStatus, SYSDOTNETVersion, SPWeatherListInfo) are handled by the
-        same uniform rule without special-casing.
+        matching the historical behavior so the JSON shape is stable). Only rows that
+        are actual checks (carrying IsInfo or a severity) count toward Ok, so pure
+        info-only rows (reboot time, .NET version) do not inflate the healthy total.
 
         .PARAMETER Section
         Ordered dictionary mapping each report section name to its collection of rows.
@@ -38,17 +38,20 @@
     )
 
     $report = [PSCustomObject]@{}
-    $isAlert = $false
     $okCount = 0
-    $alertCount = 0
+    $warnCount = 0
+    $failCount = 0
 
     foreach ($name in $Section.Keys) {
         $data = $Section[$name]
         if ($null -ne $data) {
             foreach ($row in @($data)) {
-                if ($row.PSObject.Properties.Name -contains 'IsInfo') {
-                    if ($row.IsInfo -eq $false) { $alertCount++; $isAlert = $true }
-                    else { $okCount++ }
+                $isCheck = ($row.PSObject.Properties.Name -contains 'IsInfo') -or
+                    ($row.PSObject.Properties.Name -contains 'severity')
+                switch (Get-SPSWeatherRowSeverity -Row $row) {
+                    'fail' { $failCount++ }
+                    'warn' { $warnCount++ }
+                    default { if ($isCheck) { $okCount++ } }
                 }
             }
             $report | Add-Member -MemberType NoteProperty -Name $name -Value $data
@@ -57,7 +60,12 @@
 
     return [PSCustomObject]@{
         Report  = $report
-        IsAlert = $isAlert
-        Summary = [PSCustomObject]@{ Ok = $okCount; Alert = $alertCount }
+        IsAlert = ($failCount -gt 0 -or $warnCount -gt 0)
+        Summary = [PSCustomObject]@{
+            Ok    = $okCount
+            Warn  = $warnCount
+            Fail  = $failCount
+            Alert = ($warnCount + $failCount)
+        }
     }
 }
