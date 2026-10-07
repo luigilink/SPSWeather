@@ -63,6 +63,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   email KPI and the report Summary for the same run. Info-only section cards show "N info"
   instead of "N OK", and the email alert lines carry a meaningful detail per section
   (upgrade status/build, SQL recommendation/state, certificate expiry, free disk %, ...) (#80).
+- SQL alias mapping rows are classified as Info/OK again (not Warning): the shared severity
+  model only treats a genuine `Recommendation` as an advisory, while a descriptive `Note`
+  (the alias discovered-vs-declared metadata) no longer raises a warning (#82).
 - `-Action Install` now extends the CredSSP client delegation beyond the farm entry
   point: it enumerates each farm's member servers remotely through the entry point and
   delegates fresh credentials to all of them, so the per-server system collectors

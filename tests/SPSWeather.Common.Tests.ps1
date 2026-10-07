@@ -536,9 +536,9 @@ Describe 'Severity model (Get-SPSWeatherRowSeverity)' {
         }
     }
 
-    It 'treats an IsInfo = $true alias row with a Note as warn' {
+    It 'treats an IsInfo = $true alias row with only a descriptive Note as ok (not warn)' {
         InModuleScope SPSWeather.Common {
-            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $true; Note = 'alias defined only in 64-bit' }) | Should -Be 'warn'
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $true; Note = 'used by SharePoint but not declared in config' }) | Should -Be 'ok'
         }
     }
 
