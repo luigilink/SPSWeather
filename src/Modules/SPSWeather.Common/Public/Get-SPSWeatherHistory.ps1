@@ -45,7 +45,12 @@
                 switch (Get-SPSWeatherRowSeverity -Row $row) {
                     'warn' { $warn++ }
                     'fail' { $fail++ }
-                    default { $ok++ }
+                    default {
+                        # Only actual checks (IsInfo/severity) count toward OK, matching the
+                        # current-run donut so a run keeps the same OK total once archived.
+                        $n = $row.PSObject.Properties.Name
+                        if (($n -contains 'IsInfo') -or ($n -contains 'severity')) { $ok++ }
+                    }
                 }
             }
         }

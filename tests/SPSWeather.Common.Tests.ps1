@@ -435,6 +435,26 @@ Describe 'Dashboard renderer (Export-SPSWeatherReport)' {
     It 'renders an area card for the failing section' {
         $dash | Should -Match 'Trust Farm'
     }
+
+    It 'counts OK consistently with the report Summary (excludes pure-info rows)' {
+        $r = [PSCustomObject]@{}
+        $r | Add-Member -MemberType NoteProperty -Name SYSLastRebootStatus -Value @(
+            [PSCustomObject]@{ Server = 'S1'; LastRebootTime = 'x' })               # pure info
+        $r | Add-Member -MemberType NoteProperty -Name SYSDiskUsageStatus -Value @(
+            [PSCustomObject]@{ Server = 'S1'; DriveLetter = 'C'; Status = 'OK'; IsInfo = $true }
+            [PSCustomObject]@{ Server = 'S2'; DriveLetter = 'C'; Status = 'Low'; IsInfo = $false })
+        $sections = [ordered]@{}
+        foreach ($p in $r.PSObject.Properties) { $sections[$p.Name] = $p.Value }
+        $summary = (ConvertTo-SPSWeatherReport -Section $sections).Summary
+
+        $tmp2 = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ("spsw-" + [guid]::NewGuid().ToString('N') + '.html')
+        [void](Export-SPSWeatherReport -InputObject $r -OutputFile $tmp2 -Farm 'F' -Application 'a' -Environment 'e' -Version 'v' -ExecutedBy 'x' -Duration 'd' -History @())
+        $html2 = Get-Content -Path $tmp2 -Raw
+
+        # The donut legend OK must equal the report Summary Ok (1), not inflate with the info row.
+        [regex]::Match($html2, 'dot ok"></i>OK (\d+)').Groups[1].Value | Should -Be ([string]$summary.Ok)
+        $summary.Ok | Should -Be 1
+    }
 }
 
 
@@ -494,6 +514,17 @@ Describe 'History series (Get-SPSWeatherHistory) callable from outside the modul
         $series[0].Ok | Should -Be 1
         $series[0].Fail | Should -Be 1
     }
+
+    It 'excludes pure info-only rows from the OK total (consistent with the current-run donut)' {
+        $folder = Join-Path -Path $TestDrive -ChildPath 'hist-info'
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null
+        ([PSCustomObject]@{
+                SYSLastRebootStatus = @([PSCustomObject]@{ Server = 'S1'; LastRebootTime = 'x' })        # pure info, no IsInfo
+                SYSDiskUsageStatus  = @([PSCustomObject]@{ Server = 'S1'; Status = 'OK'; IsInfo = $true }) # real check
+            }) | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path -Path $folder -ChildPath 'a-20260101-0000.json')
+        $series = @(Get-SPSWeatherHistory -HistoryFolder $folder)
+        $series[0].Ok | Should -Be 1   # only the IsInfo check, not the reboot info row
+    }
 }
 
 
@@ -516,9 +547,9 @@ Describe 'Severity model (Get-SPSWeatherRowSeverity)' {
         }
     }
 
-    It 'treats an IsInfo = $true alias row with a Note as warn' {
+    It 'treats an IsInfo = $true alias row with only a descriptive Note as ok (not warn)' {
         InModuleScope SPSWeather.Common {
-            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $true; Note = 'alias defined only in 64-bit' }) | Should -Be 'warn'
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $true; Note = 'used by SharePoint but not declared in config' }) | Should -Be 'ok'
         }
     }
 
