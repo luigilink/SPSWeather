@@ -196,10 +196,36 @@ else {
 
         # Configure the CredSSP client role so this host (which may not be a SharePoint
         # server) can reach the farms. The server side stays owned by DSC on the farms.
-        $credSspTargets = @($envCfg.Farms | ForEach-Object { "$($_.Server).$($envCfg.Domain)" } | Where-Object { $_ -and $_ -ne '.' })
-        if ($credSspTargets.Count -gt 0) {
-            [void](Set-SPSCredSSPClient -DelegateComputer $credSspTargets)
-            Write-Output "CredSSP client configured for: $($credSspTargets -join ', ')"
+        # Delegate to the farm entry points first, then enumerate each farm's member
+        # servers remotely through that entry point (the health check reaches every
+        # member, not just the entry point) and delegate to all of them. If enumeration
+        # fails, degrade gracefully and keep the entry-point delegation.
+        $domainSuffix = $envCfg.Domain
+        $entryPoints = @($envCfg.Farms | ForEach-Object { "$($_.Server).$($domainSuffix)" } | Where-Object { $_ -and $_ -ne '.' })
+        if ($entryPoints.Count -gt 0) {
+            [void](Set-SPSCredSSPClient -DelegateComputer $entryPoints)
+            Write-Output "CredSSP client configured for farm entry points: $($entryPoints -join ', ')"
+
+            $allTargets = [System.Collections.Generic.List[string]]::new()
+            foreach ($ep in $entryPoints) { $allTargets.Add($ep) }
+            foreach ($spFarm in $envCfg.Farms) {
+                $epFqdn = "$($spFarm.Server).$($domainSuffix)"
+                try {
+                    $members = Get-SPSServer -Server $epFqdn -InstallAccount $InstallAccount
+                    foreach ($m in @($members)) {
+                        if ([string]::IsNullOrWhiteSpace($m)) { continue }
+                        $mFqdn = if ($m -like '*.*') { $m } else { "$m.$domainSuffix" }
+                        if ($allTargets -notcontains $mFqdn) { $allTargets.Add($mFqdn) }
+                    }
+                }
+                catch {
+                    Write-Warning "Could not enumerate members of farm '$($spFarm.Name)' via '$epFqdn' to extend CredSSP delegation: $($_.Exception.Message). Delegated to the entry point only; re-run -Action Install once the farm is reachable, or add the member servers manually."
+                }
+            }
+            if ($allTargets.Count -gt $entryPoints.Count) {
+                [void](Set-SPSCredSSPClient -DelegateComputer $allTargets.ToArray())
+                Write-Output "CredSSP client delegation extended to all farm servers: $($allTargets -join ', ')"
+            }
         }
 
         Add-SPSWeatherEvent -Message "SPSWeather scheduled task '$spWeatherTaskName' installed/updated for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1003

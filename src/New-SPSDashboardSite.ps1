@@ -15,8 +15,9 @@
       3. sets NTFS Modify for those accounts and Read for the IIS application-pool identity,
       4. writes a static-file web.config so an .html served from a sub-folder of an existing
          site is not blocked by inherited handlers (avoids HTTP 404.17),
-      5. creates either a dedicated IIS site (-SiteName/-Port) or a sub-application under an
-         existing site (-ParentSite/-AppAlias), pointing at the folder.
+      5. creates either a dedicated IIS site (-SiteName/-Port) or, under an existing site
+         (-ParentSite/-AppAlias), a virtual directory (-AsVirtualDirectory, recommended -
+         served by the parent pool) or an application, pointing at the folder.
 
     It then prints the value to set in the SPSWeather config (Dashboard.OutputPath) and the
     browse URL.
@@ -54,6 +55,14 @@
     Virtual path (alias) of the sub-application created under -ParentSite (e.g. 'SPSWeather',
     browsed as https://<parent>/SPSWeather/...). Used with -ParentSite.
 
+    .PARAMETER AsVirtualDirectory
+    With -ParentSite/-AppAlias, create a virtual directory (folder) instead of an IIS
+    application. A virtual directory is served by the PARENT site's application pool, like
+    plain static content, which is what the dashboard needs. An IIS application creates its
+    own application-pool boundary and, when nested under a pull-server site, returns HTTP
+    403.18 for the static HTML. This mirrors how SPSUpdate hosts its dashboard; prefer it
+    when hosting under an existing pull-server site.
+
     .PARAMETER PoolReadAccount
     Identity granted NTFS Read so IIS can serve the files. Defaults to the local 'IIS_IUSRS'
     group, which covers application-pool identities.
@@ -71,13 +80,15 @@
     Overwrite the static-file web.config if it already exists.
 
     .EXAMPLE
-    .\New-SPSDashboardSite.ps1 -Path 'C:\inetpub\PSDSCPullServer\SPSWeather' -ShareName 'SPSWeather$' -WriteAccounts 'CONTOSO\svcspsfarm' -ParentSite 'PSDSCPullServer' -AppAlias 'SPSWeather'
+    .\New-SPSDashboardSite.ps1 -Path 'C:\inetpub\PSDSCPullServer\SPSWeather' -ShareName 'SPSWeather$' -WriteAccounts 'CONTOSO\svcspsfarm' -ParentSite 'PSDSCPullServer' -AppAlias 'SPSWeather' -AsVirtualDirectory
 
-    Shares C:\...\SPSWeather as \\<server>\SPSWeather$ and exposes it as a sub-application of the
-    existing pull-server site, browsed at https://<pull-server>/SPSWeather/<App>-<Env>-<Farm>-dashboard.html.
+    Shares C:\...\SPSWeather as \\<server>\SPSWeather$ and exposes it as a virtual directory
+    (folder) under the existing pull-server site - served by that site's pool, so the static
+    dashboard is not blocked by HTTP 403.18 - browsed at
+    https://<pull-server>/SPSWeather/<App>-<Env>-<Farm>-dashboard.html.
 
     .EXAMPLE
-    .\New-SPSDashboardSite.ps1 -Path 'E:\inetpub\spsupdate' -ShareName 'spsupdate$' -WriteAccounts 'CONTOSO\svcspsfarm','CONTOSO\jc-adm' -SiteName 'SPSWeatherDashboard' -Port 8081 -WhatIf
+    .\New-SPSDashboardSite.ps1 -Path 'E:\inetpub\spsweather' -ShareName 'spsweather$' -WriteAccounts 'CONTOSO\svcspsfarm','CONTOSO\jc-adm' -SiteName 'SPSWeatherDashboard' -Port 8081 -WhatIf
 
     Dry run that would create a dedicated IIS site on port 8081.
 
@@ -121,6 +132,10 @@ param
     [Parameter()]
     [System.String]
     $AppAlias,
+
+    [Parameter()]
+    [switch]
+    $AsVirtualDirectory,
 
     [Parameter()]
     [System.String]
@@ -186,7 +201,10 @@ if ($iisBySubApp -and ([string]::IsNullOrWhiteSpace($ParentSite) -or [string]::I
     throw 'A sub-application requires BOTH -ParentSite and -AppAlias.'
 }
 if (-not $SkipIis -and -not $iisBySite -and -not $iisBySubApp) {
-    throw 'Provide an IIS target: -SiteName (+ -Port) for a dedicated site, or -ParentSite + -AppAlias for a sub-application. Use -SkipIis to configure the folder/share only.'
+    throw 'Provide an IIS target: -SiteName (+ -Port) for a dedicated site, or -ParentSite + -AppAlias for a virtual directory/application. Use -SkipIis to configure the folder/share only.'
+}
+if ($AsVirtualDirectory -and -not $iisBySubApp) {
+    throw '-AsVirtualDirectory applies to a sub-path under an existing site; provide -ParentSite and -AppAlias (not -SiteName).'
 }
 if (-not $SkipShare -and [string]::IsNullOrWhiteSpace($ShareName)) {
     throw 'Provide -ShareName for the SMB share, or use -SkipShare.'
@@ -400,27 +418,55 @@ else {
                 # not from the site NAME, so the printed URL actually resolves.
                 $binding = $parent.bindings.Collection | Select-Object -First 1
                 $parentBase = if ($null -ne $binding) { Get-BrowseBaseFromBinding -Binding $binding } else { "https://$env:COMPUTERNAME" }
-                $existingApp = Get-WebApplication -Site $ParentSite -Name $AppAlias -ErrorAction SilentlyContinue
-                if ($null -ne $existingApp) {
-                    # A pre-existing sub-application with this alias may point elsewhere; only accept
-                    # it (and advertise the URL) when its physical path is $Path.
-                    $appPhys = "$($existingApp.PhysicalPath)".TrimEnd('\', '/')
-                    if ($appPhys -ine $pathNorm) {
-                        Write-Warn "Sub-application '/$AppAlias' already exists under '$ParentSite' but points to '$($existingApp.PhysicalPath)' (expected '$Path'). Left unchanged - resolve the collision (use a different -AppAlias) or re-point it at '$Path' manually."
+
+                if ($AsVirtualDirectory) {
+                    # A virtual directory (folder) is served by the PARENT site's application pool,
+                    # like static content - it does not create an application-pool boundary, so the
+                    # static dashboard is not blocked by HTTP 403.18 (this mirrors SPSUpdate).
+                    $existingVdir = Get-WebVirtualDirectory -Site $ParentSite -Name $AppAlias -ErrorAction SilentlyContinue
+                    if ($null -ne $existingVdir) {
+                        $vdirPhys = "$($existingVdir.PhysicalPath)".TrimEnd('\', '/')
+                        if ($vdirPhys -ine $pathNorm) {
+                            Write-Warn "Virtual directory '/$AppAlias' already exists under '$ParentSite' but points to '$($existingVdir.PhysicalPath)' (expected '$Path'). Left unchanged - resolve the collision (use a different -AppAlias) or re-point it at '$Path' manually."
+                        }
+                        else {
+                            Write-Ok "Virtual directory '/$AppAlias' already serves '$Path' under '$ParentSite'."
+                            $browseBase = "$parentBase/$AppAlias"
+                        }
+                    }
+                    elseif ($PSCmdlet.ShouldProcess("$ParentSite/$AppAlias", 'Create IIS virtual directory')) {
+                        New-WebVirtualDirectory -Site $ParentSite -Name $AppAlias -PhysicalPath $Path -Force | Out-Null
+                        Write-Ok "Created virtual directory '/$AppAlias' under '$ParentSite'."
+                        $browseBase = "$parentBase/$AppAlias"
                     }
                     else {
-                        Write-Ok "Sub-application '/$AppAlias' already serves '$Path' under '$ParentSite'."
+                        Write-Info "[WhatIf] Would create virtual directory '/$AppAlias' under '$ParentSite'."
                         $browseBase = "$parentBase/$AppAlias"
                     }
                 }
-                elseif ($PSCmdlet.ShouldProcess("$ParentSite/$AppAlias", 'Create IIS sub-application')) {
-                    New-WebApplication -Site $ParentSite -Name $AppAlias -PhysicalPath $Path -Force | Out-Null
-                    Write-Ok "Created sub-application '/$AppAlias' under '$ParentSite'."
-                    $browseBase = "$parentBase/$AppAlias"
-                }
                 else {
-                    Write-Info "[WhatIf] Would create sub-application '/$AppAlias' under '$ParentSite'."
-                    $browseBase = "$parentBase/$AppAlias"
+                    $existingApp = Get-WebApplication -Site $ParentSite -Name $AppAlias -ErrorAction SilentlyContinue
+                    if ($null -ne $existingApp) {
+                        # A pre-existing sub-application with this alias may point elsewhere; only accept
+                        # it (and advertise the URL) when its physical path is $Path.
+                        $appPhys = "$($existingApp.PhysicalPath)".TrimEnd('\', '/')
+                        if ($appPhys -ine $pathNorm) {
+                            Write-Warn "Sub-application '/$AppAlias' already exists under '$ParentSite' but points to '$($existingApp.PhysicalPath)' (expected '$Path'). Left unchanged - resolve the collision (use a different -AppAlias) or re-point it at '$Path' manually."
+                        }
+                        else {
+                            Write-Ok "Sub-application '/$AppAlias' already serves '$Path' under '$ParentSite'."
+                            $browseBase = "$parentBase/$AppAlias"
+                        }
+                    }
+                    elseif ($PSCmdlet.ShouldProcess("$ParentSite/$AppAlias", 'Create IIS sub-application')) {
+                        New-WebApplication -Site $ParentSite -Name $AppAlias -PhysicalPath $Path -Force | Out-Null
+                        Write-Ok "Created sub-application '/$AppAlias' under '$ParentSite'. If it returns HTTP 403.18 for the static dashboard, re-run with -AsVirtualDirectory (a folder served by the parent pool)."
+                        $browseBase = "$parentBase/$AppAlias"
+                    }
+                    else {
+                        Write-Info "[WhatIf] Would create sub-application '/$AppAlias' under '$ParentSite'."
+                        $browseBase = "$parentBase/$AppAlias"
+                    }
                 }
             }
         }
