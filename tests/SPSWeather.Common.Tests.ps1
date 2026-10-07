@@ -36,7 +36,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'manifest version is 2.0.0 or higher' {
-        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'3.0.0')
+        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'3.1.0')
     }
 
     It 'exports exactly the expected public functions' {
@@ -74,7 +74,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SYSLastRebootStatus'
             'Get-USPAudienceStatus'
             'Import-SPSSharePointCommand'
-            'Join-HtmlBodyFromPSo'
+            'ConvertTo-SPSWeatherEmailBody'
             'Remove-SPSSheduledTask'
             'Resolve-SPSSqlAlias'
             'Set-SPSSecret'
@@ -84,7 +84,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'does not export the private helpers' {
-        foreach ($name in @('Invoke-SPSCommand', 'Join-HtmlTable', 'ConvertFrom-SPSSqlAliasValue')) {
+        foreach ($name in @('Invoke-SPSCommand', 'ConvertFrom-SPSSqlAliasValue', 'Get-SPSWeatherHistory')) {
             Get-Command -Name $name -Module SPSWeather.Common -ErrorAction SilentlyContinue |
                 Should -BeNullOrEmpty
         }
@@ -360,14 +360,18 @@ Describe 'Report assembly (ConvertTo-SPSWeatherReport)' {    It 'adds every non-
     }
 }
 
-Describe 'HTML report (Join-HtmlBodyFromPSo)' {
+Describe 'Short alert email (ConvertTo-SPSWeatherEmailBody)' {
     BeforeAll {
         $report = [PSCustomObject]@{}
-        $report | Add-Member -MemberType NoteProperty -Name SPSiteHttpStatus -Value @(
-            [PSCustomObject]@{ Server = 'SRV1'; Url = 'https://sp'; HTTPCode = 200; Time = 0.4; Status = 'OK' }
-            [PSCustomObject]@{ Server = 'SRV2'; Url = 'https://sp2'; HTTPCode = 500; Time = 2.1; Status = 'KO' }
+        $report | Add-Member -MemberType NoteProperty -Name SPAPIHttpStatus -Value @(
+            [PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Search REST'; Url = 'https://sp/_api/search'; HTTPCode = 500; Status = 'Failed'; IsInfo = $false }
+            [PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Root'; Url = 'https://sp'; HTTPCode = 200; Status = 'OK'; IsInfo = $true }
         )
-        $html = Join-HtmlBodyFromPSo -PSObjectFromJson $report
+        $report | Add-Member -MemberType NoteProperty -Name SPHealthAnalyzer -Value @(
+            [PSCustomObject]@{ farm = 'CONTENT'; title = 'STS not available'; severity = '2 - Warning'; category = 'Availability' }
+        )
+        $summary = [PSCustomObject]@{ Ok = 10; Alert = 2 }
+        $html = ConvertTo-SPSWeatherEmailBody -InputObject $report -Summary $summary -Farm 'CONTENT' -Application 'zebes' -Environment 'PROD' -Version '3.1.0' -ExecutedBy 'DOM\jc' -Duration '00:04:31' -DashboardUrl 'https://pull/sp/zebes-PROD-CONTENT-dashboard.html'
     }
 
     It 'returns a single self-contained HTML document string' {
@@ -376,55 +380,61 @@ Describe 'HTML report (Join-HtmlBodyFromPSo)' {
         $html.TrimEnd().EndsWith('</html>') | Should -BeTrue
     }
 
-    It 'embeds the head, style block and container (regression guard for the dropped CSS)' {
-        $html | Should -Match '<head>'
-        $html | Should -Match '<style>'
-        $html | Should -Match 'id="spweathermain"'
-    }
-
     It 'keeps the Outlook MSO conditional comment' {
         $html | Should -Match '\[if mso\]'
     }
 
-    It 'does not leak an unexpanded caller-scope header/footer variable' {
-        $html | Should -Not -Match '\$htmlHEADER'
-        $html | Should -Not -Match '\$htmlFOOTER'
+    It 'lists only the items needing attention, grouped by area' {
+        $html | Should -Match 'Search'
+        $html | Should -Match 'Health Analyzer'
+        $html | Should -Match 'Search REST'
     }
 
-    It 'renders a failed status cell for a non-OK row' {
-        $html | Should -Match 'tdfailed'
+    It 'omits healthy rows from the alert list' {
+        $html | Should -Not -Match '>Root<'
     }
 
-    It 'renders the SQL sections with 3-state coloring' {
-        $sqlReport = [PSCustomObject]@{}
-        $sqlReport | Add-Member -MemberType NoteProperty -Name SQLInstanceStatus -Value @(
-            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Edition = 'Std'; Version = '15.0'; MaxDop = 1; TempDbDataFiles = 8; Recommendation = ''; IsInfo = $true }
-            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Edition = 'Std'; Version = '15.0'; MaxDop = 0; TempDbDataFiles = 1; Recommendation = 'MAXDOP=0 (SharePoint requires 1)'; IsInfo = $true }
-        )
-        $sqlReport | Add-Member -MemberType NoteProperty -Name SQLDiskStatus -Value @(
-            [PSCustomObject]@{ Farm = 'C'; SqlServer = 'SQL1'; Volume = 'D:\'; TotalGB = 100; FreeGB = 5; FreePercent = 5; IsInfo = $false }
-        )
-        $sqlHtml = Join-HtmlBodyFromPSo -PSObjectFromJson $sqlReport
-        $sqlHtml | Should -Match 'SQL - Instance Status'
-        $sqlHtml | Should -Match 'SQL - Disk Volume Status'
-        $sqlHtml | Should -Match 'tdwarning'   # advisory MAXDOP row
-        $sqlHtml | Should -Match 'tdfailed'    # low free disk
-        $sqlHtml | Should -Match 'tdsuccess'   # healthy instance row
+    It 'renders the CTA button pointing at the dashboard URL' {
+        $html | Should -Match 'zebes-PROD-CONTENT-dashboard\.html'
+        $html | Should -Match 'Open full dashboard'
     }
 
-    It 'renders the SQL alias mapping section with advisory coloring' {
-        $aliasReport = [PSCustomObject]@{}
-        $aliasReport | Add-Member -MemberType NoteProperty -Name SQLAliasStatus -Value @(
-            [PSCustomObject]@{ Farm = 'C'; Name = 'SPSQL'; RealServer = 'SQLPROD01\SP'; Protocol = 'TCP'; Port = '1433'; Bitness = 'both'; Note = ''; IsInfo = $true }
-            [PSCustomObject]@{ Farm = 'C'; Name = 'SPSQL2'; RealServer = 'SQLPROD02'; Protocol = 'TCP'; Port = ''; Bitness = '64-bit'; Note = 'alias defined only in 64-bit'; IsInfo = $true }
-        )
-        $aliasHtml = Join-HtmlBodyFromPSo -PSObjectFromJson $aliasReport
-        $aliasHtml | Should -Match 'SQL - Alias Mapping'
-        $aliasHtml | Should -Match 'SQLPROD01\\SP'
-        $aliasHtml | Should -Match 'tdwarning'   # bitness advisory
-        $aliasHtml | Should -Match 'tdsuccess'   # clean mapping
+    It 'does not double-encode the middot separator' {
+        $html | Should -Not -Match '&amp;middot;'
     }
 }
+
+Describe 'Dashboard renderer (Export-SPSWeatherReport)' {
+    BeforeAll {
+        $report = [PSCustomObject]@{}
+        $report | Add-Member -MemberType NoteProperty -Name SPAPIHttpStatus -Value @(
+            [PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Search REST'; Url = 'https://sp/_api/search'; HTTPCode = 500; Status = 'Failed'; IsInfo = $false }
+            [PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Root'; Url = 'https://sp'; HTTPCode = 200; Status = 'OK'; IsInfo = $true }
+        )
+        $history = @(
+            [PSCustomObject]@{ Date = '06-01'; Ok = 12; Warn = 0; Fail = 1 }
+            [PSCustomObject]@{ Date = '06-02'; Ok = 11; Warn = 1; Fail = 2 }
+        )
+        $tmp = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ("spsw-" + [guid]::NewGuid().ToString('N') + '.html')
+        $result = Export-SPSWeatherReport -InputObject $report -OutputFile $tmp -Farm 'CONTENT' -Application 'zebes' -Environment 'PROD' -Version '3.1.0' -ExecutedBy 'DOM\jc' -Duration '00:04:31' -History $history
+        $dash = Get-Content -Path $tmp -Raw
+    }
+
+    It 'returns the output file path and writes an HTML document' {
+        $result | Should -Match 'spsw-.*\.html$'
+        $dash.StartsWith('<!DOCTYPE html>') | Should -BeTrue
+    }
+
+    It 'renders the history chart bars (past runs + current)' {
+        ([regex]::Matches($dash, 'class="bcol')).Count | Should -BeGreaterOrEqual 3
+        $dash | Should -Match 'class="bcol now"'
+    }
+
+    It 'renders an area card for the failing section' {
+        $dash | Should -Match 'Trust Farm'
+    }
+}
+
 
 Describe 'Example configuration (config.psd1)' {
     BeforeAll {
@@ -463,6 +473,12 @@ Describe 'Example configuration (config.psd1)' {
 
     It 'keeps SMTPToAddress as an array' {
         $cfg.SMTPToAddress -is [array] | Should -BeTrue
+    }
+
+    It 'exposes the Dashboard block with OutputPath and Url keys' {
+        $cfg.Keys | Should -Contain 'Dashboard'
+        $cfg.Dashboard.Keys | Should -Contain 'OutputPath'
+        $cfg.Dashboard.Keys | Should -Contain 'Url'
     }
 }
 

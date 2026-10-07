@@ -1,32 +1,39 @@
 # SPSWeather - Release Notes
 
-## [3.0.0] - 2026-08-25
+## [3.1.0] - 2026-10-07
 
-### Removed
+### Added
 
-- **BREAKING**: dropped SharePoint Server 2016 and 2019 support. Both reached
-  end of support on 14 July 2026; SPSWeather now targets **SharePoint Server
-  Subscription Edition** exclusively.
-- The `Microsoft.SharePoint.PowerShell` PSSnapin loader path (`Add-PSSnapin`)
-  is gone from `Import-SPSSharePointCommand` and from `Invoke-SPSCommand`'s
-  remote baseScript. SPSWeather now always loads the `SharePointServer`
-  module.
-- The AppFabric branch of `Get-AppFabricStatus` (`Use-CacheCluster` /
-  `Get-CacheHost` / `Get-AFCacheHostConfiguration`) is gone. Only the
-  Subscription Edition cluster path remains.
+- New cards dashboard: `Export-SPSWeatherReport` now renders a modern per-farm
+  dashboard (overall-health donut, 30-run history bar chart with trend arrows,
+  six functional-area cards with collapsible detail tables) in place of the
+  legacy table report. One `<App>-<Env>-<Farm>-dashboard.html` per farm, meant
+  to be hosted on an IIS site like SPSUpdate.
+- `ConvertTo-SPSWeatherEmailBody`: short, Outlook-safe alert email that lists
+  only the items needing attention, grouped by area, with a KPI strip and a CTA
+  button linking to the hosted dashboard.
+- `New-SPSDashboardSite.ps1`: standalone, idempotent, `-WhatIf`-aware helper that
+  provisions the IIS hosting target (folder + SMB share + NTFS + static-file
+  `web.config` + dedicated site or sub-application) for the dashboard.
+- Config: new `Dashboard = @{ OutputPath; Url }` block — `OutputPath` is where the
+  per-farm HTML is written (fallback `Results\`), `Url` is the public IIS base used
+  to build the email CTA link.
 
 ### Changed
 
-- `Get-SPSInstalledProductVersion` is now a plain "SharePoint installed?"
-  check (no version heuristic).
-- README and wiki state the Subscription Edition requirement and point
-  2016/2019 users at the previous major release (v2.3.7).
+- The entry script now produces one dashboard and one short email per farm:
+  the aggregate report is sliced by farm, and each farm gets its own dashboard
+  file, JSON snapshot, history folder and alert email.
 
-### Migration
+### Removed
 
-Customers still running SharePoint Server 2016 or 2019 must stay on
-**SPSWeather v2.3.7** and are encouraged to migrate their farm to
-Subscription Edition. Upgrading a Subscription Edition farm to
-SPSWeather 3.0.0 requires no config change.
+- The legacy full-table HTML report (`Join-HtmlBodyFromPSo` / `Join-HtmlTable`)
+  is replaced by the dashboard and the short email.
+
+### Setup
+
+Provision the IIS hosting target once with `New-SPSDashboardSite.ps1`, then set
+`Dashboard.OutputPath` (the folder/share it writes to) and `Dashboard.Url` (its
+browse URL) in your environment config. See the wiki Dashboard page.
 
 A full list of changes can be found in the [change log](CHANGELOG.md).

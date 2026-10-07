@@ -5,6 +5,7 @@
 - [⚙️ Configuration](Configuration)
 - [📖 Usage](Usage)
 - [🩺 Health Checks](Health-Checks)
+- [📊 Dashboard](Dashboard)
 - [📦 Release Process](Release-Process)
 
 ---

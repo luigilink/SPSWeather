@@ -5,6 +5,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-07
+
+### Added
+
+- New cards dashboard: `Export-SPSWeatherReport` now renders a modern per-farm
+  dashboard (overall-health donut, 30-run history bar chart with trend arrows,
+  six functional-area cards with collapsible detail tables) in place of the
+  legacy table report. One `<App>-<Env>-<Farm>-dashboard.html` per farm, meant
+  to be hosted on an IIS site like SPSUpdate (#62).
+- `ConvertTo-SPSWeatherEmailBody`: short, Outlook-safe alert email that lists
+  only the items needing attention, grouped by area, with a KPI strip and a CTA
+  button linking to the hosted dashboard (#63).
+- `New-SPSDashboardSite.ps1`: standalone, idempotent, `-WhatIf`-aware helper that
+  provisions the IIS hosting target (folder + SMB share + NTFS + static-file
+  `web.config` + dedicated site or sub-application) for the dashboard (#64).
+- `Get-SPSWeatherHistory` (private): builds the Ok/Warn/Fail history series for
+  the dashboard chart from the per-farm JSON snapshots (#62).
+- Config: new `Dashboard = @{ OutputPath; Url }` block — `OutputPath` is where the
+  per-farm HTML is written (fallback `Results\`), `Url` is the public IIS base used
+  to build the email CTA link (#64).
+
+### Changed
+
+- The entry script now produces one dashboard and one short email per farm
+  (Opt.1): the aggregate report is sliced by farm, and each farm gets its own
+  dashboard file, JSON snapshot, history folder and alert email (#65).
+
+### Removed
+
+- `Join-HtmlBodyFromPSo` and the private `Join-HtmlTable` helper (the legacy
+  full-table HTML report) are replaced by the dashboard and the short email (#63).
+
 ## [3.0.0] - 2026-08-25
 
 ### Removed
