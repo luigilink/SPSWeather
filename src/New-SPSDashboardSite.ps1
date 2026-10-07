@@ -77,7 +77,7 @@
     existing pull-server site, browsed at https://<pull-server>/SPSWeather/<App>-<Env>-<Farm>-dashboard.html.
 
     .EXAMPLE
-    .\New-SPSDashboardSite.ps1 -Path 'E:\inetpub\spsupdate' -ShareName 'spsupdate$' -WriteAccounts 'CONTOSO\svcspsfarm','CONTOSO\jc-adm' -SiteName 'SPSWeatherDashboard' -Port 8081 -WhatIf
+    .\New-SPSDashboardSite.ps1 -Path 'E:\inetpub\spsweather' -ShareName 'spsweather$' -WriteAccounts 'CONTOSO\svcspsfarm','CONTOSO\jc-adm' -SiteName 'SPSWeatherDashboard' -Port 8081 -WhatIf
 
     Dry run that would create a dedicated IIS site on port 8081.
 
