@@ -52,6 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outcome/subject derives from the shared severity counts (#71).
 - Dashboard Expand/Collapse controls are real `<button>` elements (keyboard-focusable),
   and `New-SPSDashboardSite.ps1` normalizes the existing-share path before comparing (#75).
+- `New-SPSDashboardSite.ps1` can host the dashboard as an IIS **virtual directory**
+  (`-AsVirtualDirectory`) under an existing site, served by the parent application pool
+  like static content. A nested IIS *application* under a pull-server site returns HTTP
+  403.18 for the static dashboard; the virtual directory (SPSUpdate's model) avoids it (#76).
+- `Get-SPSWeatherHistory` is now exported, so the entry script can build the dashboard
+  history series instead of failing with "term not recognized" (it was private) (#77).
 
 ### Changed
 

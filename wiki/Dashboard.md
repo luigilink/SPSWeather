@@ -42,7 +42,8 @@ The per-farm history (the bar chart) is built from the JSON snapshots under
 Provision the hosting target once with the standalone, idempotent helper
 `New-SPSDashboardSite.ps1` (run elevated on the IIS / pull server). It creates the folder,
 an SMB share (so every farm server can publish to it), NTFS permissions, a static-file
-`web.config` (avoids HTTP 404.17), and either a dedicated IIS site or a sub-application.
+`web.config` (avoids HTTP 404.17), and either a dedicated IIS site, a virtual directory,
+or an application under an existing site.
 
 Dedicated site:
 
@@ -51,12 +52,18 @@ Dedicated site:
     -WriteAccounts 'CONTOSO\svcspsfarm' -SiteName 'SPSWeatherDashboard' -Port 8081
 ```
 
-Sub-application under an existing site (e.g. the SPSConfigKit pull server):
+Virtual directory under an existing site (e.g. the SPSConfigKit pull server) — **recommended**
+when hosting under a pull-server site, because a virtual directory is served by the parent
+site's application pool like static content (an IIS *application* nested under the pull server
+returns **HTTP 403.18** for the static dashboard):
 
 ```powershell
 .\New-SPSDashboardSite.ps1 -Path 'C:\inetpub\PSDSCPullServer\SPSWeather' -ShareName 'SPSWeather$' `
-    -WriteAccounts 'CONTOSO\svcspsfarm' -ParentSite 'PSDSCPullServer' -AppAlias 'SPSWeather'
+    -WriteAccounts 'CONTOSO\svcspsfarm' -ParentSite 'PSDSCPullServer' -AppAlias 'SPSWeather' -AsVirtualDirectory
 ```
+
+Omit `-AsVirtualDirectory` to create an IIS application instead (only if the alias needs its
+own application pool).
 
 The script is deliberately standalone (no module dependency) and supports `-WhatIf`,
 `-SkipShare`, `-SkipNtfs` and `-SkipIis`. When it finishes it prints the exact
