@@ -54,6 +54,7 @@
                     Server             = $spServer;
                     NetVersion         = 'Unreachable';
                     NetRequiredVersion = $false;
+                    IsInfo             = $false;
                 })
         }
     }

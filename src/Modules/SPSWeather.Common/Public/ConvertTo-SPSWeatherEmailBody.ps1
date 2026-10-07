@@ -4,10 +4,10 @@
         Builds the short, Outlook-safe alert email body for one farm.
 
         .DESCRIPTION
-        Returns an HTML string listing only the items that need attention (rows whose
-        IsInfo is $false, or Health Analyzer warnings), grouped by functional area,
-        with a KPI strip and a CTA button to the farm dashboard. See the SPSWeather
-        wiki (Email page) for the full reference.
+        Returns an HTML string listing only the items that need attention (classified
+        through the shared severity model), grouped by functional area, with a KPI strip
+        and a CTA button to the farm dashboard. See the SPSWeather wiki (Dashboard page)
+        for the full reference.
 
         .EXAMPLE
         ConvertTo-SPSWeatherEmailBody -InputObject $farmReport -Summary $res.Summary `
@@ -58,17 +58,7 @@
         if ($null -eq $v) { return '' }
         return [System.Net.WebUtility]::HtmlEncode([string]$v)
     }
-    function _sev($row) {
-        if ($null -eq $row) { return 'ok' }
-        $names = $row.PSObject.Properties.Name
-        if ($names -contains 'IsInfo') { if ($row.IsInfo) { return 'ok' } else { return 'fail' } }
-        if ($names -contains 'severity') {
-            $s = "$($row.severity)"
-            if ($s -match 'Error|Critical|^1\b|1 -') { return 'fail' }
-            if ($s -match 'Warning|^2\b|2 -') { return 'warn' }
-        }
-        return 'ok'
-    }
+    function _sev($row) { Get-SPSWeatherRowSeverity -Row $row }
     # First non-empty property value from a row, among candidate names.
     function _first($row, [string[]]$names) {
         foreach ($n in $names) {
