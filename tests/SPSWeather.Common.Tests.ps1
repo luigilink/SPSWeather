@@ -514,6 +514,17 @@ Describe 'History series (Get-SPSWeatherHistory) callable from outside the modul
         $series[0].Ok | Should -Be 1
         $series[0].Fail | Should -Be 1
     }
+
+    It 'excludes pure info-only rows from the OK total (consistent with the current-run donut)' {
+        $folder = Join-Path -Path $TestDrive -ChildPath 'hist-info'
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null
+        ([PSCustomObject]@{
+                SYSLastRebootStatus = @([PSCustomObject]@{ Server = 'S1'; LastRebootTime = 'x' })        # pure info, no IsInfo
+                SYSDiskUsageStatus  = @([PSCustomObject]@{ Server = 'S1'; Status = 'OK'; IsInfo = $true }) # real check
+            }) | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path -Path $folder -ChildPath 'a-20260101-0000.json')
+        $series = @(Get-SPSWeatherHistory -HistoryFolder $folder)
+        $series[0].Ok | Should -Be 1   # only the IsInfo check, not the reboot info row
+    }
 }
 
 

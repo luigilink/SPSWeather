@@ -63,6 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   email KPI and the report Summary for the same run. Info-only section cards show "N info"
   instead of "N OK", and the email alert lines carry a meaningful detail per section
   (upgrade status/build, SQL recommendation/state, certificate expiry, free disk %, ...) (#80).
+  The history chart aggregation now applies the same "actual check" rule, so a run keeps the
+  same OK total once it moves from the current bar into history, and the email alert-line
+  detail fields use each collector's real property names (failed timer job title, solution
+  operation result, availability-group detail, disk status, ...).
 - SQL alias mapping rows are classified as Info/OK again (not Warning): the shared severity
   model only treats a genuine `Recommendation` as an advisory, while a descriptive `Note`
   (the alias discovered-vs-declared metadata) no longer raises a warning (#82).

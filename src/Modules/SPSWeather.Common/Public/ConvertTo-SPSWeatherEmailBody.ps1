@@ -86,21 +86,21 @@
         SPSSitesHttpStatus      = @{ Label = @('Url'); Detail = @('HTTPCode', 'Status') }
         SPSearchLastCrawlStatus = @{ Label = @('ContentSource'); Detail = @('CrawlState') }
         SPSearchCrawlLogs       = @{ Label = @('ContentSource'); Detail = @('Message', 'ErrorID') }
-        SPFailedTimerJobs       = @{ Label = @('JobTitle', 'Name', 'Title'); Detail = @('Server', 'Status') }
-        SPSolutionDeployment    = @{ Label = @('Name', 'SolutionName'); Detail = @('Status', 'Deployed') }
+        SPFailedTimerJobs       = @{ Label = @('JobDefinitionTitle'); Detail = @('Status') }
+        SPSolutionDeployment    = @{ Label = @('SolutionName'); Detail = @('LastOperationResult', 'DeploymentState') }
         SPHealthAnalyzer        = @{ Label = @('title'); Detail = @('category', 'severity') }
         AppFabricStatus         = @{ Label = @('Server'); Detail = @('CacheStatus', 'SPInstanceStatus') }
-        USPAudienceStatus       = @{ Label = @('Name', 'AudienceName'); Detail = @('Status', 'MembershipCount') }
+        USPAudienceStatus       = @{ Label = @('Server'); Detail = @('Status') }
         IISApplicationPoolStatus = @{ Label = @('Server', 'ApplicationPool'); Detail = @('Status') }
         IISWorkerProcessStatus  = @{ Label = @('Server'); Detail = @('ApplicationPool') }
         IISWebSiteCertStatus    = @{ Label = @('Server', 'WebSiteName'); Detail = @('Status', 'ExpirationDate') }
-        SYSDiskUsageStatus      = @{ Label = @('Server', 'DriveLetter'); Detail = @('Status', 'FreeSpace') }
+        SYSDiskUsageStatus      = @{ Label = @('Server', 'DriveLetter'); Detail = @('Status') }
         SYSEventViewerAppErrors = @{ Label = @('Server', 'Name'); Detail = @('Count') }
         SPSContentDBStatus      = @{ Label = @('DatabaseName', 'Name'); Detail = @('Upgrade', 'Status') }
         SQLInstanceStatus       = @{ Label = @('SqlServer'); Detail = @('Recommendation') }
         SQLDatabaseStatus       = @{ Label = @('Name'); Detail = @('Recommendation', 'State') }
         SQLDiskStatus           = @{ Label = @('SqlServer', 'Volume'); Detail = @('FreePercent') }
-        SQLAvailabilityStatus   = @{ Label = @('Name', 'SqlServer'); Detail = @('Recommendation', 'State') }
+        SQLAvailabilityStatus   = @{ Label = @('Name', 'SqlServer'); Detail = @('Detail') }
         SQLAliasStatus          = @{ Label = @('Name'); Detail = @('Note') }
     }
     $areaOrder = @('Farm & Upgrade', 'Trust Farm (REST)', 'Search', 'Distributed Cache', 'Timer Jobs', 'Solutions', 'User Profiles', 'Health Analyzer', 'IIS', 'System', 'SQL Server')
