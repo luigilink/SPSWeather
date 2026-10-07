@@ -222,6 +222,9 @@ else {
         $jsonHistoryRetentionDays = if ($null -ne $envCfg.JsonHistoryRetentionDays) { [int]$envCfg.JsonHistoryRetentionDays } else { 30 }
         $logRetentionDays = if ($null -ne $envCfg.LogRetentionDays) { [int]$envCfg.LogRetentionDays } else { 180 }
         $pathHistoryFolder = Join-Path -Path $pathResultsFolder -ChildPath 'history'
+        # Track only the farms actually reached: an unreachable farm (skipped below)
+        # must not be published/emailed as healthy.
+        $probedFarms = New-Object System.Collections.ArrayList
         Add-SPSWeatherEvent -Message "SPSWeather $spsWeatherVersion started for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1000
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
@@ -241,6 +244,7 @@ else {
             }
 
             Write-Output "SharePoint Version: $spsVersion"
+            [void]$probedFarms.Add("$($spFarm.Name)")
 
             # Get list of SharePoint Servers
             Write-Output "Getting list of SharePoint Servers of farm $($spFarm.Name)"
@@ -441,18 +445,19 @@ else {
         }
         # --- Per-farm reporting (Opt.1: one dashboard + one short email per farm) ---
         # The aggregate $reportSections span every farm; slice them per farm, then render
-        # a hosted dashboard and send a short alert email for each one.
+        # a hosted dashboard and send a short alert email for each one. Only farms that
+        # were actually reached ($probedFarms) are rendered - an unreachable farm has
+        # empty sections and must not be published/emailed as healthy.
         $dashboardCfg = $envCfg.Dashboard
         $dashOutputPath = if ($null -ne $dashboardCfg -and -not [string]::IsNullOrWhiteSpace($dashboardCfg.OutputPath)) { $dashboardCfg.OutputPath } else { $pathResultsFolder }
         $dashBaseUrl = if ($null -ne $dashboardCfg) { "$($dashboardCfg.Url)".TrimEnd('/') } else { '' }
         if (-not (Test-Path -Path $dashOutputPath)) { $null = New-Item -ItemType Directory -Path $dashOutputPath -Force }
 
-        $farmNames = @($spFarms | ForEach-Object { $_.Name } | Where-Object { $_ })
-        if ($farmNames.Count -eq 0) {
-            $farmNames = @($reportSections.Values | ForEach-Object { $_ } | Where-Object { $_ -and $_.Farm } | ForEach-Object { "$($_.Farm)" } | Sort-Object -Unique)
-        }
+        # The chart shows 30 bars: up to 29 past runs plus the current one (appended by
+        # the renderer). This is a run count, independent of the day-based history retention.
+        $historyBars = 29
 
-        foreach ($farmName in $farmNames) {
+        foreach ($farmName in @($probedFarms)) {
             # Property access is case-insensitive, so $_.Farm matches both 'Farm' and 'farm'.
             $farmSections = [ordered]@{}
             foreach ($entry in $reportSections.GetEnumerator()) {
@@ -473,60 +478,62 @@ else {
             $farmHistFolder = Join-Path -Path $pathHistoryFolder -ChildPath $safeFarm
             $dashFile = Join-Path -Path $dashOutputPath -ChildPath ($farmStem + '-dashboard.html')
 
-            Trap { Continue }
+            # Per-farm resilience: a failure rendering or mailing one farm must not abort
+            # the others. Log it and move on (no silent broad Trap).
+            try {
+                # History: archive the previous snapshot, build the past-runs series, write the new one.
+                [void](Backup-SPSWeatherJsonFile -Path $farmJsonFile -HistoryFolder $farmHistFolder -RetentionDays $jsonHistoryRetentionDays -ErrorAction SilentlyContinue)
+                $farmHistory = Get-SPSWeatherHistory -HistoryFolder $farmHistFolder -Max $historyBars -ErrorAction SilentlyContinue
+                $farmJson | ConvertTo-Json -Depth 6 | Set-Content -Path $farmJsonFile -Force
 
-            # History: archive the previous snapshot, build the past-runs series, write the new one.
-            [void](Backup-SPSWeatherJsonFile -Path $farmJsonFile -HistoryFolder $farmHistFolder -RetentionDays $jsonHistoryRetentionDays -ErrorAction SilentlyContinue)
-            $farmHistory = Get-SPSWeatherHistory -HistoryFolder $farmHistFolder -Max $jsonHistoryRetentionDays -ErrorAction SilentlyContinue
-            $trend = Compare-SPSWeatherSnapshots -CurrentObject $farmJson -HistoryFolder $farmHistFolder -ErrorAction SilentlyContinue
-            $farmJson | ConvertTo-Json -Depth 6 | Set-Content -Path $farmJsonFile -Force
+                $runDuration = '{0:hh\:mm\:ss}' -f ((Get-Date) - $DateStarted)
+                [void](Export-SPSWeatherReport -InputObject $farmJson `
+                        -OutputFile $dashFile `
+                        -Farm $farmName `
+                        -Application $Application `
+                        -Environment $Environment `
+                        -Version $spsWeatherVersion `
+                        -ExecutedBy $currentUser `
+                        -Duration $runDuration `
+                        -History $farmHistory)
+                Write-Output " * Dashboard: $dashFile"
 
-            $runDuration = '{0:hh\:mm\:ss}' -f ((Get-Date) - $DateStarted)
-            [void](Export-SPSWeatherReport -InputObject $farmJson `
+                $dashUrl = if ($dashBaseUrl) { "$dashBaseUrl/$($farmStem)-dashboard.html" } else { '' }
+                $mailHTMLBody = ConvertTo-SPSWeatherEmailBody -InputObject $farmJson `
                     -Summary $farmResult.Summary `
-                    -Trend $trend `
-                    -OutputFile $dashFile `
                     -Farm $farmName `
                     -Application $Application `
                     -Environment $Environment `
                     -Version $spsWeatherVersion `
                     -ExecutedBy $currentUser `
                     -Duration $runDuration `
-                    -History $farmHistory)
-            Write-Output " * Dashboard: $dashFile"
+                    -DashboardUrl $dashUrl
 
-            $dashUrl = if ($dashBaseUrl) { "$dashBaseUrl/$($farmStem)-dashboard.html" } else { '' }
-            $mailHTMLBody = ConvertTo-SPSWeatherEmailBody -InputObject $farmJson `
-                -Summary $farmResult.Summary `
-                -Farm $farmName `
-                -Application $Application `
-                -Environment $Environment `
-                -Version $spsWeatherVersion `
-                -ExecutedBy $currentUser `
-                -Duration $runDuration `
-                -DashboardUrl $dashUrl
+                # Outcome from the shared severity counts: failures -> ALERT/High,
+                # warnings only -> WARN/Normal, otherwise OK.
+                $failCount = [int]$farmResult.Summary.Fail
+                $warnCount = [int]$farmResult.Summary.Warn
+                if ($failCount -gt 0) { $farmAlert = 'ALERT'; $farmPriority = 'High' }
+                elseif ($warnCount -gt 0) { $farmAlert = 'WARN'; $farmPriority = 'Normal' }
+                else { $farmAlert = 'OK'; $farmPriority = 'Normal' }
+                $mailSubject = "[$farmAlert] $Application/$Environment/$farmName - SPSWeather"
 
-            $farmAlert = if ($farmResult.IsAlert) { 'ALERT' } else { 'OK' }
-            $farmPriority = if ($farmResult.IsAlert) { 'High' } else { 'Normal' }
-            $mailSubject = "[$farmAlert] $Application/$Environment/$farmName - SPSWeather"
+                if ($farmResult.IsAlert) {
+                    Add-SPSWeatherEvent -Message "SPSWeather outcome $farmAlert for $Application/$Environment farm '$farmName' ($failCount failure(s), $warnCount warning(s)). Dashboard: $dashFile." -EntryType 'Warning' -EventID 2000
+                }
+                else {
+                    Add-SPSWeatherEvent -Message "SPSWeather completed with no alert for $Application/$Environment farm '$farmName'." -EntryType 'Information' -EventID 1001
+                }
 
-            if ($farmResult.IsAlert) {
-                Add-SPSWeatherEvent -Message "SPSWeather detected ALERT conditions for $Application/$Environment farm '$farmName'. Dashboard: $dashFile." -EntryType 'Warning' -EventID 2000
-            }
-            else {
-                Add-SPSWeatherEvent -Message "SPSWeather completed with no alert for $Application/$Environment farm '$farmName'." -EntryType 'Information' -EventID 1001
-            }
-
-            if ($EnableSmtp) {
-                $SmtpToAddress = $envCfg.SMTPToAddress
-                $SmtpFromAddress = $envCfg.SMTPFromAddress
-                $SmtpServerAddress = $envCfg.SMTPServer
-                Write-Output '--------------------------------------------------------------'
-                Write-Output "Sending Email for farm '$farmName'"
-                Write-Output " * To: $SmtpToAddress"
-                Write-Output " * From: $SmtpFromAddress"
-                Write-Output " * SmtpServer: $SmtpServerAddress"
-                try {
+                if ($EnableSmtp) {
+                    $SmtpToAddress = $envCfg.SMTPToAddress
+                    $SmtpFromAddress = $envCfg.SMTPFromAddress
+                    $SmtpServerAddress = $envCfg.SMTPServer
+                    Write-Output '--------------------------------------------------------------'
+                    Write-Output "Sending Email for farm '$farmName'"
+                    Write-Output " * To: $SmtpToAddress"
+                    Write-Output " * From: $SmtpFromAddress"
+                    Write-Output " * SmtpServer: $SmtpServerAddress"
                     Send-MailMessage -To $SmtpToAddress `
                         -From $SmtpFromAddress `
                         -Subject $mailSubject `
@@ -538,10 +545,10 @@ else {
                         -ea stop
                     Write-Output "Email sent successfully to $SmtpToAddress"
                 }
-                catch {
-                    Write-Output $_
-                    Add-SPSWeatherEvent -Message "SPSWeather failed to send the report email for $Application/$Environment farm '$farmName'. Exception: $_" -EntryType 'Error' -EventID 3000
-                }
+            }
+            catch {
+                Write-Output $_
+                Add-SPSWeatherEvent -Message "SPSWeather failed to produce the dashboard/email for $Application/$Environment farm '$farmName'. Exception: $($_.Exception.Message)" -EntryType 'Error' -EventID 3000
             }
         }
 
