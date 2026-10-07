@@ -85,7 +85,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'does not export the private helpers' {
-        foreach ($name in @('Invoke-SPSCommand', 'ConvertFrom-SPSSqlAliasValue', 'Get-SPSWeatherHistory')) {
+        foreach ($name in @('Invoke-SPSCommand', 'ConvertFrom-SPSSqlAliasValue', 'Get-SPSWeatherHistory', 'Get-SPSWeatherRowSeverity')) {
             Get-Command -Name $name -Module SPSWeather.Common -ErrorAction SilentlyContinue |
                 Should -BeNullOrEmpty
         }
@@ -471,6 +471,155 @@ Describe 'CredSSP client setup (Set-SPSCredSSPClient)' {
             Should -Invoke -ModuleName SPSWeather.Common -CommandName Set-Item -Times 0
             Should -Invoke -ModuleName SPSWeather.Common -CommandName New-ItemProperty -Times 0
         }
+    }
+}
+
+
+Describe 'Severity model (Get-SPSWeatherRowSeverity)' {
+    It 'classifies IsInfo = $false as fail' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $false }) | Should -Be 'fail'
+        }
+    }
+
+    It 'classifies a healthy IsInfo = $true row as ok' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $true }) | Should -Be 'ok'
+        }
+    }
+
+    It 'treats an IsInfo = $true row carrying an advisory Recommendation as warn' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $true; Recommendation = 'MAXDOP should be 1' }) | Should -Be 'warn'
+        }
+    }
+
+    It 'treats an IsInfo = $true alias row with a Note as warn' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ IsInfo = $true; Note = 'alias defined only in 64-bit' }) | Should -Be 'warn'
+        }
+    }
+
+    It 'maps Health Analyzer severity strings (no IsInfo) to warn/fail' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ severity = '2 - Warning' }) | Should -Be 'warn'
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ severity = '1 - Error' }) | Should -Be 'fail'
+        }
+    }
+
+    It 'treats an Unreachable row with no IsInfo as fail' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ Server = 'SRV1'; OSName = 'Unreachable' }) | Should -Be 'fail'
+        }
+    }
+
+    It 'returns ok for a pure info row and for $null' {
+        InModuleScope SPSWeather.Common {
+            Get-SPSWeatherRowSeverity -Row ([PSCustomObject]@{ Server = 'SRV1'; Version = '4.8' }) | Should -Be 'ok'
+            Get-SPSWeatherRowSeverity -Row $null | Should -Be 'ok'
+        }
+    }
+}
+
+Describe 'Report outcome via shared severity (ConvertTo-SPSWeatherReport)' {
+    It 'reports Ok/Warn/Fail counts and raises IsAlert on warnings only' {
+        $sections = [ordered]@{
+            Health = @([PSCustomObject]@{ severity = '2 - Warning' })
+            Disk   = @([PSCustomObject]@{ IsInfo = $true })
+        }
+        $r = ConvertTo-SPSWeatherReport -Section $sections
+        $r.Summary.Warn | Should -Be 1
+        $r.Summary.Fail | Should -Be 0
+        $r.Summary.Ok | Should -Be 1
+        $r.IsAlert | Should -BeTrue
+    }
+
+    It 'counts an advisory IsInfo = $true row as a warning' {
+        $sections = [ordered]@{
+            Sql = @([PSCustomObject]@{ IsInfo = $true; Recommendation = 'MAXDOP should be 1' })
+        }
+        $r = ConvertTo-SPSWeatherReport -Section $sections
+        $r.Summary.Warn | Should -Be 1
+        $r.Summary.Ok | Should -Be 0
+    }
+
+    It 'does not count pure info rows toward Ok' {
+        $sections = [ordered]@{
+            SYSLastRebootStatus = @([PSCustomObject]@{ Server = 'SRV1'; LastRebootTime = '2026-06-28' })
+        }
+        $r = ConvertTo-SPSWeatherReport -Section $sections
+        $r.Summary.Ok | Should -Be 0
+        $r.IsAlert | Should -BeFalse
+    }
+}
+
+Describe 'Invoke-SPSCommand Negotiate fallback' {
+    It 'does not attempt Negotiate when fallback is off (CredSSP-only error)' {
+        InModuleScope SPSWeather.Common {
+            Mock New-PSSession { throw 'CredSSP not configured' }
+            Mock Invoke-Command { 'SHOULD-NOT-RUN' }
+            Mock Remove-PSSession {}
+            $cred = [System.Management.Automation.PSCredential]::new('CONTOSO\svc', (ConvertTo-SecureString 'p' -AsPlainText -Force))
+            { Invoke-SPSCommand -Credential $cred -Server 'SRV1' -ScriptBlock { 1 } -WarningAction SilentlyContinue } |
+                Should -Throw "*Failed to open a CredSSP PSSession to 'SRV1'*"
+            Should -Invoke New-PSSession -Times 0 -Exactly -ParameterFilter { $Authentication -eq 'Negotiate' }
+        }
+    }
+
+    It 'falls back to Negotiate and warns when CredSSP fails and -AllowFallback is set' {
+        InModuleScope SPSWeather.Common {
+            Mock New-PSSession {
+                if ($Authentication -eq 'CredSSP') { throw 'CredSSP not configured' }
+                New-MockObject -Type ([System.Management.Automation.Runspaces.PSSession])
+            }
+            Mock Invoke-Command { 'remote-output' }
+            Mock Remove-PSSession {}
+            $cred = [System.Management.Automation.PSCredential]::new('CONTOSO\svc', (ConvertTo-SecureString 'p' -AsPlainText -Force))
+            $warn = $null
+            $result = Invoke-SPSCommand -Credential $cred -Server 'SRV1' -ScriptBlock { 1 } -AllowFallback -WarningVariable warn -WarningAction SilentlyContinue
+            $result | Should -Be 'remote-output'
+            Should -Invoke New-PSSession -Times 1 -Exactly -ParameterFilter { $Authentication -eq 'CredSSP' }
+            Should -Invoke New-PSSession -Times 1 -Exactly -ParameterFilter { $Authentication -eq 'Negotiate' }
+            (@($warn) -join "`n") | Should -Match 'Negotiate'
+        }
+    }
+
+    It 'aggregates every authentication error when all methods fail with fallback on' {
+        InModuleScope SPSWeather.Common {
+            Mock New-PSSession {
+                if ($Authentication -eq 'CredSSP') { throw 'credssp-down' }
+                throw 'negotiate-down'
+            }
+            Mock Invoke-Command { 'x' }
+            Mock Remove-PSSession {}
+            $cred = [System.Management.Automation.PSCredential]::new('CONTOSO\svc', (ConvertTo-SecureString 'p' -AsPlainText -Force))
+            try {
+                Invoke-SPSCommand -Credential $cred -Server 'SRV1' -ScriptBlock { 1 } -AllowFallback -WarningAction SilentlyContinue
+                throw 'should have thrown'
+            }
+            catch {
+                $_.Exception.Message | Should -Match 'using any of: CredSSP, Negotiate'
+                $_.Exception.Message | Should -Match 'credssp-down'
+                $_.Exception.Message | Should -Match 'negotiate-down'
+            }
+        }
+    }
+}
+
+Describe 'CredSSP GPO conflict detection (Set-SPSCredSSPClient)' -Skip:(-not (($PSVersionTable.PSEdition -eq 'Desktop') -or [bool]$IsWindows)) {
+    It 'does not overwrite the policy switches when a delegation policy is already enabled' {
+        Mock -ModuleName SPSWeather.Common -CommandName Get-Item -MockWith { [PSCustomObject]@{ Value = 'false'; SourceOfValue = '' } }
+        Mock -ModuleName SPSWeather.Common -CommandName Set-Item -MockWith { }
+        Mock -ModuleName SPSWeather.Common -CommandName Test-Path -MockWith { $true }
+        Mock -ModuleName SPSWeather.Common -CommandName New-Item -MockWith { }
+        Mock -ModuleName SPSWeather.Common -CommandName Get-ItemProperty -MockWith { [PSCustomObject]@{ AllowFreshCredentials = 1 } }
+        Mock -ModuleName SPSWeather.Common -CommandName New-ItemProperty -MockWith { }
+
+        $warn = $null
+        $null = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com' -WarningVariable warn -WarningAction SilentlyContinue
+        # The AllowFreshCredentials / ConcatenateDefaults switches must NOT be rewritten.
+        Should -Invoke -ModuleName SPSWeather.Common -CommandName New-ItemProperty -Times 0 -ParameterFilter { $Name -eq 'AllowFreshCredentials' }
+        (@($warn) -join "`n") | Should -Match 'already configured'
     }
 }
 

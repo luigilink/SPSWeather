@@ -6,7 +6,7 @@
 
 - New cards dashboard: `Export-SPSWeatherReport` now renders a modern per-farm
   dashboard (overall-health donut, 30-run history bar chart with trend arrows,
-  six functional-area cards with collapsible detail tables) in place of the
+  functional-area cards (up to nine) with collapsible detail tables) in place of the
   legacy table report. One `<App>-<Env>-<Farm>-dashboard.html` per farm, meant
   to be hosted on an IIS site like SPSUpdate.
 - `ConvertTo-SPSWeatherEmailBody`: short, Outlook-safe alert email that lists
@@ -21,12 +21,22 @@
 - `Set-SPSCredSSPClient`: configures the CredSSP **client** role and fresh-credentials
   delegation (scoped to the farm FQDNs) so SPSWeather can run from a non-SharePoint
   host (orchestration/PULL server). Called automatically by `-Action Install`; the
-  CredSSP server role stays owned by DSC on the farms.
+  CredSSP server role stays owned by DSC on the farms. A pre-existing (possibly
+  GPO-enforced) delegation policy is detected and preserved.
+- A single shared severity model classifies rows for the dashboard, email, history and
+  per-farm outcome, so unreachable servers and advisory recommendations are counted
+  consistently.
+- `Invoke-SPSCommand -AllowFallback`: optional Negotiate fallback when CredSSP cannot be
+  established, with a clear warning and an aggregated error when all methods fail.
 
 ### Fixed
 
 - `Start-Transcript` no longer fails on a fresh host — the `Logs\` folder is created
   before transcription starts.
+- Only farms actually reached are published/emailed (an unreachable farm is no longer
+  reported as healthy); per-farm failures are isolated by a `try/catch` instead of a
+  broad trap; the history chart shows the latest 30 runs regardless of the day-based
+  retention; the per-farm subject/outcome reflects warnings as well as failures.
 
 ### Changed
 

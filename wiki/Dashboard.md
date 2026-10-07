@@ -9,9 +9,9 @@ IIS site (as SPSUpdate does), so operators browse a stable URL per farm.
 - **One dashboard per farm**, written as `<App>-<Env>-<Farm>-dashboard.html`:
   - an **overall-health donut** (OK / warning / failure split) with a weather glyph;
   - a **30-run history bar chart** with trend arrows versus the previous run;
-  - **six functional-area cards** (Farm & Upgrade, Trust Farm, Search, Distributed
-    Cache, Timer Jobs & Solutions, Health Analyzer, IIS, System, SQL Server) each with a
-    collapsible detail table.
+  - **up to nine functional-area cards** (Farm & Upgrade, Trust Farm, Search, Distributed
+    Cache, Timer Jobs & Solutions, Health Analyzer, IIS, System, SQL Server; empty areas
+    are hidden) each with a collapsible detail table.
 - **One short email per farm** (with `-EnableSmtp`): only the items needing attention,
   grouped by area, a KPI strip, and an **Open full dashboard** button pointing at the
   hosted URL.

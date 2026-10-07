@@ -245,7 +245,11 @@ else {
             }
         }
         else {
-            if ("$($existingShare.Path)" -ne "$Path") {
+            # Normalize both paths (trailing-slash/case) before comparing, as the IIS branch
+            # does, so a harmless trailing slash is not mistaken for a name collision.
+            $sharePathNorm = "$($existingShare.Path)".TrimEnd('\', '/')
+            $pathNorm = "$Path".TrimEnd('\', '/')
+            if ($sharePathNorm -ine $pathNorm) {
                 # The share name is already taken by an UNRELATED folder: do NOT grant our write
                 # accounts Change access to someone else's share. Warn and skip the permission
                 # reconciliation entirely; the operator must resolve the collision manually.
