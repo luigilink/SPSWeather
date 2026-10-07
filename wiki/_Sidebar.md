@@ -2,6 +2,7 @@
 
 - [🏠 Home](Home)
 - [🚀 Getting Started](Getting-Started)
+- [✅ Prerequisites](Prerequisites)
 - [⚙️ Configuration](Configuration)
 - [📖 Usage](Usage)
 - [🩺 Health Checks](Health-Checks)

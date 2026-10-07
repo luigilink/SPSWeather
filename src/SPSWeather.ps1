@@ -194,6 +194,14 @@ else {
         # Add SPSWeather script in a new scheduled Task
         Add-SPSSheduledTask -ExecuteAsCredential $InstallAccount -TaskName $spWeatherTaskName -ActionArguments "-Execution Bypass $($scriptRootPath)\SPSWeather.ps1 -ConfigFile $($ConfigFile) -EnableSMTP"
 
+        # Configure the CredSSP client role so this host (which may not be a SharePoint
+        # server) can reach the farms. The server side stays owned by DSC on the farms.
+        $credSspTargets = @($envCfg.Farms | ForEach-Object { "$($_.Server).$($envCfg.Domain)" } | Where-Object { $_ -and $_ -ne '.' })
+        if ($credSspTargets.Count -gt 0) {
+            [void](Set-SPSCredSSPClient -DelegateComputer $credSspTargets)
+            Write-Output "CredSSP client configured for: $($credSspTargets -join ', ')"
+        }
+
         Add-SPSWeatherEvent -Message "SPSWeather scheduled task '$spWeatherTaskName' installed/updated for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1003
         Write-Output "SPSWeather installed: task '$spWeatherTaskName' created/updated and secret '$($envCfg.CredentialKey)' stored."
     }

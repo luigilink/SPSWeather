@@ -18,6 +18,15 @@
 - Config: new `Dashboard = @{ OutputPath; Url }` block — `OutputPath` is where the
   per-farm HTML is written (fallback `Results\`), `Url` is the public IIS base used
   to build the email CTA link.
+- `Set-SPSCredSSPClient`: configures the CredSSP **client** role and fresh-credentials
+  delegation (scoped to the farm FQDNs) so SPSWeather can run from a non-SharePoint
+  host (orchestration/PULL server). Called automatically by `-Action Install`; the
+  CredSSP server role stays owned by DSC on the farms.
+
+### Fixed
+
+- `Start-Transcript` no longer fails on a fresh host — the `Logs\` folder is created
+  before transcription starts.
 
 ### Changed
 
@@ -34,6 +43,8 @@
 
 Provision the IIS hosting target once with `New-SPSDashboardSite.ps1`, then set
 `Dashboard.OutputPath` (the folder/share it writes to) and `Dashboard.Url` (its
-browse URL) in your environment config. See the wiki Dashboard page.
+browse URL) in your environment config. SPSWeather must run as a local administrator;
+`-Action Install` configures the CredSSP client automatically. See the wiki
+Prerequisites and Dashboard pages.
 
 A full list of changes can be found in the [change log](CHANGELOG.md).

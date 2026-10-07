@@ -46,6 +46,7 @@
         'ConvertTo-SPSWeatherEmailBody'
         'Remove-SPSSheduledTask'
         'Resolve-SPSSqlAlias'
+        'Set-SPSCredSSPClient'
         'Set-SPSSecret'
     )
 

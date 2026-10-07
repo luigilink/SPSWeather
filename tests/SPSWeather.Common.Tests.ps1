@@ -77,6 +77,7 @@ Describe 'SPSWeather.Common module' {
             'ConvertTo-SPSWeatherEmailBody'
             'Remove-SPSSheduledTask'
             'Resolve-SPSSqlAlias'
+            'Set-SPSCredSSPClient'
             'Set-SPSSecret'
         )
         $actual = (Get-Command -Module SPSWeather.Common).Name | Sort-Object
@@ -432,6 +433,44 @@ Describe 'Dashboard renderer (Export-SPSWeatherReport)' {
 
     It 'renders an area card for the failing section' {
         $dash | Should -Match 'Trust Farm'
+    }
+}
+
+
+Describe 'CredSSP client setup (Set-SPSCredSSPClient)' {
+    It 'is Windows-only: returns $false and warns off Windows' -Skip:($IsWindows) {
+        $warn = $null
+        $result = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com' -WarningVariable warn -WarningAction SilentlyContinue
+        $result | Should -BeFalse
+        $warn | Should -Not -BeNullOrEmpty
+    }
+
+    Context 'on Windows' -Skip:(-not $IsWindows) {
+        BeforeAll {
+            Mock -ModuleName SPSWeather.Common -CommandName Get-Item -MockWith { [PSCustomObject]@{ Value = 'false'; SourceOfValue = '' } }
+            Mock -ModuleName SPSWeather.Common -CommandName Set-Item -MockWith { }
+            Mock -ModuleName SPSWeather.Common -CommandName Test-Path -MockWith { $true }
+            Mock -ModuleName SPSWeather.Common -CommandName New-Item -MockWith { }
+            Mock -ModuleName SPSWeather.Common -CommandName Get-ItemProperty -MockWith { $null }
+            Mock -ModuleName SPSWeather.Common -CommandName New-ItemProperty -MockWith { }
+        }
+
+        It 'enables CredSSP client authentication' {
+            $null = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com'
+            Should -Invoke -ModuleName SPSWeather.Common -CommandName Set-Item -Times 1 -ParameterFilter { $Value -eq $true }
+        }
+
+        It 'adds a WSMAN/<fqdn> delegation SPN for each server' {
+            $null = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com', 'app2.contoso.com'
+            Should -Invoke -ModuleName SPSWeather.Common -CommandName New-ItemProperty -ParameterFilter { $Value -eq 'WSMAN/app1.contoso.com' }
+            Should -Invoke -ModuleName SPSWeather.Common -CommandName New-ItemProperty -ParameterFilter { $Value -eq 'WSMAN/app2.contoso.com' }
+        }
+
+        It 'does not write anything under -WhatIf' {
+            $null = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com' -WhatIf
+            Should -Invoke -ModuleName SPSWeather.Common -CommandName Set-Item -Times 0
+            Should -Invoke -ModuleName SPSWeather.Common -CommandName New-ItemProperty -Times 0
+        }
     }
 }
 

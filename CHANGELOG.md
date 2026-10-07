@@ -25,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config: new `Dashboard = @{ OutputPath; Url }` block — `OutputPath` is where the
   per-farm HTML is written (fallback `Results\`), `Url` is the public IIS base used
   to build the email CTA link (#64).
+- `Set-SPSCredSSPClient`: enables the CredSSP **client** role and fresh-credentials
+  delegation (scoped to the farm FQDNs) so SPSWeather can run from a non-SharePoint
+  host (e.g. an orchestration/PULL server). Called automatically by `-Action Install`,
+  deriving the targets from `Farms[].Server` + `Domain`; the CredSSP server role stays
+  owned by DSC on the farms. Idempotent, `-WhatIf`-aware, Windows-only (#67).
+
+### Fixed
+
+- `Start-Transcript` no longer fails on a fresh host: the `Logs\` folder is created
+  before transcription starts (previously only `Results\` and `Config\` were
+  initialized, and after `Start-Transcript`) (#66).
 
 ### Changed
 
