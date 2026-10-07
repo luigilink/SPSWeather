@@ -62,6 +62,36 @@ jobs:
             test-results.xml
           check_name: Pester Test Results
 
+  test-ps51:
+    name: Run Pester Tests (Windows PowerShell 5.1)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # The scripts run under Windows PowerShell 5.1 (.NET Framework) in production
+      # (SharePoint snap-in requirement). PowerShell 7 (pwsh) targets a newer .NET
+      # whose BCL has extra API overloads, so a pwsh-only test pass can miss 5.1
+      # incompatibilities. This job runs the same suite under Windows PowerShell 5.1.
+      - name: Install Pester (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          Install-Module -Name Pester -MinimumVersion 5.3.0 -Force -SkipPublisherCheck -Scope CurrentUser
+
+      - name: Run Pester Tests (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          $psv = $PSVersionTable.PSVersion
+          Write-Host "PowerShell edition: $($PSVersionTable.PSEdition) $psv"
+          if ($psv.Major -ne 5) { throw "Expected Windows PowerShell 5.1, got $psv" }
+          Import-Module Pester -MinimumVersion 5.3.0 -Force
+          $config = New-PesterConfiguration
+          $config.Run.Path = './tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
   code-quality:
     name: Code Quality Check
     runs-on: windows-latest
@@ -78,13 +108,9 @@ jobs:
       - name: Run PSScriptAnalyzer
         shell: pwsh
         run: |
-          # Analyze our own code only: the entry script and the SPSWeather.Common
-          # module. The embedded third-party credentialmanager dependency is
-          # intentionally excluded (its UTF-16 manifest is shipped verbatim).
-          $results = @()
-          $results += Invoke-ScriptAnalyzer -Path ./src/SPSWeather.ps1 -Settings ./PSScriptAnalyzerSettings.psd1
-          $results += Invoke-ScriptAnalyzer -Path ./src/Test-SPSWeatherReadiness.ps1 -Settings ./PSScriptAnalyzerSettings.psd1
-          $results += Invoke-ScriptAnalyzer -Path ./src/Modules/SPSWeather.Common -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
+          # Analyze all first-party code under src/ (entry scripts, the standalone
+          # New-SPSDashboardSite.ps1 and the SPSWeather.Common module).
+          $results = Invoke-ScriptAnalyzer -Path ./src -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
 
           if ($results) {
             $results | Format-Table -AutoSize
