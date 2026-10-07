@@ -56,6 +56,17 @@
     # Logs\ by Clear-SPSLog. 0 disables pruning. Default: 180.
     LogRetentionDays            = 180
 
+    # Dashboard : where the per-farm dashboard HTML is written and how the email CTA
+    # links to it. Provision the hosting target once with New-SPSDashboardSite.ps1.
+    #   OutputPath : folder (local or UNC share) that receives
+    #                <App>-<Env>-<Farm>-dashboard.html. Empty = Results\ (local only).
+    #   Url        : public base URL serving that folder over IIS. The email button
+    #                points to <Url>/<App>-<Env>-<Farm>-dashboard.html. Empty = no button.
+    Dashboard                   = @{
+        OutputPath = ''
+        Url        = ''
+    }
+
     # Farms : one entry per trusted farm to check. Server is the short name; the
     # Domain above is appended to build the FQDN targeted for remoting. SqlServers
     # is OPTIONAL: the SQL client alias(es) (cliconfg) or server name(s) this farm
