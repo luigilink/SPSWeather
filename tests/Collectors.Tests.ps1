@@ -69,18 +69,25 @@ Describe 'Pass-through collector delegation (Invoke-SPSCommand mocked)' {
 }
 
 Describe 'Per-server collector resilience' {
-    It '<_> returns rows without throwing when a server is unreachable' -ForEach $perServer {
+    It '<_> returns an Unreachable failure row instead of throwing when remoting fails' -ForEach $perServer {
         $name = $_
         InModuleScope SPSWeather.Common -Parameters @{ Name = $name } {
             param($Name)
-            # Force the remote path to fail so the resilient catch is exercised.
+            # 'localhost' always resolves, so the failure really comes from the mocked remoting
+            # call (a non-resolvable host name would fail DNS before the mock is reached).
             Mock Invoke-SPSCommand { throw 'unreachable' }
             $cred = [System.Management.Automation.PSCredential]::new('CONTOSO\svc', (ConvertTo-SecureString 'p' -AsPlainText -Force))
 
-            $result = $null
-            { $result = & $Name -Server 'SRV1.contoso.com' -InstallAccount $cred -Servers @('SRV1.contoso.com') } |
-                Should -Not -Throw
-            @($result).Count | Should -BeGreaterThan 0
+            $rows = @(& $Name -Server 'localhost' -InstallAccount $cred -Servers @('localhost'))
+
+            Should -Invoke Invoke-SPSCommand -Times 1 -Exactly
+            $rows.Count | Should -Be 1
+            $rows[0] | Should -Not -BeNullOrEmpty
+            $rows[0].Server | Should -Be 'localhost'
+            ($rows[0].PSObject.Properties.Value -contains 'Unreachable') | Should -BeTrue
+            $rows[0].IsInfo | Should -BeFalse
+            # An unreachable server must never be counted as healthy.
+            Get-SPSWeatherRowSeverity -Row $rows[0] | Should -Not -Be 'ok'
         }
     }
 }
