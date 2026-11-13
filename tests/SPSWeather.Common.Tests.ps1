@@ -45,6 +45,7 @@ Describe 'SPSWeather.Common module' {
             'Backup-SPSWeatherJsonFile'
             'Clear-SPSLog'
             'Compare-SPSWeatherSnapshots'
+            'ConvertTo-SPSWeatherEmailBody'
             'ConvertTo-SPSWeatherReport'
             'Export-SPSWeatherReport'
             'Get-AppFabricStatus'
@@ -63,6 +64,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SPSSqlStatus'
             'Get-SPSUpgradeStatus'
             'Get-SPSVersion'
+            'Get-SPSWeatherHistory'
             'Get-SPWeatherListInfo'
             'Get-SYSDiskUsageStatus'
             'Get-SYSDOTNETVersion'
@@ -73,7 +75,6 @@ Describe 'SPSWeather.Common module' {
             'Get-SYSLastRebootStatus'
             'Get-USPAudienceStatus'
             'Import-SPSSharePointCommand'
-            'ConvertTo-SPSWeatherEmailBody'
             'Remove-SPSSheduledTask'
             'Resolve-SPSSqlAlias'
             'Set-SPSCredSSPClient'
@@ -84,7 +85,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'does not export the private helpers' {
-        foreach ($name in @('Invoke-SPSCommand', 'ConvertFrom-SPSSqlAliasValue', 'Get-SPSWeatherHistory', 'Get-SPSConfigRoot')) {
+        foreach ($name in @('Invoke-SPSCommand', 'ConvertFrom-SPSSqlAliasValue', 'Get-SPSWeatherRowSeverity', 'Get-SPSConfigRoot')) {
             Get-Command -Name $name -Module SPSWeather.Common -ErrorAction SilentlyContinue |
                 Should -BeNullOrEmpty
         }
