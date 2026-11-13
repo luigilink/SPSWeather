@@ -9,6 +9,13 @@
         and a CTA button to the farm dashboard. See the SPSWeather wiki (Dashboard page)
         for the full reference.
 
+        Each area lists at most -MaxItemsPerArea items, failures first; the remainder is
+        summarized in a "+ N more" row. Counters (KPI strip, intro, area header) always
+        count every item.
+
+        .PARAMETER MaxItemsPerArea
+        Maximum number of items listed per area. Defaults to 10; 0 lists everything.
+
         .EXAMPLE
         ConvertTo-SPSWeatherEmailBody -InputObject $farmReport -Summary $res.Summary `
             -Farm 'CONTENT' -Application 'zebes' -Environment 'PROD' -DashboardUrl $url
@@ -51,7 +58,12 @@
 
         [Parameter()]
         [System.String]
-        $DashboardUrl = ''
+        $DashboardUrl = '',
+
+        [Parameter()]
+        [ValidateRange(0, [int]::MaxValue)]
+        [System.Int32]
+        $MaxItemsPerArea = 10
     )
 
     function _enc([object]$v) {
@@ -195,12 +207,26 @@
         $bd = if ($hasFail) { '#f1d6d6' } else { '#f4e2cf' }
         $n = $g.Items.Count
         [void]$groupsHtml.Append("<table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`" style=`"margin-bottom:12px;border:1px solid $bd;border-radius:10px;overflow:hidden;`"><tr><td style=`"background:$hb;padding:8px 14px;font-size:12px;font-weight:700;color:$hc;`">$($g.Icon) $(_enc $area) &nbsp;&middot;&nbsp; $n item$(if ($n -gt 1) { 's' })</td></tr>")
-        $rows = @($g.Items)
+        # Worst first (failures, then warnings; order otherwise preserved), then cap the list.
+        $rows = @(@($g.Items | Where-Object { $_.Sev -eq 'fail' }) + @($g.Items | Where-Object { $_.Sev -ne 'fail' }))
+        $hidden = @()
+        if ($MaxItemsPerArea -gt 0 -and $rows.Count -gt $MaxItemsPerArea) {
+            $hidden = @($rows[$MaxItemsPerArea..($rows.Count - 1)])
+            $rows = @($rows[0..($MaxItemsPerArea - 1)])
+        }
         for ($i = 0; $i -lt $rows.Count; $i++) {
             $it = $rows[$i]
-            $bb = if ($i -lt $rows.Count - 1) { 'border-bottom:1px dashed #eee;' } else { '' }
+            $bb = if (($i -lt $rows.Count - 1) -or $hidden.Count -gt 0) { 'border-bottom:1px dashed #eee;' } else { '' }
             $det = if ($it.Detail) { " <span style=`"color:#6b7280;font-size:12px;`">&mdash; $(_enc $it.Detail)</span>" } else { '' }
             [void]$groupsHtml.Append("<tr><td style=`"padding:10px 14px;font-size:13px;color:#1b2733;$bb`"><b>$(_enc $it.Label)</b>$det</td></tr>")
+        }
+        if ($hidden.Count -gt 0) {
+            $hf = @($hidden | Where-Object { $_.Sev -eq 'fail' }).Count
+            $hw = $hidden.Count - $hf
+            $parts = @()
+            if ($hf -gt 0) { $parts += "$hf failure$(if ($hf -gt 1) { 's' })" }
+            if ($hw -gt 0) { $parts += "$hw warning$(if ($hw -gt 1) { 's' })" }
+            [void]$groupsHtml.Append("<tr><td style=`"padding:10px 14px;font-size:12px;color:#6b7280;font-style:italic;`">+ $($hidden.Count) more ($($parts -join ', ')) &mdash; see the dashboard for the full list</td></tr>")
         }
         [void]$groupsHtml.Append('</table>')
     }
