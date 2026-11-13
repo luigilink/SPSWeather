@@ -45,6 +45,7 @@ Copy `Config\CONTOSO-PROD.example.psd1` and edit it:
 | `Domain` | DNS suffix appended to each farm server short name to build the FQDN targeted for remoting. |
 | `SMTPToAddress` | Array of report recipients (used with `-EnableSmtp`). |
 | `SMTPFromAddress` / `SMTPServer` | Sender address and SMTP relay. |
+| `EmailMaxItemsPerArea` | Optional. Maximum items listed per area in the alert email (default `10`, `0` = no limit); the rest is summarized as "+ N more". Counters are never capped. |
 | `CredentialKey` | Name of the entry in `secrets.psd1` that holds the service credential. |
 | `ExclusionRules` | Checks to skip (see below). |
 | `Dashboard` | `@{ OutputPath; Url }` — where the per-farm dashboard HTML is written and the public IIS base used for the email CTA (see [Dashboard](Dashboard)). |

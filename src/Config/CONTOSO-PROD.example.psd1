@@ -52,6 +52,11 @@
     # pruning. Default: 30.
     JsonHistoryRetentionDays    = 30
 
+    # EmailMaxItemsPerArea: maximum number of items listed per area in the short alert
+    # email; the rest is summarized as "+ N more" (the dashboard holds the full list).
+    # Counters are never capped. 0 lists everything. Default: 10.
+    EmailMaxItemsPerArea        = 10
+
     # LogRetentionDays: how many days of *.log transcript files are kept under
     # Logs\ by Clear-SPSLog. 0 disables pruning. Default: 180.
     LogRetentionDays            = 180

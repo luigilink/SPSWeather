@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The short alert email now lists at most 10 items per area (`-MaxItemsPerArea` on
+  `ConvertTo-SPSWeatherEmailBody`, `EmailMaxItemsPerArea` in the environment config; `0`
+  lists everything, as before). Failures are listed before warnings, the remainder is
+  summarized as "+ N more (X failures, Y warnings)", and every counter (KPI strip, intro,
+  area header, subject, outcome) still counts all items. The dashboard keeps the full
+  list (#88).
+
 ## [3.1.0] - 2026-11-13
 
 ### Added

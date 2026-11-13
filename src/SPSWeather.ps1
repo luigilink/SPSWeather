@@ -246,6 +246,7 @@ else {
         $sqlDiskThreshold = if ($null -ne $envCfg.SQLDiskFreeThresholdPercent) { [int]$envCfg.SQLDiskFreeThresholdPercent } else { 15 }
         $sqlBackupMaxAge = if ($null -ne $envCfg.SQLBackupMaxAgeDays) { [int]$envCfg.SQLBackupMaxAgeDays } else { 3 }
         $jsonHistoryRetentionDays = if ($null -ne $envCfg.JsonHistoryRetentionDays) { [int]$envCfg.JsonHistoryRetentionDays } else { 30 }
+        $emailMaxItemsPerArea = if ($null -ne $envCfg.EmailMaxItemsPerArea) { [math]::Max(0, [int]$envCfg.EmailMaxItemsPerArea) } else { 10 }
         $logRetentionDays = if ($null -ne $envCfg.LogRetentionDays) { [int]$envCfg.LogRetentionDays } else { 180 }
         $pathHistoryFolder = Join-Path -Path $pathResultsFolder -ChildPath 'history'
         # Track only the farms actually reached: an unreachable farm (skipped below)
@@ -533,7 +534,8 @@ else {
                     -Version $spsWeatherVersion `
                     -ExecutedBy $currentUser `
                     -Duration $runDuration `
-                    -DashboardUrl $dashUrl
+                    -DashboardUrl $dashUrl `
+                    -MaxItemsPerArea $emailMaxItemsPerArea
 
                 # Outcome from the shared severity counts: failures -> ALERT/High,
                 # warnings only -> WARN/Normal, otherwise OK.
