@@ -10,7 +10,9 @@
           1. a 'severity' string (Health Analyzer rows, which carry no IsInfo):
              Error/Critical -> fail, Warning -> warn;
           2. an 'IsInfo' flag: $false -> fail; $true -> 'warn' when the row carries a
-             non-empty advisory (Recommendation/Note), otherwise 'ok';
+             non-empty 'Recommendation' advisory, otherwise 'ok'. ('Note' is descriptive
+             metadata - e.g. SQL alias discovered-vs-declared - not an advisory, so it
+             does not raise a warning.);
           3. no IsInfo and no severity: an explicit failure status
              (Unreachable/Failed/Stopped/closed/KO) -> fail, otherwise 'ok'.
 
@@ -35,13 +37,12 @@
         if ($s -match 'Warning|^2\b|2 -') { return 'warn' }
     }
 
-    # 2. IsInfo-bearing rows.
+    # 2. IsInfo-bearing rows. Only a genuine advisory (Recommendation) upgrades an
+    #    informational row to a warning; a descriptive Note does not.
     if ($names -contains 'IsInfo') {
         if (-not $Row.IsInfo) { return 'fail' }
-        foreach ($advisory in @('Recommendation', 'Note')) {
-            if ($names -contains $advisory -and -not [string]::IsNullOrWhiteSpace("$($Row.$advisory)")) {
-                return 'warn'
-            }
+        if ($names -contains 'Recommendation' -and -not [string]::IsNullOrWhiteSpace("$($Row.Recommendation)")) {
+            return 'warn'
         }
         return 'ok'
     }
