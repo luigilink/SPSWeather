@@ -75,3 +75,35 @@ Describe 'Report assembly (ConvertTo-SPSWeatherReport)' {
         (& { if ($result.IsAlert) { 'ALERT' } else { 'INFO' } }) | Should -Be $legacyAlert
     }
 }
+
+Describe 'Report outcome via shared severity (ConvertTo-SPSWeatherReport)' {
+    It 'reports Ok/Warn/Fail counts and raises IsAlert on warnings only' {
+        $sections = [ordered]@{
+            Health = @([PSCustomObject]@{ severity = '2 - Warning' })
+            Disk   = @([PSCustomObject]@{ IsInfo = $true })
+        }
+        $r = ConvertTo-SPSWeatherReport -Section $sections
+        $r.Summary.Warn | Should -Be 1
+        $r.Summary.Fail | Should -Be 0
+        $r.Summary.Ok | Should -Be 1
+        $r.IsAlert | Should -BeTrue
+    }
+
+    It 'counts an advisory IsInfo = $true row as a warning' {
+        $sections = [ordered]@{
+            Sql = @([PSCustomObject]@{ IsInfo = $true; Recommendation = 'MAXDOP should be 1' })
+        }
+        $r = ConvertTo-SPSWeatherReport -Section $sections
+        $r.Summary.Warn | Should -Be 1
+        $r.Summary.Ok | Should -Be 0
+    }
+
+    It 'does not count pure info rows toward Ok' {
+        $sections = [ordered]@{
+            SYSLastRebootStatus = @([PSCustomObject]@{ Server = 'SRV1'; LastRebootTime = '2026-06-28' })
+        }
+        $r = ConvertTo-SPSWeatherReport -Section $sections
+        $r.Summary.Ok | Should -Be 0
+        $r.IsAlert | Should -BeFalse
+    }
+}

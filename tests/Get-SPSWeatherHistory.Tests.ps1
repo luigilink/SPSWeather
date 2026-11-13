@@ -1,4 +1,5 @@
-﻿# Behavioural tests for the Get-SPSWeatherHistory private helper (dashboard series).
+﻿# Behavioural tests for Get-SPSWeatherHistory (dashboard history series).
+# Exported so the entry script can call it from outside the module.
 
 BeforeAll {
     $repoRoot = Split-Path -Path $PSScriptRoot -Parent
@@ -60,5 +61,36 @@ Describe 'Get-SPSWeatherHistory' {
             param($Folder)
             @(Get-SPSWeatherHistory -HistoryFolder $Folder -Max 3).Count | Should -Be 3
         }
+    }
+}
+
+Describe 'History series (Get-SPSWeatherHistory) callable from outside the module' {
+    It 'is exported and resolves when called in the caller scope (not InModuleScope)' {
+        # Regression guard: the entry script calls this from outside the module, so it
+        # must be exported (it was previously private and threw "not recognized").
+        Get-Command -Name Get-SPSWeatherHistory -Module SPSWeather.Common -ErrorAction SilentlyContinue |
+            Should -Not -BeNullOrEmpty
+    }
+
+    It 'builds the Ok/Warn/Fail series from snapshots when called directly' {
+        $folder = Join-Path -Path $TestDrive -ChildPath 'hist-ext'
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null
+        ([PSCustomObject]@{ S = @([PSCustomObject]@{ IsInfo = $true }, [PSCustomObject]@{ IsInfo = $false }) }) |
+            ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path -Path $folder -ChildPath 'a-20260101-0000.json')
+        $series = @(Get-SPSWeatherHistory -HistoryFolder $folder)
+        $series.Count | Should -Be 1
+        $series[0].Ok | Should -Be 1
+        $series[0].Fail | Should -Be 1
+    }
+
+    It 'excludes pure info-only rows from the OK total (consistent with the current-run donut)' {
+        $folder = Join-Path -Path $TestDrive -ChildPath 'hist-info'
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null
+        ([PSCustomObject]@{
+                SYSLastRebootStatus = @([PSCustomObject]@{ Server = 'S1'; LastRebootTime = 'x' })        # pure info, no IsInfo
+                SYSDiskUsageStatus  = @([PSCustomObject]@{ Server = 'S1'; Status = 'OK'; IsInfo = $true }) # real check
+            }) | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path -Path $folder -ChildPath 'a-20260101-0000.json')
+        $series = @(Get-SPSWeatherHistory -HistoryFolder $folder)
+        $series[0].Ok | Should -Be 1   # only the IsInfo check, not the reboot info row
     }
 }

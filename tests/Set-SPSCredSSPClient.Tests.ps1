@@ -51,3 +51,20 @@ Describe 'CredSSP client setup (Set-SPSCredSSPClient)' {
         }
     }
 }
+
+Describe 'CredSSP GPO conflict detection (Set-SPSCredSSPClient)' -Skip:(-not $onWindows) {
+    It 'does not overwrite the policy switches when a delegation policy is already enabled' {
+        Mock -ModuleName SPSWeather.Common -CommandName Get-Item -MockWith { [PSCustomObject]@{ Value = 'false'; SourceOfValue = '' } }
+        Mock -ModuleName SPSWeather.Common -CommandName Set-Item -MockWith { }
+        Mock -ModuleName SPSWeather.Common -CommandName Test-Path -MockWith { $true }
+        Mock -ModuleName SPSWeather.Common -CommandName New-Item -MockWith { }
+        Mock -ModuleName SPSWeather.Common -CommandName Get-ItemProperty -MockWith { [PSCustomObject]@{ AllowFreshCredentials = 1 } }
+        Mock -ModuleName SPSWeather.Common -CommandName New-ItemProperty -MockWith { }
+
+        $warn = $null
+        $null = Set-SPSCredSSPClient -DelegateComputer 'app1.contoso.com' -WarningVariable warn -WarningAction SilentlyContinue
+        # The AllowFreshCredentials / ConcatenateDefaults switches must NOT be rewritten.
+        Should -Invoke -ModuleName SPSWeather.Common -CommandName New-ItemProperty -Times 0 -ParameterFilter { $Name -eq 'AllowFreshCredentials' }
+        (@($warn) -join "`n") | Should -Match 'already configured'
+    }
+}
