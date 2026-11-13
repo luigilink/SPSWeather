@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The short alert email now lists at most 10 items per area (`-MaxItemsPerArea` on
+  `ConvertTo-SPSWeatherEmailBody`, `EmailMaxItemsPerArea` in the environment config; `0`
+  lists everything, as before). Failures are listed before warnings, the remainder is
+  summarized as "+ N more (X failures, Y warnings)", and every counter (KPI strip, intro,
+  area header, subject, outcome) still counts all items. The dashboard keeps the full
+  list (#88).
 - Test suite restructured to the house standard: the monolithic
   `SPSWeather.Common.Tests.ps1` is split into one `<Function>.Tests.ps1` per function
   (mirroring the Public/Private split) with broader mock-based coverage of the
@@ -17,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PowerShell 5.1 (the production runtime), PSScriptAnalyzer now analyzes `./src -Recurse`
   (including `New-SPSDashboardSite.ps1`), and the Windows-only test guards no longer rely on
   `$IsWindows` (undefined on 5.1) (#68).
+
+### Fixed
+
+- SQL alias mapping: the declared-vs-discovered check now also compares the real server an
+  alias resolves to, not only the alias name. Declaring the real SQL server in
+  `Farms[].SqlServers` while SharePoint reaches it through cliconfg aliases no longer
+  produces the contradictory "used by SharePoint but not declared in config" /
+  "declared in config but not used by any database" notes; the declared server is shown as
+  used through its aliases. Host names are compared case-insensitively on the short name,
+  and a named instance must still match exactly, including for named-pipe aliases
+  (`\\SQL1\pipe\MSSQL$SP\sql\query` is `SQL1\SP`) (#86).
 
 ## [3.1.0] - 2026-11-13
 

@@ -13,8 +13,10 @@ IIS site (as SPSUpdate does), so operators browse a stable URL per farm.
     Cache, Timer Jobs & Solutions, Health Analyzer, IIS, System, SQL Server; empty areas
     are hidden) each with a collapsible detail table.
 - **One short email per farm** (with `-EnableSmtp`): only the items needing attention,
-  grouped by area, a KPI strip, and an **Open full dashboard** button pointing at the
-  hosted URL.
+  grouped by area (failures first), a KPI strip, and an **Open full dashboard** button
+  pointing at the hosted URL. Each area lists at most `EmailMaxItemsPerArea` items
+  (default 10, `0` = no limit); the rest is summarized as "+ N more" and the counters
+  always include every item.
 
 The dashboard replaces the legacy full-table HTML report; data collection is unchanged.
 
