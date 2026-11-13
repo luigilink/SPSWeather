@@ -61,7 +61,10 @@ server, exactly like SharePoint), and SPSWeather additionally **resolves the
 alias from the registry** to show the real target. You can optionally declare the
 SQL alias(es)/server(s) per farm with a `SqlServers` array in the config; SPSWeather
 then cross-checks **declared vs discovered** and flags any mismatch (and 32/64-bit
-alias inconsistencies) as advisories.
+alias inconsistencies) as advisories. A declared entry matches either the alias name or
+the real server the alias resolves to, so declaring the real SQL server is enough when
+SharePoint reaches it through aliases (host names are compared case-insensitively on the
+short name; a named instance must match exactly).
 
 SQL alert thresholds are configurable in the environment config: `SQLDiskFreeThresholdPercent`
 (default 15) and `SQLBackupMaxAgeDays` (default 3). Database offline state, a
