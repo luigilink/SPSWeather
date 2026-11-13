@@ -10,8 +10,11 @@
     PS D:\> E:\SCRIPT\SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1'
 
     .PARAMETER EnableSmtp
-    Use the switch EnableSmtp parameter if you want to enable Email notifications using SMTP
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -EnableSmtp
+    DEPRECATED (removed in 4.0.0): set SMTPEnabled = $true in the environment configuration file
+    instead. While SMTPEnabled is not defined, the switch still enables the email notification
+    (so scheduled tasks created by earlier versions keep working); when SMTPEnabled is defined,
+    the configuration file takes precedence and the switch is ignored.
+    PS D:\> E:\SCRIPT\SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -EnableSmtp
 
     .PARAMETER Action
     Use the Action parameter to manage the scheduled task. Accepted values:
@@ -24,7 +27,7 @@
     PS D:\> E:\SCRIPT\SPSWeather.ps1 -Action Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.psd1'
 
     .EXAMPLE
-    SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -EnableSmtp
+    SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1'
     SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -Action Install -InstallAccount (Get-Credential)
     SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -Action Uninstall
 
@@ -78,6 +81,11 @@ if (Test-Path $ConfigFile) {
 else {
     Throw "Missing $ConfigFile"
 }
+
+# Email behavior: SMTPEnabled / SMTPPreview from the configuration, with the deprecated
+# -EnableSmtp switch as a fallback while SMTPEnabled is not defined.
+$smtpSetting = Resolve-SPSSmtpSetting -Config $envCfg -EnableSmtp:$EnableSmtp
+foreach ($smtpMessage in $smtpSetting.Messages) { Write-Warning -Message $smtpMessage }
 
 # Define variable
 $spsWeatherVersion = (Get-Module -Name 'SPSWeather.Common').Version.ToString()
@@ -191,8 +199,15 @@ else {
         # decrypted at run time by the scheduled task.
         Set-SPSSecret -CredentialKey $envCfg.CredentialKey -Credential $InstallAccount -ConfigPath $pathConfigFolder
 
-        # Add SPSWeather script in a new scheduled Task
-        Add-SPSSheduledTask -ExecuteAsCredential $InstallAccount -TaskName $spWeatherTaskName -ActionArguments "-Execution Bypass $($scriptRootPath)\SPSWeather.ps1 -ConfigFile $($ConfigFile) -EnableSMTP"
+        # Add SPSWeather script in a new scheduled Task. The deprecated -EnableSMTP switch is
+        # only dropped when the configuration defines SMTPEnabled: removing it blindly would
+        # silently stop the emails of configurations that still rely on the switch.
+        $taskArguments = "-Execution Bypass $($scriptRootPath)\SPSWeather.ps1 -ConfigFile $($ConfigFile)"
+        if (-not $smtpSetting.ConfigDefinesEnabled) {
+            $taskArguments += ' -EnableSMTP'
+            Write-Warning -Message "SMTPEnabled is not defined in ${ConfigFile}: the scheduled task keeps the deprecated -EnableSMTP switch. Add SMTPEnabled = `$true to the configuration file and run -Action Install again to drop it."
+        }
+        Add-SPSSheduledTask -ExecuteAsCredential $InstallAccount -TaskName $spWeatherTaskName -ActionArguments $taskArguments
 
         # Configure the CredSSP client role so this host (which may not be a SharePoint
         # server) can reach the farms. The server side stays owned by DSC on the farms.
@@ -553,7 +568,15 @@ else {
                     Add-SPSWeatherEvent -Message "SPSWeather completed with no alert for $Application/$Environment farm '$farmName'." -EntryType 'Information' -EventID 1001
                 }
 
-                if ($EnableSmtp) {
+                # Preview: keep the email body next to the JSON snapshot (overwritten at each run),
+                # before any send attempt, so it can be reviewed without an SMTP relay.
+                if ($smtpSetting.Preview) {
+                    $mailPreviewFile = Join-Path -Path $pathResultsFolder -ChildPath ($farmStem + '-mail.html')
+                    Set-Content -Path $mailPreviewFile -Value $mailHTMLBody -Encoding UTF8 -Force
+                    Write-Output " * Email preview ($mailSubject): $mailPreviewFile"
+                }
+
+                if ($smtpSetting.Send) {
                     $SmtpToAddress = $envCfg.SMTPToAddress
                     $SmtpFromAddress = $envCfg.SMTPFromAddress
                     $SmtpServerAddress = $envCfg.SMTPServer
