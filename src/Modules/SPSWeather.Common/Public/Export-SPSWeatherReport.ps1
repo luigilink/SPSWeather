@@ -183,7 +183,7 @@
         $o = [int]$h.Ok; $w = [int]$h.Warn; $f = [int]$h.Fail; $t = $o + $w + $f
         $okp = if ($t) { [math]::Round($o / $t * 100) } else { 0 }
         $wp = if ($t) { [math]::Round($w / $t * 100) } else { 0 }
-        $fp = 100 - $okp - $wp
+        $fp = if ($t) { 100 - $okp - $wp } else { 0 }
         $now = ($i -eq $lastIdx)
         $tip = _enc "$($h.Date)$(if ($now) { ' (now)' }): $o OK / $w warn / $f fail"
         [void]$barsHtml.Append("<div class=`"bcol$(if ($now) { ' now' })`"><div class=`"stack`" title=`"$tip`" style=`"height:88%`"><i class=`"f`" style=`"height:$fp%`"></i><i class=`"w`" style=`"height:$wp%`"></i><i class=`"o`" style=`"height:$okp%`"></i></div></div>")

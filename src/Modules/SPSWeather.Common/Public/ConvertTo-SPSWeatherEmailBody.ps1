@@ -69,6 +69,15 @@
         }
         return ''
     }
+    function _toDec([object]$v) {
+        if ($null -eq $v) { return $null }
+        $s = [string]$v
+        if ([string]::IsNullOrWhiteSpace($s)) { return $null }
+        $d = [decimal]0
+        if ([decimal]::TryParse($s, [ref]$d)) { return $d }
+        if ([decimal]::TryParse($s, [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { return $d }
+        return $null
+    }
 
     # section -> area display (icon + title) for grouping alerts
     $areaOf = @{
@@ -86,7 +95,7 @@
         SPSSitesHttpStatus      = @{ Label = @('Url'); Detail = @('HTTPCode', 'Status') }
         SPSearchLastCrawlStatus = @{ Label = @('ContentSource'); Detail = @('CrawlState') }
         SPSearchCrawlLogs       = @{ Label = @('ContentSource'); Detail = @('Message', 'ErrorID') }
-        SPFailedTimerJobs       = @{ Label = @('server', 'JobDefinitionTitle'); Detail = @('Status') }
+        SPFailedTimerJobs       = @{ Label = @('Server', 'JobDefinitionTitle'); Detail = @('Status') }
         SPSolutionDeployment    = @{ Label = @('SolutionName'); Detail = @('LastOperationResult', 'DeploymentState') }
         SPHealthAnalyzer        = @{ Label = @('title'); Detail = @('category', 'severity') }
         AppFabricStatus         = @{ Label = @('Server'); Detail = @('CacheStatus', 'SPInstanceStatus') }
@@ -94,7 +103,7 @@
         IISApplicationPoolStatus = @{ Label = @('Server', 'ApplicationPool'); Detail = @('Status') }
         IISWorkerProcessStatus  = @{ Label = @('Server'); Detail = @('ApplicationPool') }
         IISWebSiteCertStatus    = @{ Label = @('Server', 'WebSiteName'); Detail = @('Status', 'ExpirationDate') }
-        SYSDiskUsageStatus      = @{ Label = @('Server', 'DriveLetter'); Detail = @('Status') }
+        SYSDiskUsageStatus      = @{ Label = @('Server', 'DriveLetter'); Detail = @('FreePercent', 'Status') }
         SYSEventViewerAppErrors = @{ Label = @('Server', 'Name'); Detail = @('Count') }
         SPSContentDBStatus      = @{ Label = @('DatabaseName', 'Name'); Detail = @('Upgrade', 'Status') }
         SQLInstanceStatus       = @{ Label = @('SqlServer'); Detail = @('Recommendation') }
@@ -133,6 +142,24 @@
                 $detail = _first $row @('Status', 'Recommendation', 'Message')
             }
             if (-not $label) { $label = $sk }
+            if ($sk -eq 'SYSDiskUsageStatus') {
+                $statusText = _first $row @('Status')
+                $percent = _toDec (_first $row @('FreePercent'))
+                if ($null -eq $percent) {
+                    $free = _toDec (_first $row @('FreeSpace'))
+                    $size = _toDec (_first $row @('Size'))
+                    if (($null -ne $free) -and ($null -ne $size) -and ($size -gt 0)) {
+                        $percent = [math]::Round(($free / $size) * 100, 2)
+                    }
+                }
+                if ($null -ne $percent) {
+                    $pctText = ('{0:0.##}% free' -f [double]$percent)
+                    $detail = if ($statusText) { "$pctText · $statusText" } else { $pctText }
+                }
+                elseif ($statusText) {
+                    $detail = $statusText
+                }
+            }
             [void]$groups[$area].Items.Add([PSCustomObject]@{ Sev = $sev; Label = $label; Detail = $detail })
         }
     }
