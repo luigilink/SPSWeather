@@ -73,10 +73,13 @@
         if ($null -eq $v) { return $null }
         $s = [string]$v
         if ([string]::IsNullOrWhiteSpace($s)) { return $null }
+        # Row values are stringified with the invariant culture, so parse them the same way.
         $d = [decimal]0
-        if ([decimal]::TryParse($s, [ref]$d)) { return $d }
         if ([decimal]::TryParse($s, [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { return $d }
         return $null
+    }
+    function _pct([decimal]$p) {
+        return ([double]$p).ToString('0.##', [System.Globalization.CultureInfo]::InvariantCulture) + '% free'
     }
 
     # section -> area display (icon + title) for grouping alerts
@@ -153,12 +156,16 @@
                     }
                 }
                 if ($null -ne $percent) {
-                    $pctText = ('{0:0.##}% free' -f [double]$percent)
+                    $pctText = _pct $percent
                     $detail = if ($statusText) { "$pctText · $statusText" } else { $pctText }
                 }
                 elseif ($statusText) {
                     $detail = $statusText
                 }
+            }
+            if ($sk -eq 'SQLDiskStatus') {
+                $percent = _toDec (_first $row @('FreePercent'))
+                if ($null -ne $percent) { $detail = _pct $percent }
             }
             [void]$groups[$area].Items.Add([PSCustomObject]@{ Sev = $sev; Label = $label; Detail = $detail })
         }
