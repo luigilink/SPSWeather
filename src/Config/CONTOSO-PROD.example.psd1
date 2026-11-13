@@ -26,7 +26,8 @@
     #   SMTPPreview : $true also writes the email body to Results\<App>-<Env>-<Farm>-mail.html
     #                 (overwritten at each run) so it can be reviewed without an SMTP relay.
     #                 Independent from SMTPEnabled. Default: $false.
-    # The three settings below are only needed when SMTPEnabled is $true.
+    # The three settings below are required whenever emails are sent (SMTPEnabled = $true, or
+    # the deprecated -EnableSmtp switch); not needed when sending is off.
     SMTPEnabled       = $true
     SMTPPreview       = $false
     SMTPToAddress     = @('admin-farm@contoso.com', 'admin-setup@contoso.com')

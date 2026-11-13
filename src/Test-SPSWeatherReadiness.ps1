@@ -143,7 +143,11 @@ if ($null -ne $cfg) {
     }
 
     foreach ($key in @('ConfigurationName', 'ApplicationName', 'Domain', 'SMTPToAddress', 'SMTPFromAddress', 'SMTPServer', 'CredentialKey', 'Farms')) {
-        if ($cfg.Contains($key) -and $null -ne $cfg[$key]) {
+        # The SMTP settings use the runtime's emptiness rule (Resolve-SPSSmtpSetting): '', blanks
+        # and an empty array count as missing, otherwise the pre-flight is green and no mail is sent.
+        $isPresent = $cfg.Contains($key) -and $null -ne $cfg[$key]
+        if ($isPresent -and $key -like 'SMTP*') { $isPresent = -not [string]::IsNullOrWhiteSpace((@($cfg[$key]) -join '')) }
+        if ($isPresent) {
             Add-CheckResult -Section 'Config' -Name "Key '$key'" -Status 'PASS'
         }
         elseif (-not $smtpKeysRequired -and $key -like 'SMTP*') {

@@ -65,6 +65,7 @@ $Extra
         $script:enabledNoKeys = Invoke-Readiness -Extra "    SMTPEnabled = `$true"
         $script:invalid = Invoke-Readiness -Extra "    SMTPEnabled = 'maybe'"
         $script:legacy = Invoke-Readiness -Extra ''
+        $script:emptyValues = Invoke-Readiness -Extra "    SMTPEnabled = `$true`n    SMTPToAddress = @()`n    SMTPFromAddress = '  '`n    SMTPServer = ''"
         $script:full = Invoke-Readiness -Extra "    SMTPEnabled = `$true`n    SMTPToAddress = @('a@b.c')`n    SMTPFromAddress = 'n@b.c'`n    SMTPServer = 'smtp'"
     }
 
@@ -83,6 +84,12 @@ $Extra
         foreach ($key in 'SMTPToAddress', 'SMTPFromAddress', 'SMTPServer') {
             (Get-CheckLine -Lines $enabledNoKeys -Key $key) | Should -Match '^\[FAIL\]'
             (Get-CheckLine -Lines $full -Key $key) | Should -Match '^\[ OK \]'
+        }
+    }
+
+    It 'treats empty SMTP values like the runtime does: missing' {
+        foreach ($key in 'SMTPToAddress', 'SMTPFromAddress', 'SMTPServer') {
+            (Get-CheckLine -Lines $emptyValues -Key $key) | Should -Match '^\[FAIL\]'
         }
     }
 

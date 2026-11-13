@@ -71,7 +71,9 @@ Describe 'Resolve-SPSSmtpSetting' {
         It 'skips sending and names the missing key <Missing>' -ForEach @(
             @{ Missing = 'SMTPServer'; Config = @{ SMTPEnabled = $true; SMTPToAddress = @('a@b.c'); SMTPFromAddress = 'n@b.c' } }
             @{ Missing = 'SMTPToAddress'; Config = @{ SMTPEnabled = $true; SMTPFromAddress = 'n@b.c'; SMTPServer = 'smtp' } }
-            @{ Missing = 'SMTPFromAddress'; Config = @{ SMTPEnabled = $true; SMTPToAddress = @('a@b.c'); SMTPServer = '  ' } }
+            @{ Missing = 'SMTPFromAddress'; Config = @{ SMTPEnabled = $true; SMTPToAddress = @('a@b.c'); SMTPServer = 'smtp' } }
+            @{ Missing = 'SMTPServer'; Config = @{ SMTPEnabled = $true; SMTPToAddress = @('a@b.c'); SMTPFromAddress = 'n@b.c'; SMTPServer = '  ' } }
+            @{ Missing = 'SMTPToAddress'; Config = @{ SMTPEnabled = $true; SMTPToAddress = @(); SMTPFromAddress = 'n@b.c'; SMTPServer = 'smtp' } }
         ) {
             $r = InModuleScope SPSWeather.Common -Parameters @{ Config = $Config } { param($Config) Resolve-SPSSmtpSetting -Config $Config }
             $r.Send | Should -BeFalse

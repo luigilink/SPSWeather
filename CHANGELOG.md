@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it can be reviewed without an SMTP relay. The two keys are independent. The decision is
   taken by the new `Resolve-SPSSmtpSetting` function: non-boolean values are reported and
   treated as disabled, and sending is skipped with a clear warning when `SMTPToAddress`,
-  `SMTPFromAddress` or `SMTPServer` is missing (#93).
+  `SMTPFromAddress` or `SMTPServer` is missing or empty. These warnings are shown in the
+  transcript and recorded in the `SPSWeather` Event Log (ID 2001), so an unattended run that
+  stops sending the email leaves a trace (#93).
 
 ### Changed
 

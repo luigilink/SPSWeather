@@ -17,6 +17,8 @@ Copy `Config\CONTOSO-PROD.example.psd1` and edit it:
     ApplicationName   = 'contoso'
     Domain            = 'contoso.com'
 
+    SMTPEnabled       = $true   # send the alert email; $false = no email
+    SMTPPreview       = $false  # $true also writes Results\<App>-<Env>-<Farm>-mail.html
     SMTPToAddress     = @('admin-farm@contoso.com', 'admin-setup@contoso.com')
     SMTPFromAddress   = 'noreply@contoso.com'
     SMTPServer        = 'smtp.contoso.com'

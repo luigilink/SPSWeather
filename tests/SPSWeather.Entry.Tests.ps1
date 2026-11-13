@@ -44,6 +44,17 @@ Describe 'Entry script email settings (SMTPEnabled / SMTPPreview)' {
         $entrySource | Should -Match '(?s)\.PARAMETER EnableSmtp\s+DEPRECATED.*SMTPEnabled'
     }
 
+    It 'shows the email configuration warnings after Start-Transcript so an unattended run keeps them' {
+        $transcript = $entrySource.IndexOf('Start-Transcript -Path')
+        $resolve = $entrySource.IndexOf('$smtpSetting = Resolve-SPSSmtpSetting')
+        $transcript | Should -BeGreaterThan 0
+        $resolve | Should -BeGreaterThan $transcript
+    }
+
+    It 'records the email configuration warnings in the Event Log (ID 2001) on runs' {
+        $entrySource | Should -Match '(?s)foreach \(\$smtpMessage in \$smtpSetting\.Messages\) \{\s*Add-SPSWeatherEvent -Message "SPSWeather email configuration: \$smtpMessage" -EntryType ''Warning'' -EventID 2001'
+    }
+
     It 'resolves the email behavior once through Resolve-SPSSmtpSetting and shows its messages' {
         $entrySource | Should -Match '\$smtpSetting = Resolve-SPSSmtpSetting -Config \$envCfg -EnableSmtp:\$EnableSmtp'
         $entrySource | Should -Match 'foreach \(\$smtpMessage in \$smtpSetting\.Messages\)'

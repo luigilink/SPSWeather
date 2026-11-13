@@ -82,11 +82,6 @@ else {
     Throw "Missing $ConfigFile"
 }
 
-# Email behavior: SMTPEnabled / SMTPPreview from the configuration, with the deprecated
-# -EnableSmtp switch as a fallback while SMTPEnabled is not defined.
-$smtpSetting = Resolve-SPSSmtpSetting -Config $envCfg -EnableSmtp:$EnableSmtp
-foreach ($smtpMessage in $smtpSetting.Messages) { Write-Warning -Message $smtpMessage }
-
 # Define variable
 $spsWeatherVersion = (Get-Module -Name 'SPSWeather.Common').Version.ToString()
 $getDateFormatted = Get-Date -Format yyyy-MM-dd
@@ -114,6 +109,13 @@ Write-Output "| Automated Script - SPSWeather v$spsWeatherVersion"
 Write-Output "| Started on : $DateStarted by $currentUser"
 Write-Output "| PowerShell Version: $psVersion"
 Write-Output '-------------------------------------'
+
+# Email behavior: SMTPEnabled / SMTPPreview from the configuration, with the deprecated
+# -EnableSmtp switch as a fallback while SMTPEnabled is not defined. Resolved after
+# Start-Transcript so the warnings (e.g. sending turned off because a relay setting is
+# missing) are kept in the log of an unattended run.
+$smtpSetting = Resolve-SPSSmtpSetting -Config $envCfg -EnableSmtp:$EnableSmtp
+foreach ($smtpMessage in $smtpSetting.Messages) { Write-Warning -Message $smtpMessage }
 
 # Check UserName and Password if Install action is used
 if ($Action -eq 'Install') {
@@ -268,6 +270,11 @@ else {
         # must not be published/emailed as healthy.
         $probedFarms = New-Object System.Collections.ArrayList
         Add-SPSWeatherEvent -Message "SPSWeather $spsWeatherVersion started for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1000
+        # An unattended run has nobody watching the console: also record the email configuration
+        # warnings in the Event Log, so a mail that stops being sent leaves a trace.
+        foreach ($smtpMessage in $smtpSetting.Messages) {
+            Add-SPSWeatherEvent -Message "SPSWeather email configuration: $smtpMessage" -EntryType 'Warning' -EventID 2001
+        }
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
             Write-Output '--------------------------------------------------------------'

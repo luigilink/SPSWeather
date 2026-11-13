@@ -20,7 +20,7 @@ This page describes how to run, schedule and troubleshoot SPSWeather.
 
 ### Email the report
 
-Sending is controlled by the environment configuration, not by the command line:
+Sending is controlled by the environment configuration (the deprecated `-EnableSmtp` switch only applies while `SMTPEnabled` is not defined):
 
 ```powershell
 # Config\contoso-PROD.psd1
@@ -84,6 +84,7 @@ SPSWeather writes lifecycle entries to a dedicated **`SPSWeather`** Windows Even
 | 1000 | Information | A health-check run started. |
 | 1001 | Information | The run completed with no alert. |
 | 2000 | Warning | The run completed with **ALERT** conditions. |
+| 2001 | Warning | The email configuration needs attention (invalid `SMTPEnabled`/`SMTPPreview`, missing relay setting so no email is sent, deprecated `-EnableSmtp`). |
 | 3000 | Error | The report email could not be sent. |
 | 3001 | Error | A farm server was unreachable over CredSSP and was skipped. |
 
