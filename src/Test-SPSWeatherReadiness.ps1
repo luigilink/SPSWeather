@@ -127,7 +127,7 @@ if ($null -ne $cfg) {
     # sent: an environment with SMTPEnabled = $false (e.g. a lab without relay) must pass.
     $smtpKeysRequired = $true
     foreach ($flag in @('SMTPEnabled', 'SMTPPreview')) {
-        if ($cfg.Contains($flag) -and $null -ne $cfg[$flag]) {
+        if ($cfg.Contains($flag)) {
             $flagValue = $cfg[$flag]
             $flagParsed = $false
             if ($flagValue -is [bool]) { $flagParsed = $flagValue; $flagValid = $true }

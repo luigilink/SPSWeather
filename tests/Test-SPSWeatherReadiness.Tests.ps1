@@ -66,6 +66,8 @@ $Extra
         $script:invalid = Invoke-Readiness -Extra "    SMTPEnabled = 'maybe'"
         $script:legacy = Invoke-Readiness -Extra ''
         $script:emptyValues = Invoke-Readiness -Extra "    SMTPEnabled = `$true`n    SMTPToAddress = @()`n    SMTPFromAddress = '  '`n    SMTPServer = ''"
+        $script:nullFlags = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    SMTPPreview = `$null"
+        $script:nullEnabled = Invoke-Readiness -Extra "    SMTPEnabled = `$null"
         $script:full = Invoke-Readiness -Extra "    SMTPEnabled = `$true`n    SMTPToAddress = @('a@b.c')`n    SMTPFromAddress = 'n@b.c'`n    SMTPServer = 'smtp'"
     }
 
@@ -85,6 +87,11 @@ $Extra
             (Get-CheckLine -Lines $enabledNoKeys -Key $key) | Should -Match '^\[FAIL\]'
             (Get-CheckLine -Lines $full -Key $key) | Should -Match '^\[ OK \]'
         }
+    }
+
+    It 'fails a key written with a $null value instead of treating it as omitted' {
+        (Get-CheckLine -Lines $nullFlags -Key 'SMTPPreview') | Should -Match '^\[FAIL\].*Must be'
+        (Get-CheckLine -Lines $nullEnabled -Key 'SMTPEnabled') | Should -Match '^\[FAIL\].*Must be'
     }
 
     It 'treats empty SMTP values like the runtime does: missing' {

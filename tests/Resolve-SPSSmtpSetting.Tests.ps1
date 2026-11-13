@@ -67,6 +67,21 @@ Describe 'Resolve-SPSSmtpSetting' {
         }
     }
 
+    Context 'a key written with a $null value' {
+        It 'counts SMTPEnabled = $null as defined and invalid: no mail even with the legacy switch' {
+            $r = InModuleScope SPSWeather.Common -Parameters @{ Keys = $smtpKeys } { param($Keys) Resolve-SPSSmtpSetting -Config ($Keys + @{ SMTPEnabled = $null }) -EnableSmtp }
+            $r.Send | Should -BeFalse
+            $r.ConfigDefinesEnabled | Should -BeTrue
+            ($r.Messages -join ' ') | Should -Match 'SMTPEnabled must be'
+        }
+
+        It 'reports SMTPPreview = $null as invalid and keeps the preview off' {
+            $r = InModuleScope SPSWeather.Common { Resolve-SPSSmtpSetting -Config @{ SMTPEnabled = $false; SMTPPreview = $null } }
+            $r.Preview | Should -BeFalse
+            ($r.Messages -join ' ') | Should -Match 'SMTPPreview must be'
+        }
+    }
+
     Context 'sending enabled but the SMTP settings are incomplete' {
         It 'skips sending and names the missing key <Missing>' -ForEach @(
             @{ Missing = 'SMTPServer'; Config = @{ SMTPEnabled = $true; SMTPToAddress = @('a@b.c'); SMTPFromAddress = 'n@b.c' } }

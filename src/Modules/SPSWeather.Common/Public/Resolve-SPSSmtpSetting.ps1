@@ -42,7 +42,9 @@
     # Returns @{ Defined; Valid; Value } without casting arbitrary values to [bool].
     function Get-BooleanSetting {
         param($Config, [string]$Name)
-        $present = ($null -ne $Config) -and ($Config.Contains($Name)) -and ($null -ne $Config[$Name])
+        # A key that is written in the file counts as defined even when its value is $null: it is
+        # then invalid (reported, treated as disabled) rather than silently ignored.
+        $present = ($null -ne $Config) -and ($Config.Contains($Name))
         if (-not $present) { return @{ Defined = $false; Valid = $true; Value = $false } }
         $raw = $Config[$Name]
         if ($raw -is [bool]) { return @{ Defined = $true; Valid = $true; Value = $raw } }
