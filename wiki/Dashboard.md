@@ -12,7 +12,7 @@ IIS site (as SPSUpdate does), so operators browse a stable URL per farm.
   - **up to nine functional-area cards** (Farm & Upgrade, Trust Farm, Search, Distributed
     Cache, Timer Jobs & Solutions, Health Analyzer, IIS, System, SQL Server; empty areas
     are hidden) each with a collapsible detail table.
-- **One short email per farm** (with `-EnableSmtp`): only the items needing attention,
+- **One short email per farm** (with `SMTPEnabled = $true`; `SMTPPreview = $true` keeps an HTML copy under `Results\`): only the items needing attention,
   grouped by area (failures first), a KPI strip, and an **Open full dashboard** button
   pointing at the hosted URL. Each area lists at most `EmailMaxItemsPerArea` items
   (default 10, `0` = no limit); the rest is summarized as "+ N more" and the counters

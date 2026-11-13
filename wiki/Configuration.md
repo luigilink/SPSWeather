@@ -43,8 +43,10 @@ Copy `Config\CONTOSO-PROD.example.psd1` and edit it:
 | `ConfigurationName` | Environment label (e.g. `PROD`); fills the `Environment` variable and report/file names. |
 | `ApplicationName` | Application code (e.g. `contoso`); fills the `Application` variable and file names. |
 | `Domain` | DNS suffix appended to each farm server short name to build the FQDN targeted for remoting. |
-| `SMTPToAddress` | Array of report recipients (used with `-EnableSmtp`). |
-| `SMTPFromAddress` / `SMTPServer` | Sender address and SMTP relay. |
+| `SMTPEnabled` | Optional boolean. `$true` sends the alert email (one per farm); `$false` does not. When absent, the deprecated `-EnableSmtp` switch still decides (removed in 4.0.0); when present, the configuration takes precedence and the switch is ignored. A non-boolean value is reported and treated as `$false`. |
+| `SMTPPreview` | Optional boolean (default `$false`). `$true` also writes the email body to `Results\<App>-<Env>-<Farm>-mail.html` (overwritten at each run), so the email can be reviewed without an SMTP relay. Independent from `SMTPEnabled`. |
+| `SMTPToAddress` | Array of report recipients (required when `SMTPEnabled = $true`). |
+| `SMTPFromAddress` / `SMTPServer` | Sender address and SMTP relay (required when `SMTPEnabled = $true`). If one of the three SMTP settings is missing while sending is on, the email is skipped with a warning. |
 | `EmailMaxItemsPerArea` | Optional. Maximum items listed per area in the alert email (default `10`, `0` = no limit); the rest is summarized as "+ N more". Counters are never capped. |
 | `CredentialKey` | Name of the entry in `secrets.psd1` that holds the service credential. |
 | `ExclusionRules` | Checks to skip (see below). |

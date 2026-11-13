@@ -7,7 +7,7 @@ This page describes how to run, schedule and troubleshoot SPSWeather.
 | Parameter | Type | Description |
 |---|---|---|
 | `-ConfigFile` | `string` | Path to the environment configuration `.psd1` file. Mandatory. |
-| `-EnableSmtp` | `switch` | Send the HTML report by email over SMTP. |
+| `-EnableSmtp` | `switch` | **Deprecated (removed in 4.0.0)** — set `SMTPEnabled = $true` in the configuration file instead. While `SMTPEnabled` is not defined the switch still sends the email; when it is defined the configuration wins and the switch is ignored. |
 | `-Install` | `switch` | Register SPSWeather as a scheduled task and store the service credential in `secrets.psd1`. |
 | `-InstallAccount` | `PSCredential` | The service account that runs the scheduled task (required with `-Install`). |
 | `-Uninstall` | `switch` | Remove the SPSWeather scheduled task and the stored secret. |
@@ -18,10 +18,20 @@ This page describes how to run, schedule and troubleshoot SPSWeather.
 .\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1'
 ```
 
-### Run and email the report
+### Email the report
+
+Sending is controlled by the environment configuration, not by the command line:
 
 ```powershell
-.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -EnableSmtp
+# Config\contoso-PROD.psd1
+SMTPEnabled = $true   # send the alert email (one per farm); the SMTPTo/From/Server keys are then required
+SMTPPreview = $false  # $true also writes Results\<App>-<Env>-<Farm>-mail.html
+```
+
+Set `SMTPEnabled = $false` and `SMTPPreview = $true` to review the generated email without any SMTP relay: the HTML body is written next to the JSON snapshot and overwritten at each run. The two keys are independent, so both can be on (the email is sent and a copy is kept).
+
+```powershell
+.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1'
 ```
 
 ### Install the scheduled task
@@ -50,13 +60,13 @@ The email subject is prefixed with the overall status, e.g. `[ALERT]contoso_PROD
 
 ## Scheduling
 
-`-Install` registers a scheduled task named `SPSWeather-<app>-<env>` that runs the script with `-EnableSMTP` as the service account. A typical setup:
+`-Install` registers a scheduled task named `SPSWeather-<app>-<env>` that runs the script as the service account. The task no longer needs `-EnableSMTP` once `SMTPEnabled` is defined in the configuration; when it is not, `-Install` keeps the switch in the task (so existing mails keep flowing) and warns you to add `SMTPEnabled = $true` and run `-Install` again. A typical setup:
 
 | Field | Value |
 |---|---|
 | Run as | Service account (member of local Administrators on the run server) |
 | Trigger | Daily, e.g. every morning at 06:00 |
-| Action | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\SCRIPT\SPSWeather\SPSWeather.ps1" -ConfigFile "D:\SCRIPT\SPSWeather\Config\contoso-PROD.psd1" -EnableSMTP` |
+| Action | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\SCRIPT\SPSWeather\SPSWeather.ps1" -ConfigFile "D:\SCRIPT\SPSWeather\Config\contoso-PROD.psd1"` (plus `-EnableSMTP` while `SMTPEnabled` is not defined) |
 | Run whether user is logged on or not | Yes |
 | Run with highest privileges | Yes |
 
