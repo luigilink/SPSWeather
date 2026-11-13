@@ -115,6 +115,32 @@
         $availability = New-Object System.Collections.ArrayList
         $aliasRows = New-Object System.Collections.ArrayList
 
+        # Parse a raw cliconfg alias value ("<provider>,<connection-info>"). Mirrors
+        # ConvertFrom-SPSSqlAliasValue, which is not available in the remote session:
+        #   TCP/IP  (DBMSSOCN): "DBMSSOCN,server[\instance][,port]"
+        #   Named pipes (DBNMPNTW): "DBNMPNTW,\\server\pipe\MSSQL$instance\sql\query"
+        function ConvertFrom-SqlAliasRaw {
+            param([string]$Raw)
+            $parts = $Raw -split ',', 2
+            $provider = $parts[0].Trim()
+            $remainder = if ($parts.Count -eq 2) { $parts[1].Trim() } else { '' }
+            $protocol = 'Unknown'; $server = ''; $instance = ''; $port = ''
+            if ($provider -eq 'DBMSSOCN') {
+                $protocol = 'TCP'
+                $tcp = $remainder -split ','
+                $target = $tcp[0].Trim()
+                if ($tcp.Count -ge 2) { $port = $tcp[1].Trim() }
+                if ($target -match '^(?<srv>[^\\]+)\\(?<inst>.+)$') { $server = $Matches['srv']; $instance = $Matches['inst'] } else { $server = $target }
+            }
+            elseif ($provider -eq 'DBNMPNTW') {
+                $protocol = 'NamedPipes'
+                if ($remainder -match '^\\\\(?<srv>[^\\]+)\\') { $server = $Matches['srv'] }
+                if ($remainder -match '\\pipe\\MSSQL\$(?<inst>[^\\]+)\\') { $instance = $Matches['inst'] }
+            }
+            else { $server = $remainder }
+            return [PSCustomObject]@{ Provider = $provider; Protocol = $protocol; Server = $server; Instance = $instance; Port = $port }
+        }
+
         # Resolve a cliconfg client alias from the registry (64-bit ConnectTo and
         # 32-bit Wow6432Node). Returns the real server/instance/protocol/port and
         # the bitness where the alias is defined, or $null when it is not an alias.
@@ -130,23 +156,9 @@
                 $key = Get-Item -Path $root.Path -ErrorAction SilentlyContinue
                 if ($null -eq $key -or ($key.GetValueNames() -notcontains $AliasName)) { continue }
                 $raw = [string]$key.GetValue($AliasName)
-                $provider = ($raw -split ',', 2)[0].Trim()
-                $remainder = if (($raw -split ',', 2).Count -eq 2) { ($raw -split ',', 2)[1].Trim() } else { '' }
-                $protocol = 'Unknown'; $server = ''; $instance = ''; $port = ''
-                if ($provider -eq 'DBMSSOCN') {
-                    $protocol = 'TCP'
-                    $tcp = $remainder -split ','
-                    $target = $tcp[0].Trim()
-                    if ($tcp.Count -ge 2) { $port = $tcp[1].Trim() }
-                    if ($target -match '^(?<srv>[^\\]+)\\(?<inst>.+)$') { $server = $Matches['srv']; $instance = $Matches['inst'] } else { $server = $target }
-                }
-                elseif ($provider -eq 'DBNMPNTW') {
-                    $protocol = 'NamedPipes'
-                    if ($remainder -match '^\\\\(?<srv>[^\\]+)\\') { $server = $Matches['srv'] }
-                }
-                else { $server = $remainder }
+                $parsed = ConvertFrom-SqlAliasRaw -Raw $raw
                 if ($null -eq $found) {
-                    $found = [PSCustomObject]@{ Provider = $provider; Protocol = $protocol; Server = $server; Instance = $instance; Port = $port; Bitness = $root.Bitness; Raw = $raw }
+                    $found = [PSCustomObject]@{ Provider = $parsed.Provider; Protocol = $parsed.Protocol; Server = $parsed.Server; Instance = $parsed.Instance; Port = $parsed.Port; Bitness = $root.Bitness; Raw = $raw }
                 }
                 elseif ($found.Bitness -ne $root.Bitness) {
                     $found.Bitness = 'both'

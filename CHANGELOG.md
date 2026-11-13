@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   produces the contradictory "used by SharePoint but not declared in config" /
   "declared in config but not used by any database" notes; the declared server is shown as
   used through its aliases. Host names are compared case-insensitively on the short name,
-  and a named instance must still match exactly (#86).
+  and a named instance must still match exactly, including for named-pipe aliases
+  (`\\SQL1\pipe\MSSQL$SP\sql\query` is `SQL1\SP`) (#86).
 
 ## [3.1.0] - 2026-11-13
 

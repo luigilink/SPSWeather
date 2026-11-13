@@ -4,10 +4,12 @@
 
 BeforeAll {
     $repoRoot = Split-Path -Path $PSScriptRoot -Parent
+    # The module is only needed for the parity test against its private alias parser.
+    Import-Module -Name (Join-Path -Path $repoRoot -ChildPath 'src/Modules/SPSWeather.Common/SPSWeather.Common.psd1') -Force
     $source = Join-Path -Path $repoRoot -ChildPath 'src/Modules/SPSWeather.Common/Public/Get-SPSSqlStatus.ps1'
     $tokens = $null; $parseErrors = $null
     $ast = [System.Management.Automation.Language.Parser]::ParseFile($source, [ref]$tokens, [ref]$parseErrors)
-    foreach ($name in @('Get-SqlTargetKey', 'Get-SqlNameKey', 'Get-SqlAliasRow')) {
+    foreach ($name in @('ConvertFrom-SqlAliasRaw', 'Get-SqlTargetKey', 'Get-SqlNameKey', 'Get-SqlAliasRow')) {
         $definition = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) |
             Where-Object { $_.Name -eq $name } | Select-Object -First 1
         $definition | Should -Not -BeNullOrEmpty
@@ -37,6 +39,43 @@ Describe 'Get-SqlTargetKey (normalized SQL target identity)' {
         @{ Target = ''; Expected = '' }
     ) {
         Get-SqlTargetKey -Target $Target | Should -Be $Expected
+    }
+}
+
+AfterAll {
+    Remove-Module -Name SPSWeather.Common -Force -ErrorAction SilentlyContinue
+}
+
+Describe 'ConvertFrom-SqlAliasRaw (raw cliconfg registry value)' {
+    It "parses '<Raw>' into <Protocol> server '<Server>' instance '<Instance>' port '<Port>'" -ForEach @(
+        @{ Raw = 'DBMSSOCN,SQL1,1433'; Protocol = 'TCP'; Server = 'SQL1'; Instance = ''; Port = '1433' }
+        @{ Raw = 'DBMSSOCN,SQL1\SP,1433'; Protocol = 'TCP'; Server = 'SQL1'; Instance = 'SP'; Port = '1433' }
+        @{ Raw = 'DBNMPNTW,\\SQL1\pipe\MSSQL$SP\sql\query'; Protocol = 'NamedPipes'; Server = 'SQL1'; Instance = 'SP'; Port = '' }
+        @{ Raw = 'DBNMPNTW,\\SQL1\pipe\sql\query'; Protocol = 'NamedPipes'; Server = 'SQL1'; Instance = ''; Port = '' }
+    ) {
+        $r = ConvertFrom-SqlAliasRaw -Raw $Raw
+        $r.Protocol | Should -Be $Protocol
+        $r.Server | Should -Be $Server
+        $r.Instance | Should -Be $Instance
+        $r.Port | Should -Be $Port
+    }
+
+    # The remote session cannot reach the module's private parser, so the inner copy must not drift from it.
+    It "agrees with the module's ConvertFrom-SPSSqlAliasValue for '<Raw>'" -ForEach @(
+        @{ Raw = 'DBMSSOCN,SQLPROD01\SP,1433' }
+        @{ Raw = 'DBMSSOCN,SQLPROD01' }
+        @{ Raw = 'DBNMPNTW,\\SQLPROD03\pipe\MSSQL$SP\sql\query' }
+        @{ Raw = 'DBNMPNTW,\\SQLPROD03\pipe\sql\query' }
+        @{ Raw = 'OTHER,whatever' }
+    ) {
+        $inner = ConvertFrom-SqlAliasRaw -Raw $Raw
+        $private = InModuleScope SPSWeather.Common -Parameters @{ Raw = $Raw } {
+            param($Raw)
+            ConvertFrom-SPSSqlAliasValue -AliasName 'X' -RawValue $Raw
+        }
+        foreach ($field in 'Provider', 'Protocol', 'Server', 'Instance', 'Port') {
+            $inner.$field | Should -Be $private.$field
+        }
     }
 }
 
@@ -100,6 +139,17 @@ Describe 'Get-SqlAliasRow (declared vs discovered)' {
             $rows.Count | Should -Be 2
             ($rows.Note -join ' ') | Should -Not -Match 'not declared|not used'
             ($rows | Where-Object { $_.Name -eq 'SPSQL' }).Discovered | Should -BeTrue
+        }
+
+        It 'does not let a host-only declaration match a named-pipe alias to a named instance' {
+            $pipe = ConvertFrom-SqlAliasRaw -Raw 'DBNMPNTW,\\SQL1\pipe\MSSQL$SP\sql\query'
+            $script:fakeAliases['SPNP'] = [PSCustomObject]@{ Provider = $pipe.Provider; Protocol = $pipe.Protocol; Server = $pipe.Server; Instance = $pipe.Instance; Port = $pipe.Port; Bitness = 'both'; Raw = '' }
+            $rows = @(Get-SqlAliasRow -FarmName 'CONTENT' -DiscoveredServers @('SPNP') -DeclaredServers @('SQL1'))
+            ($rows | Where-Object { $_.Name -eq 'SPNP' }).Declared | Should -BeFalse
+            ($rows | Where-Object { $_.Name -eq 'SQL1' }).Discovered | Should -BeFalse
+
+            $rows = @(Get-SqlAliasRow -FarmName 'CONTENT' -DiscoveredServers @('SPNP') -DeclaredServers @('SQL1\SP'))
+            ($rows | Where-Object { $_.Name -eq 'SPNP' }).Declared | Should -BeTrue
         }
 
         It 'reports no declared-vs-discovered note when no server is declared' {
