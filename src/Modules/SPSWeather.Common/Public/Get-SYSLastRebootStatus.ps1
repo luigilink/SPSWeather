@@ -55,6 +55,7 @@
                     OSName         = 'Unreachable';
                     OSVersion      = '';
                     LastRebootTime = '';
+                    IsInfo         = $false;
                 })
         }
     }

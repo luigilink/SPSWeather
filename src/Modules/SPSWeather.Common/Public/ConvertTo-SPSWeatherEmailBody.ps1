@@ -4,10 +4,10 @@
         Builds the short, Outlook-safe alert email body for one farm.
 
         .DESCRIPTION
-        Returns an HTML string listing only the items that need attention (rows whose
-        IsInfo is $false, or Health Analyzer warnings), grouped by functional area,
-        with a KPI strip and a CTA button to the farm dashboard. See the SPSWeather
-        wiki (Email page) for the full reference.
+        Returns an HTML string listing only the items that need attention (classified
+        through the shared severity model), grouped by functional area, with a KPI strip
+        and a CTA button to the farm dashboard. See the SPSWeather wiki (Dashboard page)
+        for the full reference.
 
         .EXAMPLE
         ConvertTo-SPSWeatherEmailBody -InputObject $farmReport -Summary $res.Summary `
@@ -58,17 +58,7 @@
         if ($null -eq $v) { return '' }
         return [System.Net.WebUtility]::HtmlEncode([string]$v)
     }
-    function _sev($row) {
-        if ($null -eq $row) { return 'ok' }
-        $names = $row.PSObject.Properties.Name
-        if ($names -contains 'IsInfo') { if ($row.IsInfo) { return 'ok' } else { return 'fail' } }
-        if ($names -contains 'severity') {
-            $s = "$($row.severity)"
-            if ($s -match 'Error|Critical|^1\b|1 -') { return 'fail' }
-            if ($s -match 'Warning|^2\b|2 -') { return 'warn' }
-        }
-        return 'ok'
-    }
+    function _sev($row) { Get-SPSWeatherRowSeverity -Row $row }
     # First non-empty property value from a row, among candidate names.
     function _first($row, [string[]]$names) {
         foreach ($n in $names) {
@@ -78,6 +68,18 @@
             }
         }
         return ''
+    }
+    function _toDec([object]$v) {
+        if ($null -eq $v) { return $null }
+        $s = [string]$v
+        if ([string]::IsNullOrWhiteSpace($s)) { return $null }
+        # Row values are stringified with the invariant culture, so parse them the same way.
+        $d = [decimal]0
+        if ([decimal]::TryParse($s, [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { return $d }
+        return $null
+    }
+    function _pct([decimal]$p) {
+        return ([double]$p).ToString('0.##', [System.Globalization.CultureInfo]::InvariantCulture) + '% free'
     }
 
     # section -> area display (icon + title) for grouping alerts
@@ -91,15 +93,27 @@
     }
     # section -> (label fields, detail fields) to compose a one-line alert
     $lineOf = @{
+        SPUpgradeStatus         = @{ Label = @('server', 'Server'); Detail = @('UpgradeStatus', 'SPBuildVersion') }
         SPAPIHttpStatus         = @{ Label = @('Title'); Detail = @('Url', 'HTTPCode') }
         SPSSitesHttpStatus      = @{ Label = @('Url'); Detail = @('HTTPCode', 'Status') }
         SPSearchLastCrawlStatus = @{ Label = @('ContentSource'); Detail = @('CrawlState') }
         SPSearchCrawlLogs       = @{ Label = @('ContentSource'); Detail = @('Message', 'ErrorID') }
+        SPFailedTimerJobs       = @{ Label = @('Server', 'JobDefinitionTitle'); Detail = @('Status') }
+        SPSolutionDeployment    = @{ Label = @('SolutionName'); Detail = @('LastOperationResult', 'DeploymentState') }
         SPHealthAnalyzer        = @{ Label = @('title'); Detail = @('category', 'severity') }
-        IISApplicationPoolStatus= @{ Label = @('Server', 'ApplicationPool'); Detail = @('Status') }
+        AppFabricStatus         = @{ Label = @('Server'); Detail = @('CacheStatus', 'SPInstanceStatus') }
+        USPAudienceStatus       = @{ Label = @('Server'); Detail = @('Status') }
+        IISApplicationPoolStatus = @{ Label = @('Server', 'ApplicationPool'); Detail = @('Status') }
         IISWorkerProcessStatus  = @{ Label = @('Server'); Detail = @('ApplicationPool') }
-        SQLDatabaseStatus       = @{ Label = @('Name'); Detail = @('Recommendation') }
+        IISWebSiteCertStatus    = @{ Label = @('Server', 'WebSiteName'); Detail = @('Status', 'ExpirationDate') }
+        SYSDiskUsageStatus      = @{ Label = @('Server', 'DriveLetter'); Detail = @('FreePercent', 'Status') }
         SYSEventViewerAppErrors = @{ Label = @('Server', 'Name'); Detail = @('Count') }
+        SPSContentDBStatus      = @{ Label = @('DatabaseName', 'Name'); Detail = @('Upgrade', 'Status') }
+        SQLInstanceStatus       = @{ Label = @('SqlServer'); Detail = @('Recommendation') }
+        SQLDatabaseStatus       = @{ Label = @('Name'); Detail = @('Recommendation', 'State') }
+        SQLDiskStatus           = @{ Label = @('SqlServer', 'Volume'); Detail = @('FreePercent') }
+        SQLAvailabilityStatus   = @{ Label = @('Name', 'SqlServer'); Detail = @('Detail') }
+        SQLAliasStatus          = @{ Label = @('Name'); Detail = @('Note') }
     }
     $areaOrder = @('Farm & Upgrade', 'Trust Farm (REST)', 'Search', 'Distributed Cache', 'Timer Jobs', 'Solutions', 'User Profiles', 'Health Analyzer', 'IIS', 'System', 'SQL Server')
 
@@ -110,7 +124,13 @@
         $sk = $prop.Name
         foreach ($row in @($prop.Value | Where-Object { $null -ne $_ })) {
             $sev = _sev $row
-            if ($sev -eq 'ok') { $totalOk++; continue }
+            if ($sev -eq 'ok') {
+                # Count only real checks toward OK (exclude pure info-only rows), matching the
+                # dashboard donut and the report Summary.
+                $n = $row.PSObject.Properties.Name
+                if (($n -contains 'IsInfo') -or ($n -contains 'severity')) { $totalOk++ }
+                continue
+            }
             if ($sev -eq 'fail') { $totalFail++ } else { $totalWarn++ }
             if (-not $areaOf.ContainsKey($sk)) { continue }
             $icon = $areaOf[$sk][0]; $area = $areaOf[$sk][1]
@@ -125,6 +145,28 @@
                 $detail = _first $row @('Status', 'Recommendation', 'Message')
             }
             if (-not $label) { $label = $sk }
+            if ($sk -eq 'SYSDiskUsageStatus') {
+                $statusText = _first $row @('Status')
+                $percent = _toDec (_first $row @('FreePercent'))
+                if ($null -eq $percent) {
+                    $free = _toDec (_first $row @('FreeSpace'))
+                    $size = _toDec (_first $row @('Size'))
+                    if (($null -ne $free) -and ($null -ne $size) -and ($size -gt 0)) {
+                        $percent = [math]::Round(($free / $size) * 100, 2)
+                    }
+                }
+                if ($null -ne $percent) {
+                    $pctText = _pct $percent
+                    $detail = if ($statusText) { "$pctText · $statusText" } else { $pctText }
+                }
+                elseif ($statusText) {
+                    $detail = $statusText
+                }
+            }
+            if ($sk -eq 'SQLDiskStatus') {
+                $percent = _toDec (_first $row @('FreePercent'))
+                if ($null -ne $percent) { $detail = _pct $percent }
+            }
             [void]$groups[$area].Items.Add([PSCustomObject]@{ Sev = $sev; Label = $label; Detail = $detail })
         }
     }

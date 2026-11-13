@@ -73,17 +73,7 @@
     }
 
     # Row severity: IsInfo drives ok/fail; severity string drives warn (Health Analyzer).
-    function _sev($row) {
-        if ($null -eq $row) { return 'ok' }
-        $names = $row.PSObject.Properties.Name
-        if ($names -contains 'IsInfo') { if ($row.IsInfo) { return 'ok' } else { return 'fail' } }
-        if ($names -contains 'severity') {
-            $s = "$($row.severity)"
-            if ($s -match 'Error|Critical|^1\b|1 -') { return 'fail' }
-            if ($s -match 'Warning|^2\b|2 -') { return 'warn' }
-        }
-        return 'ok'
-    }
+    function _sev($row) { Get-SPSWeatherRowSeverity -Row $row }
 
     $areas = @(
         [PSCustomObject]@{ Name = 'Farm & Upgrade'; Icon = '&#127970;'; Sections = @('SPUpgradeStatus') }
@@ -108,14 +98,28 @@
         SQLDiskStatus = 'SQL - Disk Volumes'; SQLAvailabilityStatus = 'SQL - Availability Groups'; SQLAliasStatus = 'SQL - Alias Mapping'
     }
 
-    # Per-section and global counts.
+    # Per-section and global counts. Only rows that are actual checks (carrying IsInfo or a
+    # severity) count toward OK, so pure info-only rows (reboot time, .NET version) do not
+    # inflate the healthy total - keeping the donut/KPI consistent with the email and the
+    # report Summary.
+    function _isCheck($r) {
+        if ($null -eq $r) { return $false }
+        $n = $r.PSObject.Properties.Name
+        return (($n -contains 'IsInfo') -or ($n -contains 'severity'))
+    }
     $gOk = 0; $gWarn = 0; $gFail = 0
     $sectionStats = @{}
     foreach ($prop in $InputObject.PSObject.Properties) {
         $rows = @($prop.Value | Where-Object { $null -ne $_ })
-        $o = 0; $w = 0; $f = 0
-        foreach ($r in $rows) { switch (_sev $r) { 'ok' { $o++ } 'warn' { $w++ } 'fail' { $f++ } } }
-        $sectionStats[$prop.Name] = [PSCustomObject]@{ Count = $rows.Count; Ok = $o; Warn = $w; Fail = $f }
+        $o = 0; $w = 0; $f = 0; $info = 0
+        foreach ($r in $rows) {
+            switch (_sev $r) {
+                'warn' { $w++ }
+                'fail' { $f++ }
+                default { if (_isCheck $r) { $o++ } else { $info++ } }
+            }
+        }
+        $sectionStats[$prop.Name] = [PSCustomObject]@{ Count = $rows.Count; Ok = $o; Warn = $w; Fail = $f; Info = $info }
         $gOk += $o; $gWarn += $w; $gFail += $f
     }
     $gTotal = $gOk + $gWarn + $gFail
@@ -159,7 +163,8 @@
             $lbl = if ($sectionLabel.ContainsKey($sk)) { $sectionLabel[$sk] } else { $sk }
             if ($st.Fail -gt 0) { $vcls = 'fail'; $vtxt = "$($st.Fail) alert" }
             elseif ($st.Warn -gt 0) { $vcls = 'warn'; $vtxt = "$($st.Warn) warn" }
-            else { $vcls = 'ok'; $vtxt = "$($st.Count) OK" }
+            elseif ($st.Ok -gt 0) { $vcls = 'ok'; $vtxt = "$($st.Ok) OK" }
+            else { $vcls = 'ok'; $vtxt = "$($st.Count) info" }
             [void]$cardsHtml.Append("<div class=`"rowline`"><span>$(_enc $lbl)</span><span class=`"v $vcls`">$(_enc $vtxt)</span></div>")
         }
         [void]$cardsHtml.Append("</div><div class=`"foot`"><a href=`"#$anchor`">View detail &rarr;</a></div></div>")
@@ -178,7 +183,7 @@
         $o = [int]$h.Ok; $w = [int]$h.Warn; $f = [int]$h.Fail; $t = $o + $w + $f
         $okp = if ($t) { [math]::Round($o / $t * 100) } else { 0 }
         $wp = if ($t) { [math]::Round($w / $t * 100) } else { 0 }
-        $fp = 100 - $okp - $wp
+        $fp = if ($t) { 100 - $okp - $wp } else { 0 }
         $now = ($i -eq $lastIdx)
         $tip = _enc "$($h.Date)$(if ($now) { ' (now)' }): $o OK / $w warn / $f fail"
         [void]$barsHtml.Append("<div class=`"bcol$(if ($now) { ' now' })`"><div class=`"stack`" title=`"$tip`" style=`"height:88%`"><i class=`"f`" style=`"height:$fp%`"></i><i class=`"w`" style=`"height:$wp%`"></i><i class=`"o`" style=`"height:$okp%`"></i></div></div>")
@@ -256,7 +261,7 @@ header.top{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#
 .details{margin-top:12px}details.sec{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);margin:0 0 10px;overflow:hidden}details.sec>summary{list-style:none;cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600}details.sec>summary::-webkit-details-marker{display:none}details.sec>summary .chev{margin-left:auto;transition:transform .15s;color:var(--muted)}details.sec[open]>summary .chev{transform:rotate(90deg)}details.sec>summary .pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
 .pill.ok{background:var(--ok-bg);color:var(--ok)}.pill.warn{background:var(--warn-bg);color:var(--warn)}.pill.fail{background:var(--fail-bg);color:var(--fail)}.sg-ico{width:16px;text-align:center;font-size:10px}.sg-ico.ok{color:var(--ok)}.sg-ico.warn{color:var(--warn)}.sg-ico.fail{color:var(--fail)}
 .tw{overflow:auto;border-top:1px solid var(--line)}table{width:100%;border-collapse:collapse}th,td{padding:6px 10px;text-align:left;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}thead th{background:#eef2f7;color:#10222e;font-weight:600}tr.r-fail td{background:#fff5f5}tr.r-warn td{background:#fff9f0}
-.detail-head{display:flex;align-items:center;gap:10px;margin:22px 2px 12px}.detail-head .exp{margin-left:auto;font-size:12px}.detail-head .exp a{color:var(--brand);text-decoration:none;cursor:pointer}
+.detail-head{display:flex;align-items:center;gap:10px;margin:22px 2px 12px}.detail-head .exp{margin-left:auto;font-size:12px}.detail-head .exp button{color:var(--brand);background:none;border:0;padding:0;font:inherit;text-decoration:underline;cursor:pointer}
 footer{max-width:1180px;margin:10px auto 36px;padding:0 20px;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 </style></head>
 <body>
@@ -288,7 +293,7 @@ footer{max-width:1180px;margin:10px auto 36px;padding:0 20px;color:var(--muted);
   </div>
   <div class="section-title">Health by area</div>
   <div class="cards">$($cardsHtml.ToString())</div>
-  <div class="detail-head"><div class="section-title" style="margin:0">Detail</div><div class="exp"><a onclick="document.querySelectorAll('details.sec').forEach(function(d){d.open=true})">Expand all</a> &middot; <a onclick="document.querySelectorAll('details.sec').forEach(function(d){d.open=false})">Collapse all</a></div></div>
+  <div class="detail-head"><div class="section-title" style="margin:0">Detail</div><div class="exp"><button type="button" onclick="document.querySelectorAll('details.sec').forEach(function(d){d.open=true})">Expand all</button> &middot; <button type="button" onclick="document.querySelectorAll('details.sec').forEach(function(d){d.open=false})">Collapse all</button></div></div>
   <div class="details">$($detailHtml.ToString())</div>
 </div>
 <footer><span>SPSWeather $(_enc $Version) &middot; $envLine</span><span>Executed by $(_enc $ExecutedBy) &middot; $generated</span></footer>

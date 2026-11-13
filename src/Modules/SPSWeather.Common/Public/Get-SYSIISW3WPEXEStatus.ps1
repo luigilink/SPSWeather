@@ -59,6 +59,7 @@
             [void]$tbIISWorkerProcessStatus.Add([PSCustomObject]@{
                     Farm            = $Farm; Server = $spServer; CreationDate = '';
                     Memory          = ''; ApplicationPool = 'Unreachable';
+                    IsInfo          = $false;
                 })
         }
     }

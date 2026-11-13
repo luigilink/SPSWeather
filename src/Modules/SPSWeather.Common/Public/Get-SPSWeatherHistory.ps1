@@ -31,18 +31,6 @@
 
     if (-not (Test-Path -Path $HistoryFolder)) { return @() }
 
-    function _sev($row) {
-        if ($null -eq $row) { return 'ok' }
-        $names = $row.PSObject.Properties.Name
-        if ($names -contains 'IsInfo') { if ($row.IsInfo) { return 'ok' } else { return 'fail' } }
-        if ($names -contains 'severity') {
-            $s = "$($row.severity)"
-            if ($s -match 'Error|Critical|^1\b|1 -') { return 'fail' }
-            if ($s -match 'Warning|^2\b|2 -') { return 'warn' }
-        }
-        return 'ok'
-    }
-
     $files = Get-ChildItem -Path $HistoryFolder -Filter '*.json' -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime
     if ($null -eq $files -or $files.Count -eq 0) { return @() }
@@ -54,10 +42,15 @@
         $ok = 0; $warn = 0; $fail = 0
         foreach ($prop in $obj.PSObject.Properties) {
             foreach ($row in @($prop.Value | Where-Object { $null -ne $_ })) {
-                switch (_sev $row) {
+                switch (Get-SPSWeatherRowSeverity -Row $row) {
                     'warn' { $warn++ }
                     'fail' { $fail++ }
-                    default { $ok++ }
+                    default {
+                        # Only actual checks (IsInfo/severity) count toward OK, matching the
+                        # current-run donut so a run keeps the same OK total once archived.
+                        $n = $row.PSObject.Properties.Name
+                        if (($n -contains 'IsInfo') -or ($n -contains 'severity')) { $ok++ }
+                    }
                 }
             }
         }

@@ -33,6 +33,7 @@
         'Get-SPSSqlStatus'
         'Get-SPSUpgradeStatus'
         'Get-SPSVersion'
+        'Get-SPSWeatherHistory'
         'Get-SPWeatherListInfo'
         'Get-SYSDiskUsageStatus'
         'Get-SYSDOTNETVersion'
