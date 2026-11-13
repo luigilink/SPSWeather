@@ -19,7 +19,17 @@
     # Domain : DNS suffix appended to each farm server short name below.
     Domain            = 'contoso.com'
 
-    # SMTP settings (used when SPSWeather.ps1 runs with -EnableSmtp).
+    # Email behavior.
+    #   SMTPEnabled : $true sends the alert email (one per farm), $false does not. When the key
+    #                 is absent, the deprecated -EnableSmtp switch of SPSWeather.ps1 still
+    #                 decides (removed in 4.0.0); when present, this key takes precedence.
+    #   SMTPPreview : $true also writes the email body to Results\<App>-<Env>-<Farm>-mail.html
+    #                 (overwritten at each run) so it can be reviewed without an SMTP relay.
+    #                 Independent from SMTPEnabled. Default: $false.
+    # The three settings below are required whenever emails are sent (SMTPEnabled = $true, or
+    # the deprecated -EnableSmtp switch); not needed when sending is off.
+    SMTPEnabled       = $true
+    SMTPPreview       = $false
     SMTPToAddress     = @('admin-farm@contoso.com', 'admin-setup@contoso.com')
     SMTPFromAddress   = 'noreply@contoso.com'
     SMTPServer        = 'smtp.contoso.com'

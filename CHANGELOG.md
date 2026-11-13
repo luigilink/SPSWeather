@@ -5,6 +5,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Email settings in the environment configuration: `SMTPEnabled` (`$true`/`$false`) decides
+  whether the alert email is sent, and `SMTPPreview` writes the email body to
+  `Results\<App>-<Env>-<Farm>-mail.html` (overwritten at each run, before any send attempt) so
+  it can be reviewed without an SMTP relay. The two keys are independent. The decision is
+  taken by the new `Resolve-SPSSmtpSetting` function: non-boolean values are reported and
+  treated as disabled, and sending is skipped with a clear warning when `SMTPToAddress`,
+  `SMTPFromAddress` or `SMTPServer` is missing or empty. These warnings are shown in the
+  transcript and recorded in the `SPSWeather` Event Log (ID 2001), so an unattended run that
+  stops sending the email leaves a trace (#93).
+
+### Changed
+
+- `-EnableSmtp` is **deprecated** and will be removed in 4.0.0. While `SMTPEnabled` is not
+  defined in the configuration it still sends the email (with a deprecation warning), so
+  existing configurations and scheduled tasks keep working; when `SMTPEnabled` is defined,
+  the configuration takes precedence and the switch is ignored. `-Action Install` registers
+  the scheduled task without the switch only when the configuration defines `SMTPEnabled`;
+  otherwise it keeps `-EnableSMTP` and warns to add the key and run `-Install` again (#93).
+- `Test-SPSWeatherReadiness.ps1` validates `SMTPEnabled`/`SMTPPreview` as booleans and no
+  longer requires `SMTPToAddress`, `SMTPFromAddress` and `SMTPServer` when
+  `SMTPEnabled = $false` (a lab without a relay can pass the pre-flight) (#93).
+
 ## [3.2.0] - 2026-11-13
 
 ### Changed

@@ -122,9 +122,36 @@ else {
 }
 
 if ($null -ne $cfg) {
+    # SMTPEnabled / SMTPPreview must be booleans ($true / $false, or their string forms, like
+    # the entry script accepts). The SMTP relay settings are only required when emails are
+    # sent: an environment with SMTPEnabled = $false (e.g. a lab without relay) must pass.
+    $smtpKeysRequired = $true
+    foreach ($flag in @('SMTPEnabled', 'SMTPPreview')) {
+        if ($cfg.Contains($flag)) {
+            $flagValue = $cfg[$flag]
+            $flagParsed = $false
+            if ($flagValue -is [bool]) { $flagParsed = $flagValue; $flagValid = $true }
+            else { $flagValid = ($flagValue -is [string]) -and [bool]::TryParse($flagValue.Trim(), [ref]$flagParsed) }
+            if ($flagValid) {
+                Add-CheckResult -Section 'Config' -Name "Key '$flag'" -Status 'PASS' -Detail "$flagParsed"
+                if ($flag -eq 'SMTPEnabled' -and -not $flagParsed) { $smtpKeysRequired = $false }
+            }
+            else {
+                Add-CheckResult -Section 'Config' -Name "Key '$flag'" -Status 'FAIL' -Detail "Must be `$true or `$false (got '$flagValue')"
+            }
+        }
+    }
+
     foreach ($key in @('ConfigurationName', 'ApplicationName', 'Domain', 'SMTPToAddress', 'SMTPFromAddress', 'SMTPServer', 'CredentialKey', 'Farms')) {
-        if ($cfg.Contains($key) -and $null -ne $cfg[$key]) {
+        # The SMTP settings use the runtime's emptiness rule (Resolve-SPSSmtpSetting): '', blanks
+        # and an empty array count as missing, otherwise the pre-flight is green and no mail is sent.
+        $isPresent = $cfg.Contains($key) -and $null -ne $cfg[$key]
+        if ($isPresent -and $key -like 'SMTP*') { $isPresent = -not [string]::IsNullOrWhiteSpace((@($cfg[$key]) -join '')) }
+        if ($isPresent) {
             Add-CheckResult -Section 'Config' -Name "Key '$key'" -Status 'PASS'
+        }
+        elseif (-not $smtpKeysRequired -and $key -like 'SMTP*') {
+            Add-CheckResult -Section 'Config' -Name "Key '$key'" -Status 'SKIP' -Detail 'Not required: SMTPEnabled = $false'
         }
         else {
             Add-CheckResult -Section 'Config' -Name "Key '$key'" -Status 'FAIL' -Detail 'Missing or empty'
