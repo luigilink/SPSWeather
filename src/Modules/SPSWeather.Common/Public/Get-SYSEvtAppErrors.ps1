@@ -63,7 +63,7 @@
         catch {
             [void]$tbSYSEventViewerAppErrors.Add([PSCustomObject]@{
                     Farm = $Farm; Server = $spServer; ID = 'Non Applicable';
-                    Severity = 'Warning'; Name = 'Unreachable'; Count = '0';
+                    Severity = 'Error'; Name = 'Unreachable'; Count = '0';
                     IsInfo = $false;
                 })
         }

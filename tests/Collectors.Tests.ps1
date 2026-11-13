@@ -86,8 +86,8 @@ Describe 'Per-server collector resilience' {
             $rows[0].Server | Should -Be 'localhost'
             ($rows[0].PSObject.Properties.Value -contains 'Unreachable') | Should -BeTrue
             $rows[0].IsInfo | Should -BeFalse
-            # An unreachable server must never be counted as healthy.
-            Get-SPSWeatherRowSeverity -Row $rows[0] | Should -Not -Be 'ok'
+            # An unreachable server is a failure in every section, never a warning or healthy.
+            Get-SPSWeatherRowSeverity -Row $rows[0] | Should -Be 'fail'
         }
     }
 }
