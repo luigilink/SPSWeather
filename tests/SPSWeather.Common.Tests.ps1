@@ -76,6 +76,7 @@ Describe 'SPSWeather.Common module' {
             'Get-USPAudienceStatus'
             'Import-SPSSharePointCommand'
             'Remove-SPSSheduledTask'
+            'Resolve-SPSSmtpSetting'
             'Resolve-SPSSqlAlias'
             'Set-SPSCredSSPClient'
             'Set-SPSSecret'
