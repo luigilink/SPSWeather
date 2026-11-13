@@ -115,6 +115,32 @@
         $availability = New-Object System.Collections.ArrayList
         $aliasRows = New-Object System.Collections.ArrayList
 
+        # Parse a raw cliconfg alias value ("<provider>,<connection-info>"). Mirrors
+        # ConvertFrom-SPSSqlAliasValue, which is not available in the remote session:
+        #   TCP/IP  (DBMSSOCN): "DBMSSOCN,server[\instance][,port]"
+        #   Named pipes (DBNMPNTW): "DBNMPNTW,\\server\pipe\MSSQL$instance\sql\query"
+        function ConvertFrom-SqlAliasRaw {
+            param([string]$Raw)
+            $parts = $Raw -split ',', 2
+            $provider = $parts[0].Trim()
+            $remainder = if ($parts.Count -eq 2) { $parts[1].Trim() } else { '' }
+            $protocol = 'Unknown'; $server = ''; $instance = ''; $port = ''
+            if ($provider -eq 'DBMSSOCN') {
+                $protocol = 'TCP'
+                $tcp = $remainder -split ','
+                $target = $tcp[0].Trim()
+                if ($tcp.Count -ge 2) { $port = $tcp[1].Trim() }
+                if ($target -match '^(?<srv>[^\\]+)\\(?<inst>.+)$') { $server = $Matches['srv']; $instance = $Matches['inst'] } else { $server = $target }
+            }
+            elseif ($provider -eq 'DBNMPNTW') {
+                $protocol = 'NamedPipes'
+                if ($remainder -match '^\\\\(?<srv>[^\\]+)\\') { $server = $Matches['srv'] }
+                if ($remainder -match '\\pipe\\MSSQL\$(?<inst>[^\\]+)\\') { $instance = $Matches['inst'] }
+            }
+            else { $server = $remainder }
+            return [PSCustomObject]@{ Provider = $provider; Protocol = $protocol; Server = $server; Instance = $instance; Port = $port }
+        }
+
         # Resolve a cliconfg client alias from the registry (64-bit ConnectTo and
         # 32-bit Wow6432Node). Returns the real server/instance/protocol/port and
         # the bitness where the alias is defined, or $null when it is not an alias.
@@ -130,23 +156,9 @@
                 $key = Get-Item -Path $root.Path -ErrorAction SilentlyContinue
                 if ($null -eq $key -or ($key.GetValueNames() -notcontains $AliasName)) { continue }
                 $raw = [string]$key.GetValue($AliasName)
-                $provider = ($raw -split ',', 2)[0].Trim()
-                $remainder = if (($raw -split ',', 2).Count -eq 2) { ($raw -split ',', 2)[1].Trim() } else { '' }
-                $protocol = 'Unknown'; $server = ''; $instance = ''; $port = ''
-                if ($provider -eq 'DBMSSOCN') {
-                    $protocol = 'TCP'
-                    $tcp = $remainder -split ','
-                    $target = $tcp[0].Trim()
-                    if ($tcp.Count -ge 2) { $port = $tcp[1].Trim() }
-                    if ($target -match '^(?<srv>[^\\]+)\\(?<inst>.+)$') { $server = $Matches['srv']; $instance = $Matches['inst'] } else { $server = $target }
-                }
-                elseif ($provider -eq 'DBNMPNTW') {
-                    $protocol = 'NamedPipes'
-                    if ($remainder -match '^\\\\(?<srv>[^\\]+)\\') { $server = $Matches['srv'] }
-                }
-                else { $server = $remainder }
+                $parsed = ConvertFrom-SqlAliasRaw -Raw $raw
                 if ($null -eq $found) {
-                    $found = [PSCustomObject]@{ Provider = $provider; Protocol = $protocol; Server = $server; Instance = $instance; Port = $port; Bitness = $root.Bitness; Raw = $raw }
+                    $found = [PSCustomObject]@{ Provider = $parsed.Provider; Protocol = $parsed.Protocol; Server = $parsed.Server; Instance = $parsed.Instance; Port = $parsed.Port; Bitness = $root.Bitness; Raw = $raw }
                 }
                 elseif ($found.Bitness -ne $root.Bitness) {
                     $found.Bitness = 'both'
@@ -163,34 +175,89 @@
         $discoveredServers = @($spDatabases | Select-Object -ExpandProperty SqlServer | Sort-Object -Unique | Where-Object { $_ })
         $declaredServers = @($params.DeclaredSqlServers | Where-Object { $_ })
 
-        # Alias / server mapping with declared-vs-discovered validation. The union
-        # is reported so a declared-but-unused or used-but-undeclared entry shows up.
-        $allServers = @(@($discoveredServers + $declaredServers) | Sort-Object -Unique)
-        foreach ($name in $allServers) {
-            $isDiscovered = $discoveredServers -contains $name
-            $isDeclared = $declaredServers -contains $name
-            $alias = Resolve-AliasLocal -AliasName $name
-            $notes = New-Object System.Collections.ArrayList
-            if ($declaredServers.Count -gt 0) {
-                if ($isDiscovered -and -not $isDeclared) { [void]$notes.Add('used by SharePoint but not declared in config') }
-                if ($isDeclared -and -not $isDiscovered) { [void]$notes.Add('declared in config but not used by any database') }
+        # Normalized identity of a SQL target: lower-cased short host name, plus
+        # \instance when it is a named one (the default instance MSSQLSERVER is the same
+        # as no instance). A protocol prefix, port and domain suffix are ignored.
+        function Get-SqlTargetKey {
+            param([string]$Target)
+            $t = ([string]$Target).Trim() -replace '^(tcp|np|lpc):', '' -replace ',\d+$', ''
+            if ([string]::IsNullOrWhiteSpace($t)) { return '' }
+            $srv = $t; $inst = ''
+            if ($t -match '^(?<srv>[^\\]+)\\(?<inst>.+)$') { $srv = $Matches['srv']; $inst = $Matches['inst'] }
+            if ($srv -notmatch '^\d{1,3}(\.\d{1,3}){3}$') {
+                $short = ($srv -split '\.')[0]
+                if ($short) { $srv = $short }
             }
-            if ($alias -and $alias.Bitness -ne 'both' -and $alias.Provider) { [void]$notes.Add("alias defined only in $($alias.Bitness)") }
-            $realServer = if ($alias) { $alias.Server } else { '' }
-            if ($alias -and $alias.Instance) { $realServer = "$($alias.Server)\$($alias.Instance)" }
-            [void]$aliasRows.Add([PSCustomObject]@{
-                    Farm        = $farmName
-                    Name        = $name
-                    IsAlias     = [bool]$alias
-                    RealServer  = $realServer
-                    Protocol    = if ($alias) { $alias.Protocol } else { 'DirectName' }
-                    Port        = if ($alias) { $alias.Port } else { '' }
-                    Bitness     = if ($alias) { $alias.Bitness } else { '' }
-                    Discovered  = $isDiscovered
-                    Declared    = $isDeclared
-                    Note        = ($notes -join '; ')
-                    IsInfo      = $true
-                })
+            if ($inst -ieq 'MSSQLSERVER') { $inst = '' }
+            $key = $srv.ToLowerInvariant()
+            if ($inst) { $key = $key + '\' + $inst.ToLowerInvariant() }
+            return $key
+        }
+
+        # Every identity a name answers to: itself and, for a cliconfg alias, the real
+        # server\instance it resolves to (Get-SPDatabase returns the alias, not the server).
+        function Get-SqlNameKey {
+            param([string]$Name, $Alias)
+            $keys = @(Get-SqlTargetKey -Target $Name)
+            if ($Alias -and $Alias.Server) {
+                $real = if ($Alias.Instance) { "$($Alias.Server)\$($Alias.Instance)" } else { [string]$Alias.Server }
+                $keys += Get-SqlTargetKey -Target $real
+            }
+            return @($keys | Where-Object { $_ })
+        }
+
+        # Alias / server mapping with declared-vs-discovered validation. The union is
+        # reported so a declared-but-unused or used-but-undeclared entry shows up. Two names
+        # refer to the same target when they share an identity, so a declared real server
+        # matches the aliases SharePoint reaches it through (and the other way round).
+        function Get-SqlAliasRow {
+            param($FarmName, [string[]]$DiscoveredServers, [string[]]$DeclaredServers)
+            $rows = New-Object System.Collections.ArrayList
+            $allNames = @(@($DiscoveredServers + $DeclaredServers) | Where-Object { $_ } | Sort-Object -Unique)
+            $aliasOf = @{}
+            $keysOf = @{}
+            foreach ($n in $allNames) {
+                $aliasOf[$n] = Resolve-AliasLocal -AliasName $n
+                $keysOf[$n] = @(Get-SqlNameKey -Name $n -Alias $aliasOf[$n])
+            }
+            foreach ($name in $allNames) {
+                $sameTarget = { param($other) @($keysOf[$other] | Where-Object { $keysOf[$name] -contains $_ }).Count -gt 0 }
+                $matchingDeclared = @($DeclaredServers | Where-Object { $_ -and (& $sameTarget $_) })
+                $matchingDiscovered = @($DiscoveredServers | Where-Object { $_ -and (& $sameTarget $_) })
+                $isDeclared = $matchingDeclared.Count -gt 0
+                $isDiscovered = $matchingDiscovered.Count -gt 0
+                $alias = $aliasOf[$name]
+                $notes = New-Object System.Collections.ArrayList
+                if ($DeclaredServers.Count -gt 0) {
+                    if ($isDiscovered -and -not $isDeclared) { [void]$notes.Add('used by SharePoint but not declared in config') }
+                    if ($isDeclared -and -not $isDiscovered) { [void]$notes.Add('declared in config but not used by any database') }
+                }
+                $reachedVia = @($matchingDiscovered | Where-Object { $_ -ne $name })
+                if ($DiscoveredServers -notcontains $name -and $reachedVia.Count -gt 0) {
+                    [void]$notes.Add("used through alias $($reachedVia -join ', ')")
+                }
+                if ($alias -and $alias.Bitness -ne 'both' -and $alias.Provider) { [void]$notes.Add("alias defined only in $($alias.Bitness)") }
+                $realServer = if ($alias) { $alias.Server } else { '' }
+                if ($alias -and $alias.Instance) { $realServer = "$($alias.Server)\$($alias.Instance)" }
+                [void]$rows.Add([PSCustomObject]@{
+                        Farm        = $FarmName
+                        Name        = $name
+                        IsAlias     = [bool]$alias
+                        RealServer  = $realServer
+                        Protocol    = if ($alias) { $alias.Protocol } else { 'DirectName' }
+                        Port        = if ($alias) { $alias.Port } else { '' }
+                        Bitness     = if ($alias) { $alias.Bitness } else { '' }
+                        Discovered  = $isDiscovered
+                        Declared    = $isDeclared
+                        Note        = ($notes -join '; ')
+                        IsInfo      = $true
+                    })
+            }
+            return $rows
+        }
+
+        foreach ($aliasRow in @(Get-SqlAliasRow -FarmName $farmName -DiscoveredServers $discoveredServers -DeclaredServers $declaredServers)) {
+            [void]$aliasRows.Add($aliasRow)
         }
 
         # Query the servers SharePoint actually uses (declared-only entries are

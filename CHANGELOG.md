@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   area header, subject, outcome) still counts all items. The dashboard keeps the full
   list (#88).
 
+### Fixed
+
+- SQL alias mapping: the declared-vs-discovered check now also compares the real server an
+  alias resolves to, not only the alias name. Declaring the real SQL server in
+  `Farms[].SqlServers` while SharePoint reaches it through cliconfg aliases no longer
+  produces the contradictory "used by SharePoint but not declared in config" /
+  "declared in config but not used by any database" notes; the declared server is shown as
+  used through its aliases. Host names are compared case-insensitively on the short name,
+  and a named instance must still match exactly, including for named-pipe aliases
+  (`\\SQL1\pipe\MSSQL$SP\sql\query` is `SQL1\SP`) (#86).
+
 ## [3.1.0] - 2026-11-13
 
 ### Added
