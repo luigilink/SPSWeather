@@ -5,6 +5,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Test suite restructured to the house standard: the monolithic
+  `SPSWeather.Common.Tests.ps1` is split into one `<Function>.Tests.ps1` per function
+  (mirroring the Public/Private split) with broader mock-based coverage of the
+  collectors, `Resolve-SPSSqlAlias`, `Set-SPSCredSSPClient`, `Get-SPSWeatherHistory`,
+  `Get-SPSWeatherRowSeverity` and `New-SPSDashboardSite`. Tests only, no change to
+  shipped module behavior (#68).
+- CI: the Pester workflow gains a `test-ps51` job running the suite under Windows
+  PowerShell 5.1 (the production runtime), PSScriptAnalyzer now analyzes `./src -Recurse`
+  (including `New-SPSDashboardSite.ps1`), and the Windows-only test guards no longer rely on
+  `$IsWindows` (undefined on 5.1) (#68).
+
 ## [3.1.0] - 2026-11-13
 
 ### Added
