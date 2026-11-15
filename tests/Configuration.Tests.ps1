@@ -35,6 +35,11 @@ Describe 'Example configuration (config.psd1)' {
         $cfg.ExclusionRules.Contains('SPSiteHttpStatus') | Should -BeTrue
     }
 
+    It 'exposes SMTPEnabled and SMTPPreview as booleans' {
+        $cfg.SMTPEnabled | Should -BeOfType ([bool])
+        $cfg.SMTPPreview | Should -BeOfType ([bool])
+    }
+
     It 'keeps SMTPToAddress as an array' {
         $cfg.SMTPToAddress -is [array] | Should -BeTrue
     }

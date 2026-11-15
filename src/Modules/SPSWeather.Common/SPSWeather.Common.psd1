@@ -46,6 +46,7 @@
         'Import-SPSSharePointCommand'
         'ConvertTo-SPSWeatherEmailBody'
         'Remove-SPSSheduledTask'
+        'Resolve-SPSSmtpSetting'
         'Resolve-SPSSqlAlias'
         'Set-SPSCredSSPClient'
         'Set-SPSSecret'

@@ -5,7 +5,7 @@
 - **PowerShell 5.1** (Windows Management Framework 5.0 or above) on every farm server. SPSWeather uses class-based reporting types that require WMF 5.0+.
 - **CredSSP** configured (see below) so the script can remote into each farm server as the service account.
 - **Administrative privileges** on the server that runs SPSWeather (required to create the `SPSWeather` Windows Event Log on first use and to call most SharePoint cmdlets).
-- An **SMTP server** reachable from the run server (only needed with `-EnableSmtp`).
+- An **SMTP server** reachable from the run server (only needed when `SMTPEnabled = $true`; without a relay, use `SMTPPreview = $true` to review the email as an HTML file).
 - A **service account** that can reach the farms; its credential is stored in `Config\secrets.psd1` (see [Configuration](Configuration)).
 
 ## Configure CredSSP
@@ -40,13 +40,13 @@ xCredSSP CredSSPClient { Ensure = "Present"; Role = "Client"; DelegateComputers 
 
 ## First run
 
-Trigger a one-off run (with email) to validate the setup:
+Trigger a one-off run to validate the setup:
 
 ```powershell
-.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -EnableSmtp
+.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1'
 ```
 
-The HTML report is written under `Results\` and, with `-EnableSmtp`, emailed to the configured recipients. Lifecycle events are written to the `SPSWeather` Windows Event Log.
+The JSON snapshots are written under `Results\` and the dashboards to the configured `Dashboard.OutputPath`. With `SMTPEnabled = $true` the alert email is sent to the configured recipients; with `SMTPPreview = $true` its HTML is also written to `Results\<App>-<Env>-<Farm>-mail.html`. Lifecycle events are written to the `SPSWeather` Windows Event Log.
 
 ## Next step
 

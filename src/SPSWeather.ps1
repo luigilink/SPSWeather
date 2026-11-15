@@ -10,8 +10,11 @@
     PS D:\> E:\SCRIPT\SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1'
 
     .PARAMETER EnableSmtp
-    Use the switch EnableSmtp parameter if you want to enable Email notifications using SMTP
-    PS D:\> E:\SCRIPT\SPSWeather.ps1 -EnableSmtp
+    DEPRECATED (removed in 4.0.0): set SMTPEnabled = $true in the environment configuration file
+    instead. While SMTPEnabled is not defined, the switch still enables the email notification
+    (so scheduled tasks created by earlier versions keep working); when SMTPEnabled is defined,
+    the configuration file takes precedence and the switch is ignored.
+    PS D:\> E:\SCRIPT\SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -EnableSmtp
 
     .PARAMETER Action
     Use the Action parameter to manage the scheduled task. Accepted values:
@@ -24,7 +27,7 @@
     PS D:\> E:\SCRIPT\SPSWeather.ps1 -Action Install -InstallAccount (Get-Credential) -ConfigFile 'contoso-PROD.psd1'
 
     .EXAMPLE
-    SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -EnableSmtp
+    SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1'
     SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -Action Install -InstallAccount (Get-Credential)
     SPSWeather.ps1 -ConfigFile 'contoso-PROD.psd1' -Action Uninstall
 
@@ -106,6 +109,13 @@ Write-Output "| Automated Script - SPSWeather v$spsWeatherVersion"
 Write-Output "| Started on : $DateStarted by $currentUser"
 Write-Output "| PowerShell Version: $psVersion"
 Write-Output '-------------------------------------'
+
+# Email behavior: SMTPEnabled / SMTPPreview from the configuration, with the deprecated
+# -EnableSmtp switch as a fallback while SMTPEnabled is not defined. Resolved after
+# Start-Transcript so the warnings (e.g. sending turned off because a relay setting is
+# missing) are kept in the log of an unattended run.
+$smtpSetting = Resolve-SPSSmtpSetting -Config $envCfg -EnableSmtp:$EnableSmtp
+foreach ($smtpMessage in $smtpSetting.Messages) { Write-Warning -Message $smtpMessage }
 
 # Check UserName and Password if Install action is used
 if ($Action -eq 'Install') {
@@ -191,8 +201,15 @@ else {
         # decrypted at run time by the scheduled task.
         Set-SPSSecret -CredentialKey $envCfg.CredentialKey -Credential $InstallAccount -ConfigPath $pathConfigFolder
 
-        # Add SPSWeather script in a new scheduled Task
-        Add-SPSSheduledTask -ExecuteAsCredential $InstallAccount -TaskName $spWeatherTaskName -ActionArguments "-Execution Bypass $($scriptRootPath)\SPSWeather.ps1 -ConfigFile $($ConfigFile) -EnableSMTP"
+        # Add SPSWeather script in a new scheduled Task. The deprecated -EnableSMTP switch is
+        # only dropped when the configuration defines SMTPEnabled: removing it blindly would
+        # silently stop the emails of configurations that still rely on the switch.
+        $taskArguments = "-Execution Bypass $($scriptRootPath)\SPSWeather.ps1 -ConfigFile $($ConfigFile)"
+        if (-not $smtpSetting.ConfigDefinesEnabled) {
+            $taskArguments += ' -EnableSMTP'
+            Write-Warning -Message "SMTPEnabled is not defined in ${ConfigFile}: the scheduled task keeps the deprecated -EnableSMTP switch. Add SMTPEnabled = `$true to the configuration file and run -Action Install again to drop it."
+        }
+        Add-SPSSheduledTask -ExecuteAsCredential $InstallAccount -TaskName $spWeatherTaskName -ActionArguments $taskArguments
 
         # Configure the CredSSP client role so this host (which may not be a SharePoint
         # server) can reach the farms. The server side stays owned by DSC on the farms.
@@ -253,6 +270,11 @@ else {
         # must not be published/emailed as healthy.
         $probedFarms = New-Object System.Collections.ArrayList
         Add-SPSWeatherEvent -Message "SPSWeather $spsWeatherVersion started for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1000
+        # An unattended run has nobody watching the console: also record the email configuration
+        # warnings in the Event Log, so a mail that stops being sent leaves a trace.
+        foreach ($smtpMessage in $smtpSetting.Messages) {
+            Add-SPSWeatherEvent -Message "SPSWeather email configuration: $smtpMessage" -EntryType 'Warning' -EventID 2001
+        }
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
             Write-Output '--------------------------------------------------------------'
@@ -553,7 +575,15 @@ else {
                     Add-SPSWeatherEvent -Message "SPSWeather completed with no alert for $Application/$Environment farm '$farmName'." -EntryType 'Information' -EventID 1001
                 }
 
-                if ($EnableSmtp) {
+                # Preview: keep the email body next to the JSON snapshot (overwritten at each run),
+                # before any send attempt, so it can be reviewed without an SMTP relay.
+                if ($smtpSetting.Preview) {
+                    $mailPreviewFile = Join-Path -Path $pathResultsFolder -ChildPath ($farmStem + '-mail.html')
+                    Set-Content -Path $mailPreviewFile -Value $mailHTMLBody -Encoding UTF8 -Force
+                    Write-Output " * Email preview ($mailSubject): $mailPreviewFile"
+                }
+
+                if ($smtpSetting.Send) {
                     $SmtpToAddress = $envCfg.SMTPToAddress
                     $SmtpFromAddress = $envCfg.SMTPFromAddress
                     $SmtpServerAddress = $envCfg.SMTPServer
