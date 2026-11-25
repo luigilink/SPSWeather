@@ -142,6 +142,26 @@ if ($null -ne $cfg) {
         }
     }
 
+    # Language (optional): display language of the dashboard and the email. A language that is not
+    # available is a WARN, never a FAIL: the run falls back to English.
+    if ($cfg.Contains('Language')) {
+        if (Get-Command -Name Resolve-SPSWeatherLanguage -ErrorAction SilentlyContinue) {
+            $languageCheck = Resolve-SPSWeatherLanguage -Language $cfg['Language']
+            if ($languageCheck.Messages.Count -gt 0) {
+                Add-CheckResult -Section 'Config' -Name "Key 'Language'" -Status 'WARN' -Detail ($languageCheck.Messages -join ' ')
+            }
+            elseif ($languageCheck.Requested -ieq 'auto') {
+                Add-CheckResult -Section 'Config' -Name "Key 'Language'" -Status 'PASS' -Detail "auto -> $($languageCheck.Culture) for this session (the account that runs the task may differ)"
+            }
+            else {
+                Add-CheckResult -Section 'Config' -Name "Key 'Language'" -Status 'PASS' -Detail $languageCheck.Culture
+            }
+        }
+        else {
+            Add-CheckResult -Section 'Config' -Name "Key 'Language'" -Status 'SKIP' -Detail 'SPSWeather.Common is not loaded'
+        }
+    }
+
     foreach ($key in @('ConfigurationName', 'ApplicationName', 'Domain', 'SMTPToAddress', 'SMTPFromAddress', 'SMTPServer', 'CredentialKey', 'Farms')) {
         # The SMTP settings use the runtime's emptiness rule (Resolve-SPSSmtpSetting): '', blanks
         # and an empty array count as missing, otherwise the pre-flight is green and no mail is sent.

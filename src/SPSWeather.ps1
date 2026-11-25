@@ -117,6 +117,11 @@ Write-Output '-------------------------------------'
 $smtpSetting = Resolve-SPSSmtpSetting -Config $envCfg -EnableSmtp:$EnableSmtp
 foreach ($smtpMessage in $smtpSetting.Messages) { Write-Warning -Message $smtpMessage }
 
+# Display language of the dashboard and the email (Language in the configuration, en-US by
+# default). An unavailable language falls back to English with a warning.
+$languageSetting = Resolve-SPSWeatherLanguage -Language $envCfg.Language
+foreach ($languageMessage in $languageSetting.Messages) { Write-Warning -Message $languageMessage }
+
 # Check UserName and Password if Install action is used
 if ($Action -eq 'Install') {
     if ($null -eq $InstallAccount) {
@@ -274,6 +279,9 @@ else {
         # warnings in the Event Log, so a mail that stops being sent leaves a trace.
         foreach ($smtpMessage in $smtpSetting.Messages) {
             Add-SPSWeatherEvent -Message "SPSWeather email configuration: $smtpMessage" -EntryType 'Warning' -EventID 2001
+        }
+        foreach ($languageMessage in $languageSetting.Messages) {
+            Add-SPSWeatherEvent -Message "SPSWeather language configuration: $languageMessage" -EntryType 'Warning' -EventID 2001
         }
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
@@ -544,7 +552,8 @@ else {
                         -Version $spsWeatherVersion `
                         -ExecutedBy $currentUser `
                         -Duration $runDuration `
-                        -History $farmHistory)
+                        -History $farmHistory `
+                        -Language $languageSetting.Culture)
                 Write-Output " * Dashboard: $dashFile"
 
                 $dashUrl = if ($dashBaseUrl) { "$dashBaseUrl/$($farmStem)-dashboard.html" } else { '' }
@@ -557,7 +566,8 @@ else {
                     -ExecutedBy $currentUser `
                     -Duration $runDuration `
                     -DashboardUrl $dashUrl `
-                    -MaxItemsPerArea $emailMaxItemsPerArea
+                    -MaxItemsPerArea $emailMaxItemsPerArea `
+                    -Language $languageSetting.Culture
 
                 # Outcome from the shared severity counts: failures -> ALERT/High,
                 # warnings only -> WARN/Normal, otherwise OK.

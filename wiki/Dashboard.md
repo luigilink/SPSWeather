@@ -20,6 +20,9 @@ IIS site (as SPSUpdate does), so operators browse a stable URL per farm.
 
 The dashboard replaces the legacy full-table HTML report; data collection is unchanged.
 
+The dashboard and the email are shown in English by default; set `Language = 'fr-FR'` in the
+configuration for French. See [Localization](Localization).
+
 ## Configuration
 
 Add a `Dashboard` block to your environment config:

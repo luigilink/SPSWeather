@@ -84,7 +84,7 @@ SPSWeather writes lifecycle entries to a dedicated **`SPSWeather`** Windows Even
 | 1000 | Information | A health-check run started. |
 | 1001 | Information | The run completed with no alert. |
 | 2000 | Warning | The run completed with **ALERT** conditions. |
-| 2001 | Warning | The email configuration needs attention (invalid `SMTPEnabled`/`SMTPPreview`, missing relay setting so no email is sent, deprecated `-EnableSmtp`). |
+| 2001 | Warning | A configuration setting needs attention: the email settings (invalid `SMTPEnabled`/`SMTPPreview`, missing relay setting so no email is sent, deprecated `-EnableSmtp`) or a `Language` that is not available (English is used). |
 | 3000 | Error | The report email could not be sent. |
 | 3001 | Error | A farm server was unreachable over CredSSP and was skipped. |
 

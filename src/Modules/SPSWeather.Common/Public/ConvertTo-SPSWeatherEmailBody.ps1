@@ -16,6 +16,11 @@
         .PARAMETER MaxItemsPerArea
         Maximum number of items listed per area. Defaults to 10; 0 lists everything.
 
+        .PARAMETER Language
+        Display language of the email: a culture name such as 'fr-FR', 'auto' (UI culture of the
+        process) or nothing for en-US. An unknown language falls back to en-US. Only the labels are
+        translated; the values of the checks are shown as collected.
+
         .EXAMPLE
         ConvertTo-SPSWeatherEmailBody -InputObject $farmReport -Summary $res.Summary `
             -Farm 'CONTENT' -Application 'zebes' -Environment 'PROD' -DashboardUrl $url
@@ -63,7 +68,11 @@
         [Parameter()]
         [ValidateRange(0, [int]::MaxValue)]
         [System.Int32]
-        $MaxItemsPerArea = 10
+        $MaxItemsPerArea = 10,
+
+        [Parameter()]
+        [System.String]
+        $Language = 'en-US'
     )
 
     function _enc([object]$v) {
@@ -71,6 +80,35 @@
         return [System.Net.WebUtility]::HtmlEncode([string]$v)
     }
     function _sev($row) { Get-SPSWeatherRowSeverity -Row $row }
+
+    # Display strings of the chosen language (English underneath: a missing key shows the English
+    # text). _t formats a string with the arguments that follow its key, using the language's
+    # culture; _th HTML-encodes the template first and inserts its arguments as ready-made HTML;
+    # _count picks the singular or plural form of a counted noun.
+    $text = Get-SPSWeatherResource -Language $Language
+    $english = Get-SPSWeatherResource -Language 'en-US'
+    $ci = try { [System.Globalization.CultureInfo]::GetCultureInfo([string]$text.Culture) } catch { [System.Globalization.CultureInfo]::InvariantCulture }
+    function _t([string]$key) {
+        $s = $text[$key]
+        if ($null -eq $s) { return $key }
+        if ($args.Count -gt 0) {
+            # A label must never stop the report: if the text cannot be formatted with these arguments,
+            # fall back to the English text rather than throwing.
+            try { return [string]::Format($ci, $s, [object[]]$args) }
+            catch { return [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, $english[$key], [object[]]$args) }
+        }
+        return $s
+    }
+    function _th([string]$key) {
+        $s = $text[$key]
+        if ($null -eq $s) { $s = $key }
+        try { return [string]::Format($ci, (_enc $s), [object[]]$args) }
+        catch { return [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, (_enc $english[$key]), [object[]]$args) }
+    }
+    function _count([int]$n, [string]$base) {
+        $key = if ($n -gt 1) { "${base}Many" } else { "${base}One" }
+        return (_t $key $n)
+    }
     # First non-empty property value from a row, among candidate names.
     function _first($row, [string[]]$names) {
         foreach ($n in $names) {
@@ -91,17 +129,17 @@
         return $null
     }
     function _pct([decimal]$p) {
-        return ([double]$p).ToString('0.##', [System.Globalization.CultureInfo]::InvariantCulture) + '% free'
+        return (_t 'FreePercent' ([double]$p).ToString('0.##', $ci))
     }
 
-    # section -> area display (icon + title) for grouping alerts
+    # section -> (icon, area id) for grouping alerts; the area name is the Area_<id> resource
     $areaOf = @{
-        SPUpgradeStatus = @('&#127970;', 'Farm & Upgrade'); SPAPIHttpStatus = @('&#127760;', 'Trust Farm (REST)'); SPSSitesHttpStatus = @('&#127760;', 'Trust Farm (REST)')
+        SPUpgradeStatus = @('&#127970;', 'FarmUpgrade'); SPAPIHttpStatus = @('&#127760;', 'TrustFarm'); SPSSitesHttpStatus = @('&#127760;', 'TrustFarm')
         SPSearchLastCrawlStatus = @('&#128269;', 'Search'); SPSearchCrawlLogs = @('&#128269;', 'Search'); SPSSearchEntTopology = @('&#128269;', 'Search')
-        AppFabricStatus = @('&#9889;', 'Distributed Cache'); SPFailedTimerJobs = @('&#9201;', 'Timer Jobs'); SPSolutionDeployment = @('&#9201;', 'Solutions'); USPAudienceStatus = @('&#9201;', 'User Profiles')
-        SPHealthAnalyzer = @('&#129657;', 'Health Analyzer'); IISApplicationPoolStatus = @('&#128421;', 'IIS'); IISWorkerProcessStatus = @('&#128421;', 'IIS'); IISWebSiteCertStatus = @('&#128421;', 'IIS')
+        AppFabricStatus = @('&#9889;', 'DistributedCache'); SPFailedTimerJobs = @('&#9201;', 'TimerJobs'); SPSolutionDeployment = @('&#9201;', 'Solutions'); USPAudienceStatus = @('&#9201;', 'UserProfiles')
+        SPHealthAnalyzer = @('&#129657;', 'HealthAnalyzer'); IISApplicationPoolStatus = @('&#128421;', 'IIS'); IISWorkerProcessStatus = @('&#128421;', 'IIS'); IISWebSiteCertStatus = @('&#128421;', 'IIS')
         SYSDiskUsageStatus = @('&#129513;', 'System'); SYSLastRebootStatus = @('&#129513;', 'System'); SYSEventViewerAppErrors = @('&#129513;', 'System')
-        SPSContentDBStatus = @('&#128451;', 'SQL Server'); SQLInstanceStatus = @('&#128451;', 'SQL Server'); SQLDatabaseStatus = @('&#128451;', 'SQL Server'); SQLDiskStatus = @('&#128451;', 'SQL Server'); SQLAvailabilityStatus = @('&#128451;', 'SQL Server'); SQLAliasStatus = @('&#128451;', 'SQL Server')
+        SPSContentDBStatus = @('&#128451;', 'SQL'); SQLInstanceStatus = @('&#128451;', 'SQL'); SQLDatabaseStatus = @('&#128451;', 'SQL'); SQLDiskStatus = @('&#128451;', 'SQL'); SQLAvailabilityStatus = @('&#128451;', 'SQL'); SQLAliasStatus = @('&#128451;', 'SQL')
     }
     # section -> (label fields, detail fields) to compose a one-line alert
     $lineOf = @{
@@ -127,7 +165,7 @@
         SQLAvailabilityStatus   = @{ Label = @('Name', 'SqlServer'); Detail = @('Detail') }
         SQLAliasStatus          = @{ Label = @('Name'); Detail = @('Note') }
     }
-    $areaOrder = @('Farm & Upgrade', 'Trust Farm (REST)', 'Search', 'Distributed Cache', 'Timer Jobs', 'Solutions', 'User Profiles', 'Health Analyzer', 'IIS', 'System', 'SQL Server')
+    $areaOrder = @('FarmUpgrade', 'TrustFarm', 'Search', 'DistributedCache', 'TimerJobs', 'Solutions', 'UserProfiles', 'HealthAnalyzer', 'IIS', 'System', 'SQL')
 
     # Collect alerts (non-ok rows), grouped by area.
     $groups = [ordered]@{}
@@ -188,12 +226,12 @@
     $attention = ($groups.Keys | ForEach-Object { $groups[$_].Items.Count } | Measure-Object -Sum).Sum
     if (-not $attention) { $attention = 0 }
 
-    if ($totalFail -gt 5) { $wx = '&#9928;&#65039;'; $wxLabel = 'Stormy' }
-    elseif ($totalFail -gt 0) { $wx = '&#9925;'; $wxLabel = 'Cloudy' }
-    elseif ($totalWarn -gt 0) { $wx = '&#127780;&#65039;'; $wxLabel = 'Fair' }
-    else { $wx = '&#9728;&#65039;'; $wxLabel = 'Sunny' }
+    if ($totalFail -gt 5) { $wx = '&#9928;&#65039;'; $wxLabel = _enc (_t 'WeatherStormy') }
+    elseif ($totalFail -gt 0) { $wx = '&#9925;'; $wxLabel = _enc (_t 'WeatherCloudy') }
+    elseif ($totalWarn -gt 0) { $wx = '&#127780;&#65039;'; $wxLabel = _enc (_t 'WeatherFair') }
+    else { $wx = '&#9728;&#65039;'; $wxLabel = _enc (_t 'WeatherSunny') }
 
-    $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm')
+    $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
     $envText = _enc ((@($Application, $Environment) | Where-Object { $_ }) -join ' / ')
 
     # Build alert groups HTML.
@@ -206,7 +244,7 @@
         $hc = if ($hasFail) { '#b93b3b' } else { '#a86a24' }
         $bd = if ($hasFail) { '#f1d6d6' } else { '#f4e2cf' }
         $n = $g.Items.Count
-        [void]$groupsHtml.Append("<table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`" style=`"margin-bottom:12px;border:1px solid $bd;border-radius:10px;overflow:hidden;`"><tr><td style=`"background:$hb;padding:8px 14px;font-size:12px;font-weight:700;color:$hc;`">$($g.Icon) $(_enc $area) &nbsp;&middot;&nbsp; $n item$(if ($n -gt 1) { 's' })</td></tr>")
+        [void]$groupsHtml.Append("<table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`" style=`"margin-bottom:12px;border:1px solid $bd;border-radius:10px;overflow:hidden;`"><tr><td style=`"background:$hb;padding:8px 14px;font-size:12px;font-weight:700;color:$hc;`">$($g.Icon) $(_enc (_t "Area_$area")) &nbsp;&middot;&nbsp; $(_enc (_count $n 'ItemCount'))</td></tr>")
         # Worst first (failures, then warnings; order otherwise preserved), then cap the list.
         $rows = @(@($g.Items | Where-Object { $_.Sev -eq 'fail' }) + @($g.Items | Where-Object { $_.Sev -ne 'fail' }))
         $hidden = @()
@@ -224,14 +262,14 @@
             $hf = @($hidden | Where-Object { $_.Sev -eq 'fail' }).Count
             $hw = $hidden.Count - $hf
             $parts = @()
-            if ($hf -gt 0) { $parts += "$hf failure$(if ($hf -gt 1) { 's' })" }
-            if ($hw -gt 0) { $parts += "$hw warning$(if ($hw -gt 1) { 's' })" }
-            [void]$groupsHtml.Append("<tr><td style=`"padding:10px 14px;font-size:12px;color:#6b7280;font-style:italic;`">+ $($hidden.Count) more ($($parts -join ', ')) &mdash; see the dashboard for the full list</td></tr>")
+            if ($hf -gt 0) { $parts += _count $hf 'Failure' }
+            if ($hw -gt 0) { $parts += _count $hw 'Warning' }
+            [void]$groupsHtml.Append("<tr><td style=`"padding:10px 14px;font-size:12px;color:#6b7280;font-style:italic;`">$(_enc (_t 'MoreItems' $hidden.Count ($parts -join ', '))) &mdash; $(_enc (_t 'MoreSeeDashboard'))</td></tr>")
         }
         [void]$groupsHtml.Append('</table>')
     }
     if ($attention -eq 0) {
-        [void]$groupsHtml.Append("<table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`" style=`"border:1px solid #cfe9d9;border-radius:10px;`"><tr><td style=`"padding:14px;font-size:13px;color:#2c6b48;background:#e6f7ee;border-radius:10px;`"><b>All clear.</b> No item needs attention on this farm.</td></tr></table>")
+        [void]$groupsHtml.Append("<table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`" style=`"border:1px solid #cfe9d9;border-radius:10px;`"><tr><td style=`"padding:14px;font-size:13px;color:#2c6b48;background:#e6f7ee;border-radius:10px;`"><b>$(_enc (_t 'AllClearTitle'))</b> $(_enc (_t 'AllClearText'))</td></tr></table>")
     }
 
     $ctaHtml = ''
@@ -240,19 +278,19 @@
         $ctaHtml = @"
   <tr><td align="center" style="padding:20px 26px 24px;">
     <table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" style="background:#2b5797;border-radius:10px;">
-      <a href="$encUrl" style="display:inline-block;padding:13px 30px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">Open full dashboard &rarr;</a>
+      <a href="$encUrl" style="display:inline-block;padding:13px 30px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">$(_enc (_t 'OpenDashboard')) &rarr;</a>
     </td></tr></table>
     <div style="margin-top:10px;font-size:11px;color:#9aa4b2;">$encUrl</div>
   </td></tr>
 "@
     }
 
-    $intro = if ($attention -gt 0) { "<b>$attention item$(if ($attention -gt 1) { 's' })</b> need your attention on <b>$envText</b>. Full detail is in the dashboard." } else { "No item needs attention on <b>$envText</b>." }
-    $farmText = if ($Farm) { "Farm $(_enc $Farm) &middot; " } else { '' }
+    $intro = if ($attention -gt 0) { _th 'IntroAttention' "<b>$(_enc (_count $attention 'ItemCount'))</b>" "<b>$envText</b>" } else { _th 'IntroClear' "<b>$envText</b>" }
+    $farmText = if ($Farm) { "$(_enc (_t 'FarmLabel')) $(_enc $Farm) &middot; " } else { '' }
 
     $body = @"
 <!DOCTYPE html>
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<html lang="$(_enc (_t 'HtmlLang'))" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -267,22 +305,22 @@
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="font-size:34px;line-height:1;width:46px;">$wx</td>
       <td style="color:#ffffff;"><div style="font-size:19px;font-weight:700;">SPSWeather &mdash; $envText</div><div style="font-size:12px;color:#cdd8ea;margin-top:3px;">$farmText$generated</div></td>
-      <td align="right" style="color:#ffffff;"><div style="font-size:11px;color:#cdd8ea;text-transform:uppercase;letter-spacing:.06em;">Weather</div><div style="font-size:18px;font-weight:800;">$wxLabel</div></td>
+      <td align="right" style="color:#ffffff;"><div style="font-size:11px;color:#cdd8ea;text-transform:uppercase;letter-spacing:.06em;">$(_enc (_t 'WeatherLabel'))</div><div style="font-size:18px;font-weight:800;">$wxLabel</div></td>
     </tr></table>
   </td></tr>
   <tr><td style="padding:16px 26px 6px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td width="33%" align="center" style="padding:10px;background:#fdeaea;border-radius:10px;"><div style="font-size:26px;font-weight:800;color:#e24a4a;line-height:1;">$totalFail</div><div style="font-size:11px;color:#8a4a4a;text-transform:uppercase;letter-spacing:.05em;">Failures</div></td>
+      <td width="33%" align="center" style="padding:10px;background:#fdeaea;border-radius:10px;"><div style="font-size:26px;font-weight:800;color:#e24a4a;line-height:1;">$totalFail</div><div style="font-size:11px;color:#8a4a4a;text-transform:uppercase;letter-spacing:.05em;">$(_enc (_t 'KpiFailures'))</div></td>
       <td width="8"></td>
-      <td width="33%" align="center" style="padding:10px;background:#fdf1e4;border-radius:10px;"><div style="font-size:26px;font-weight:800;color:#e8923a;line-height:1;">$totalWarn</div><div style="font-size:11px;color:#8a6530;text-transform:uppercase;letter-spacing:.05em;">Warnings</div></td>
+      <td width="33%" align="center" style="padding:10px;background:#fdf1e4;border-radius:10px;"><div style="font-size:26px;font-weight:800;color:#e8923a;line-height:1;">$totalWarn</div><div style="font-size:11px;color:#8a6530;text-transform:uppercase;letter-spacing:.05em;">$(_enc (_t 'KpiWarnings'))</div></td>
       <td width="8"></td>
-      <td width="33%" align="center" style="padding:10px;background:#e6f7ee;border-radius:10px;"><div style="font-size:26px;font-weight:800;color:#2fae66;line-height:1;">$kOk</div><div style="font-size:11px;color:#2c6b48;text-transform:uppercase;letter-spacing:.05em;">Checks OK</div></td>
+      <td width="33%" align="center" style="padding:10px;background:#e6f7ee;border-radius:10px;"><div style="font-size:26px;font-weight:800;color:#2fae66;line-height:1;">$kOk</div><div style="font-size:11px;color:#2c6b48;text-transform:uppercase;letter-spacing:.05em;">$(_enc (_t 'KpiChecksOk'))</div></td>
     </tr></table>
   </td></tr>
   <tr><td style="padding:14px 26px 2px;font-size:14px;color:#1b2733;">$intro</td></tr>
   <tr><td style="padding:10px 26px 4px;">$($groupsHtml.ToString())</td></tr>
 $ctaHtml
-  <tr><td style="background:#f6f8fb;border-top:1px solid #e3e8ef;padding:14px 26px;font-size:11px;color:#9aa4b2;">SPSWeather $(_enc $Version) &middot; executed by $(_enc $ExecutedBy) &middot; run $(_enc $Duration) &middot; $kOk OK / $totalWarn warn / $totalFail fail.</td></tr>
+  <tr><td style="background:#f6f8fb;border-top:1px solid #e3e8ef;padding:14px 26px;font-size:11px;color:#9aa4b2;">SPSWeather $(_enc $Version) &middot; $(_enc (_t 'FooterExecutedBy')) $(_enc $ExecutedBy) &middot; $(_enc (_t 'FooterRun')) $(_enc $Duration) &middot; $(_enc (_t 'CountsSummary' $kOk $totalWarn $totalFail)).</td></tr>
 </table>
 </td></tr></table>
 </body></html>

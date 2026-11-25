@@ -40,6 +40,12 @@ Describe 'Example configuration (config.psd1)' {
         $cfg.SMTPPreview | Should -BeOfType ([bool])
     }
 
+    It 'documents the Language key with the default culture' {
+        $cfg.Keys | Should -Contain 'Language'
+        $cfg.Language | Should -BeOfType ([string])
+        $cfg.Language | Should -Be 'en-US'
+    }
+
     It 'keeps SMTPToAddress as an array' {
         $cfg.SMTPToAddress -is [array] | Should -BeTrue
     }

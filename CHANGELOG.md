@@ -5,6 +5,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Localization of the dashboard and of the alert email, with a French (`fr-FR`) translation.
+  The labels live in resource files, one per culture (`<module>\<culture>\SPSWeather.Common.Strings.psd1`),
+  and the new `Language` key of the environment configuration (`en-US` by default, `fr-FR`, or
+  `auto`) selects the language. A culture missing a translation shows the English text, and an
+  unavailable language falls back to English with a warning (transcript, Event Log ID 2001,
+  readiness `[WARN]`). With the default language the output is byte-identical to the previous
+  version. Only the display is translated: the values of the checks, the detail-table column headers,
+  the email subject tags `[ALERT]`/`[WARN]`/`[OK]` and the Event Log messages stay in English, because
+  the severity model, the history and existing mail rules rely on them. New exported function
+  `Resolve-SPSWeatherLanguage`; `-Language` on `Export-SPSWeatherReport` and
+  `ConvertTo-SPSWeatherEmailBody`. See the wiki page *Localization* (#96).
+- A translation file is validated before use (`Culture` equal to its folder, placeholders that exist
+  in the English text, no stray brace). A defective file, a value that is not text, or a label that
+  cannot be formatted never stops a report: the English text is shown and the reason is reported
+  like any unavailable language (#96).
+
+### Fixed
+
+- The history title of the dashboard said `last 1 runs` on the first run; it now reads `last run`
+  (singular and plural are separate labels). The dates under the history bars follow the language
+  (`dd/MM` in French) and no longer depend on the culture of the host (#96).
+
 ## [3.3.0] - 2026-11-15
 
 ### Added

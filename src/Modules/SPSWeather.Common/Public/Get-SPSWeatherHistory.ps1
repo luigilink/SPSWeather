@@ -7,8 +7,10 @@
         Scans a farm history folder for archived *.json snapshots, classifies each run's
         rows into Ok/Warn/Fail with the same severity convention as the report renderer,
         and returns an ordered array (oldest first, capped at -Max) of objects shaped
-        { Date; Ok; Warn; Fail }. The current run is appended by the renderer itself, so
-        this returns PAST runs only.
+        { Date; Ok; Warn; Fail; When }. Date is a 'MM-dd' text (the original contract); When is
+        the same moment as a [datetime], so the renderer can write it in the order of the
+        display language. The current run is appended by the renderer itself, so this returns
+        PAST runs only.
 
         .PARAMETER HistoryFolder
         Folder holding the per-farm *.json snapshots (Backup-SPSWeatherJsonFile output).
@@ -55,7 +57,8 @@
             }
         }
         [PSCustomObject]@{
-            Date = $file.LastWriteTime.ToString('MM-dd')
+            Date = $file.LastWriteTime.ToString('MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
+            When = $file.LastWriteTime
             Ok   = $ok
             Warn = $warn
             Fail = $fail

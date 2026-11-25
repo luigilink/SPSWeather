@@ -49,6 +49,42 @@ Describe 'Get-SPSWeatherHistory' {
         }
     }
 
+    It 'gives every run a When date next to the MM-dd text, so a language can format it' {
+        $folder = Join-Path -Path $TestDrive -ChildPath 'hist-when'
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null
+        $file = Join-Path -Path $folder -ChildPath 'a-20260304-0000.json'
+        ([PSCustomObject]@{ SPAPIHttpStatus = @([PSCustomObject]@{ IsInfo = $true }) } | ConvertTo-Json -Depth 4) | Set-Content -Path $file
+        (Get-Item $file).LastWriteTime = [datetime]'2026-03-04T10:00:00'
+
+        InModuleScope SPSWeather.Common -Parameters @{ Folder = $folder } {
+            param($Folder)
+            $run = @(Get-SPSWeatherHistory -HistoryFolder $Folder)[0]
+            $run.When | Should -BeOfType [datetime]
+            $run.When.Month | Should -Be 3
+            $run.When.Day | Should -Be 4
+            $run.Date | Should -Be '03-04'
+        }
+    }
+
+    It 'writes the Date text with ASCII digits whatever the host calendar' {
+        $folder = Join-Path -Path $TestDrive -ChildPath 'hist-calendar'
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null
+        $file = Join-Path -Path $folder -ChildPath 'a-20260304-0000.json'
+        ([PSCustomObject]@{ SPAPIHttpStatus = @([PSCustomObject]@{ IsInfo = $true }) } | ConvertTo-Json -Depth 4) | Set-Content -Path $file
+        (Get-Item $file).LastWriteTime = [datetime]'2026-03-04T10:00:00'
+        $previous = [System.Threading.Thread]::CurrentThread.CurrentCulture
+        try {
+            foreach ($hostCulture in 'th-TH', 'ar-SA', 'fa-IR') {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo($hostCulture)
+                InModuleScope SPSWeather.Common -Parameters @{ Folder = $folder } {
+                    param($Folder)
+                    @(Get-SPSWeatherHistory -HistoryFolder $Folder)[0].Date | Should -Be '03-04'
+                }
+            }
+        }
+        finally { [System.Threading.Thread]::CurrentThread.CurrentCulture = $previous }
+    }
+
     It 'caps the series at -Max most recent runs' {
         $folder = Join-Path -Path $TestDrive -ChildPath 'hist-cap'
         New-Item -Path $folder -ItemType Directory -Force | Out-Null
