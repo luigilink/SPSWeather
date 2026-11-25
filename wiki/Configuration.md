@@ -50,6 +50,7 @@ Copy `Config\CONTOSO-PROD.example.psd1` and edit it:
 | `SMTPToAddress` | Array of report recipients (required when `SMTPEnabled = $true`). |
 | `SMTPFromAddress` / `SMTPServer` | Sender address and SMTP relay (required when `SMTPEnabled = $true`). If one of the three SMTP settings is missing while sending is on, the email is skipped with a warning. |
 | `EmailMaxItemsPerArea` | Optional. Maximum items listed per area in the alert email (default `10`, `0` = no limit); the rest is summarized as "+ N more". Counters are never capped. |
+| `Language` | Optional. Display language of the dashboard and the alert email: `en-US` (default) or `fr-FR`, or `auto` for the UI culture of the account that runs the script. Only the labels are translated; the values of the checks stay as collected. An unknown value falls back to English with a warning. See [Localization](Localization). |
 | `CredentialKey` | Name of the entry in `secrets.psd1` that holds the service credential. |
 | `ExclusionRules` | Checks to skip (see below). |
 | `Dashboard` | `@{ OutputPath; Url }` — where the per-farm dashboard HTML is written and the public IIS base used for the email CTA (see [Dashboard](Dashboard)). |

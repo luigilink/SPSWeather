@@ -7,6 +7,7 @@
 - [📖 Usage](Usage)
 - [🩺 Health Checks](Health-Checks)
 - [📊 Dashboard](Dashboard)
+- [🌐 Localization](Localization)
 - [📦 Release Process](Release-Process)
 
 ---
