@@ -349,6 +349,13 @@ Describe 'Alert email language (ConvertTo-SPSWeatherEmailBody -Language)' {
                 (Get-Mail -Report $report -Language 'en-US' -Cap 0).Text | Should -Match '5\.25% free' -Because "host culture $hostCulture"
             }
         }
+
+        It 'stamps the generation time with a Gregorian year whatever the host calendar (Thai Buddhist, Arabic Hijri, Persian)' {
+            foreach ($hostCulture in 'th-TH', 'ar-SA', 'fa-IR') {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo($hostCulture)
+                (Get-Mail -Report $report -Language 'en-US' -Cap 0).Text | Should -Match ('(?<!\d)' + (Get-Date).Year.ToString([System.Globalization.CultureInfo]::InvariantCulture) + '-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}') -Because "host culture $hostCulture"
+            }
+        }
     }
 }
 

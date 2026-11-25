@@ -57,7 +57,7 @@
             }
         }
         [PSCustomObject]@{
-            Date = $file.LastWriteTime.ToString('MM-dd')
+            Date = $file.LastWriteTime.ToString('MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
             When = $file.LastWriteTime
             Ok   = $ok
             Warn = $warn

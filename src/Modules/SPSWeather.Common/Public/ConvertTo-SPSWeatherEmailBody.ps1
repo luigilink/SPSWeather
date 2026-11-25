@@ -231,7 +231,7 @@
     elseif ($totalWarn -gt 0) { $wx = '&#127780;&#65039;'; $wxLabel = _enc (_t 'WeatherFair') }
     else { $wx = '&#9728;&#65039;'; $wxLabel = _enc (_t 'WeatherSunny') }
 
-    $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm')
+    $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
     $envText = _enc ((@($Application, $Environment) | Where-Object { $_ }) -join ' / ')
 
     # Build alert groups HTML.

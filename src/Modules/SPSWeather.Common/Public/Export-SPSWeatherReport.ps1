@@ -206,7 +206,7 @@
     # History chart (append current run, cap 30, one x-label every 5 bars).
     $runs = @()
     if ($null -ne $History) { $runs += @($History) }
-    $runs += [PSCustomObject]@{ Date = (Get-Date).ToString('MM-dd'); When = (Get-Date); Ok = $gOk; Warn = $gWarn; Fail = $gFail; Now = $true }
+    $runs += [PSCustomObject]@{ Date = (Get-Date).ToString('MM-dd', [System.Globalization.CultureInfo]::InvariantCulture); When = (Get-Date); Ok = $gOk; Warn = $gWarn; Fail = $gFail; Now = $true }
     if ($runs.Count -gt 30) { $runs = $runs[($runs.Count - 30)..($runs.Count - 1)] }
     $barsHtml = New-Object -TypeName System.Text.StringBuilder
     $xHtml = New-Object -TypeName System.Text.StringBuilder
@@ -258,7 +258,7 @@
         }
     }
 
-    $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm')
+    $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
     $envLine = (@($Application, $Environment) | Where-Object { $_ }) -join ' / '
     if ($Farm) { $envLine = "$(_enc (_t 'FarmLabel')) $Farm &middot; $envLine" }
 

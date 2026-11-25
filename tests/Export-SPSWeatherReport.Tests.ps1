@@ -241,6 +241,20 @@ if (`$Language -eq 'broken') {
             (Get-HistoryDashboard -Language 'fr-FR' -History $legacy) | Should -Match 'title="06-01 : 12 OK'
         }
 
+        It 'stamps the run date and the generation time in Gregorian digits whatever the host calendar' {
+            $previous = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            try {
+                foreach ($hostCulture in 'th-TH', 'ar-SA', 'fa-IR') {
+                    [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo($hostCulture)
+                    $html = Get-HistoryDashboard -Language 'en-US' -History @()
+                    $year = (Get-Date).Year.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+                    $html | Should -Match ('<b>' + $year + '-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}</b>') -Because "host culture $hostCulture"
+                    $html | Should -Match 'title="[0-9]{2}-[0-9]{2} ' -Because "host culture $hostCulture"
+                }
+            }
+            finally { [System.Threading.Thread]::CurrentThread.CurrentCulture = $previous }
+        }
+
         It 'writes the percentage with a non-breaking space in French (never a lone % on a line)' {
             (Get-HistoryDashboard -Language 'fr-FR' -History @()) | Should -Match '<div class="big">\d+\u00A0%</div>'
         }
