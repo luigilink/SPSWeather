@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-11-25
+
 ### Added
 
 - **New check: every Timer service instance of the farm must be `Online`.** One row per instance of
