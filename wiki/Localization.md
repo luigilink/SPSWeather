@@ -66,6 +66,23 @@ Modules\SPSWeather.Common\
 - **`Percent`** and **`FreePercent`** place the `%` sign. In French a **non-breaking space**
   (U+00A0) goes before it, so the sign never wraps alone onto the next line.
 
+## Asking for a language
+
+Your language is not shipped yet? Open an issue with the
+[Translation Request](https://github.com/luigilink/SPSWeather/issues/new?template=5_translation_request.yml)
+form: it asks for the culture name (`de-DE`, `es-ES`, `it-IT`...), whether you can review or translate
+the file, and the terminology to align on. Requests are handled in the order the users ask for them, and a
+language is only shipped once a **native speaker** has reviewed it, because a wrong word on a dashboard is
+worse than an English one.
+
+What a reviewer looks at:
+
+- the **SharePoint terms** (timer jobs, application pools, Search, Distributed Cache...) are the ones of the
+  localized SharePoint Server interface that your administrators know;
+- numbers, percentages and dates follow the habits of the language (`78 %` with a non-breaking space in
+  French, `dd/MM` or `dd.MM` for the history dates);
+- the text reads well in the **dashboard** and in the **email** (short labels, singular and plural forms).
+
 ## Adding a language
 
 1. Copy `en-US\SPSWeather.Common.Strings.psd1` to a new folder named after the culture, for example

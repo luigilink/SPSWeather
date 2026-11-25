@@ -101,7 +101,8 @@ Describe 'Dashboard language (Export-SPSWeatherReport -Language)' {
         $script:default = Get-Dashboard
         $script:english = Get-Dashboard -Language 'en-US'
         $script:french = Get-Dashboard -Language 'fr-FR'
-        $script:unknown = Get-Dashboard -Language 'de-DE'
+        # 'qaa-QM' is in the ISO 639 range reserved for private use (qaa-qtz): it can never be a shipped language.
+        $script:unknown = Get-Dashboard -Language 'qaa-QM'
         $script:frenchRegion = Get-Dashboard -Language 'fr-BE'
     }
 

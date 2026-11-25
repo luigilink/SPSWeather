@@ -250,7 +250,8 @@ Describe 'Alert email language (ConvertTo-SPSWeatherEmailBody -Language)' {
         $script:default = Get-Mail -Report $report
         $script:english = Get-Mail -Report $report -Language 'en-US'
         $script:french = Get-Mail -Report $report -Language 'fr-FR'
-        $script:unknown = Get-Mail -Report $report -Language 'de-DE'
+        # 'qaa-QM' is in the ISO 639 range reserved for private use (qaa-qtz): it can never be a shipped language.
+        $script:unknown = Get-Mail -Report $report -Language 'qaa-QM'
         $script:uncapped = @{ French = (Get-Mail -Report $report -Language 'fr-FR' -Cap 0); English = (Get-Mail -Report $report -Language 'en-US' -Cap 0) }
         $script:clear = Get-Mail -Report ([PSCustomObject]@{ SPAPIHttpStatus = @([PSCustomObject]@{ Farm = 'C'; Title = 'Root'; Url = 'u'; HTTPCode = 200; Status = 'OK'; IsInfo = $true }) }) -Language 'fr-FR'
     }
