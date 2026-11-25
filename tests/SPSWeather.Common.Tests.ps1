@@ -46,6 +46,7 @@ Describe 'SPSWeather.Common module' {
             'Backup-SPSWeatherJsonFile'
             'Clear-SPSLog'
             'Compare-SPSWeatherSnapshots'
+            'ConvertTo-SPSWeatherConsolidatedEmail'
             'ConvertTo-SPSWeatherEmailBody'
             'ConvertTo-SPSWeatherReport'
             'Export-SPSWeatherReport'

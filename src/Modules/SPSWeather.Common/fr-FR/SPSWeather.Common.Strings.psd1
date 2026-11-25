@@ -76,6 +76,24 @@
     FooterRun        = 'durée'
     CountsSummary    = '{0} OK / {1} avert. / {2} échec(s)'
     FreePercent      = '{0} % d''espace libre'
+
+    # Mail consolidé (toutes les fermes d'un environnement dans un seul message)
+    FarmCountOne       = '{0} ferme'
+    FarmCountMany      = '{0} fermes'
+    FarmStatusAlert    = 'ALERTE'
+    FarmStatusWarn     = 'AVERTISSEMENT'
+    FarmStatusOk       = 'SAINE'
+    FarmStatusDown     = 'INJOIGNABLE'
+    FarmHealth         = '{0} sain'
+    FarmAttentionTitle = 'Points d''attention'
+    UnreachableTitle   = 'La ferme n''a pas pu être interrogée.'
+    UnreachableText    = 'Aucun contrôle n''a été exécuté. Voir le journal d''événements SPSWeather (ID 3001).'
+    FarmsOfTotalOne    = '{0} ferme sur {1}'
+    FarmsOfTotalMany   = '{0} fermes sur {1}'
+    IntroFarmsOne      = '{0} nécessite votre attention sur {1}. Le détail complet est dans le tableau de bord de chaque ferme.'
+    IntroFarmsMany     = '{0} nécessitent votre attention sur {1}. Le détail complet est dans le tableau de bord de chaque ferme.'
+    FooterFarmsQueried = 'fermes interrogées : {0} sur {1}'
+
     # Functional areas (dashboard cards and email groups)
     Area_FarmUpgrade        = 'Ferme & mise à niveau'
     Area_TrustFarm          = 'Ferme approuvée (REST)'

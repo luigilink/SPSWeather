@@ -99,7 +99,9 @@ Describe 'Resource keys versus the renderers' {
         $publicDir = Join-Path -Path $repoRoot -ChildPath 'src/Modules/SPSWeather.Common/Public'
         $script:dashboard = Get-Content -Path (Join-Path -Path $publicDir -ChildPath 'Export-SPSWeatherReport.ps1') -Raw
         $script:email = Get-Content -Path (Join-Path -Path $publicDir -ChildPath 'ConvertTo-SPSWeatherEmailBody.ps1') -Raw
-        $script:both = $script:dashboard + "`n" + $script:email
+        $script:consolidated = Get-Content -Path (Join-Path -Path $publicDir -ChildPath 'ConvertTo-SPSWeatherConsolidatedEmail.ps1') -Raw
+        $script:areaMap = Get-Content -Path (Join-Path -Path $repoRoot -ChildPath 'src/Modules/SPSWeather.Common/Private/Get-SPSWeatherEmailAreaMap.ps1') -Raw
+        $script:both = $script:dashboard + "`n" + $script:email + "`n" + $script:consolidated
 
         # Keys written literally: _t 'Key' / _th 'Key'.
         $literal = @([regex]::Matches($script:both, "\b_th?\s+'(\w+)'") | ForEach-Object -Process { $_.Groups[1].Value })
@@ -107,7 +109,7 @@ Describe 'Resource keys versus the renderers' {
         $counted = @([regex]::Matches($script:both, "\b_count\s+\S+\s+'(\w+)'") | ForEach-Object -Process { $_.Groups[1].Value + 'One'; $_.Groups[1].Value + 'Many' })
         # Families built from an identifier: Area_<id> and Section_<section>.
         $areaIds = @(@([regex]::Matches($script:dashboard, "Id = '(\w+)'")) | ForEach-Object -Process { $_.Groups[1].Value })
-        $areaOrder = [regex]::Match($script:email, '\$areaOrder = @\(([^)]*)\)').Groups[1].Value
+        $areaOrder = [regex]::Match($script:areaMap, '\$areaOrder = @\(([^)]*)\)').Groups[1].Value
         $areaIds += @([regex]::Matches($areaOrder, "'(\w+)'") | ForEach-Object -Process { $_.Groups[1].Value })
         $sectionLists = @([regex]::Matches($script:dashboard, 'Sections = @\(([^)]*)\)') | ForEach-Object -Process { $_.Groups[1].Value })
         $sections = @($sectionLists | ForEach-Object -Process { [regex]::Matches($_, "'(\w+)'") | ForEach-Object -Process { $_.Groups[1].Value } })
@@ -115,7 +117,10 @@ Describe 'Resource keys versus the renderers' {
         # Keys read directly from the table (not through _t): $text['Key'].
         $direct = @([regex]::Matches($script:both, '\$text\[''(\w+)''\]') | ForEach-Object -Process { $_.Groups[1].Value })
 
-        $script:literalKeys = @($literal + $counted + $direct | Sort-Object -Unique)
+        # Keys kept in a lookup table of the renderer: Key = 'Name'.
+        $tabled = @([regex]::Matches($script:both, "\bKey = '(\w+)'") | ForEach-Object -Process { $_.Groups[1].Value })
+
+        $script:literalKeys = @($literal + $counted + $direct + $tabled | Sort-Object -Unique)
         $script:familyKeys = @(($areaIds | Sort-Object -Unique | ForEach-Object -Process { "Area_$_" }) + ($sections | Sort-Object -Unique | ForEach-Object -Process { "Section_$_" }))
         $script:areaIds = @($areaIds | Sort-Object -Unique)
         $script:sections = @($sections | Sort-Object -Unique)
