@@ -209,10 +209,11 @@
         $raw = @($parts | ForEach-Object { if ($_.V -gt 0) { [math]::Max($_.V / $total * 100, 2) } else { 0 } })
         $sum = ($raw | Measure-Object -Sum).Sum
         $w = @($raw | ForEach-Object { [int][math]::Round($_ / $sum * 100) })
-        $big = [array]::IndexOf($w, ($w | Measure-Object -Maximum).Maximum)
+        $big = 0
+        for ($j = 1; $j -lt 3; $j++) { if ($w[$j] -gt $w[$big]) { $big = $j } }
         $w[$big] += 100 - (($w | Measure-Object -Sum).Sum)
         $cells = for ($i = 0; $i -lt 3; $i++) {
-            if ($w[$i] -gt 0) { "<td width=`"$($w[$i])%`" style=`"background:$($parts[$i].C);font-size:0;line-height:0;height:8px;`">&nbsp;</td>" }
+            if ($w[$i] -gt 0) { "<td width=`"$($w[$i])%`" height=`"8`" style=`"background:$($parts[$i].C);font-size:1px;line-height:1px;mso-line-height-rule:exactly;height:8px;`">&nbsp;</td>" }
         }
         return "<table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`"><tr>$($cells -join '')</tr></table>"
     }
@@ -233,6 +234,8 @@
         $checks = $f.Ok + $f.Warn + $f.Fail
         if ($checks -gt 0) {
             $pct = [int][math]::Round($f.Ok / $checks * 100)
+            # Rounding must not hide a failure or a warning next to a red or orange status.
+            if ((($f.Fail + $f.Warn) -gt 0) -and ($pct -gt 99)) { $pct = 99 }
             [void]$cardsHtml.Append("<tr><td style=`"padding:8px 16px 0;`">$(_bar $f.Ok $f.Warn $f.Fail)<table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`"><tr><td style=`"padding-top:6px;font-size:13px;font-weight:700;color:$($lk.Dark);`">$(_enc (_t 'FarmHealth' (_t 'Percent' $pct)))</td><td align=`"right`" style=`"padding-top:6px;font-size:12px;color:#6b7280;`">$(_enc (_t 'CountsSummary' $f.Ok $f.Warn $f.Fail))</td></tr></table></td></tr>")
         }
 

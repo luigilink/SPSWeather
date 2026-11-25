@@ -193,7 +193,7 @@ Describe 'Consolidated email (ConvertTo-SPSWeatherConsolidatedEmail)' {
         It 'draws a health bar whose widths add up to 100 and show a tiny failure rate as at least 2' {
             $tiny = New-FarmEntry -Name 'TINY' -Report (New-FarmReport -Farm 'TINY' -SqlFail 1 -Ok 4000)
             $m = Get-Consolidated -Farms @($tiny)
-            $widths = @([regex]::Matches($m.Body, '<td width="(\d+)%" style="background:#(?:2fae66|e8923a|e24a4a);font-size:0') | ForEach-Object { [int]$_.Groups[1].Value })
+            $widths = @([regex]::Matches($m.Body, '<td width="(\d+)%" height="8"') | ForEach-Object { [int]$_.Groups[1].Value })
             $widths.Count | Should -Be 2
             ($widths | Measure-Object -Sum).Sum | Should -Be 100
             ($widths | Measure-Object -Minimum).Minimum | Should -BeGreaterOrEqual 2
@@ -203,7 +203,45 @@ Describe 'Consolidated email (ConvertTo-SPSWeatherConsolidatedEmail)' {
             $empty = New-FarmEntry -Name 'EMPTY' -Report ([PSCustomObject]@{ SPSContentDBStatus = @() })
             $m = Get-Consolidated -Farms @($empty)
             $m.Body | Should -Not -Match '[0-9]+% healthy'
-            $m.Body | Should -Not -Match 'font-size:0;line-height:0;height:8px'
+            $m.Body | Should -Not -Match 'height="8"'
+        }
+
+        It 'gives the leftover of the rounding to the widest part, never creating a cell for a zero count' -ForEach @(
+            @{ Ok = 17; Warn = 23; Fail = 0 }
+            @{ Ok = 23; Warn = 17; Fail = 0 }
+            @{ Ok = 34; Warn = 46; Fail = 0 }
+            @{ Ok = 91; Warn = 109; Fail = 0 }
+            @{ Ok = 0; Warn = 3; Fail = 5 }
+            @{ Ok = 1; Warn = 1; Fail = 1 }
+            @{ Ok = 5000; Warn = 1; Fail = 1 }
+            @{ Ok = 7; Warn = 0; Fail = 0 }
+        ) {
+            $entry = [PSCustomObject]@{ Name = 'BAR'; Server = 's'; Reachable = $true; Report = [PSCustomObject]@{}; Summary = [PSCustomObject]@{ Ok = $Ok; Warn = $Warn; Fail = $Fail } }
+            $m = Get-Consolidated -Farms @($entry)
+            $widths = @([regex]::Matches($m.Body, '<td width="(-?\d+)%" height="8" style="background:#([0-9a-f]{6})') | ForEach-Object { [PSCustomObject]@{ W = [int]$_.Groups[1].Value; C = $_.Groups[2].Value } })
+            ($widths | Measure-Object -Property W -Sum).Sum | Should -Be 100
+            ($widths | Measure-Object -Property W -Minimum).Minimum | Should -BeGreaterOrEqual 1
+            @($widths | Where-Object { $_.C -eq 'e24a4a' }).Count | Should -Be ([int]($Fail -gt 0))
+            @($widths | Where-Object { $_.C -eq 'e8923a' }).Count | Should -Be ([int]($Warn -gt 0))
+            @($widths | Where-Object { $_.C -eq '2fae66' }).Count | Should -Be ([int]($Ok -gt 0))
+        }
+
+        It 'never reads 100% healthy next to a failure or a warning, even among thousands of checks' {
+            $big = New-FarmEntry -Name 'BIG' -Report (New-FarmReport -Farm 'BIG' -SqlFail 1 -Ok 4000)
+            (Get-Text -Mail (Get-Consolidated -Farms @($big))) | Should -Match '99% healthy'
+            $warnOnly = [PSCustomObject]@{ Name = 'W'; Server = 's'; Reachable = $true; Report = [PSCustomObject]@{}; Summary = [PSCustomObject]@{ Ok = 4000; Warn = 1; Fail = 0 } }
+            (Get-Text -Mail (Get-Consolidated -Farms @($warnOnly))) | Should -Match '99% healthy'
+            $clean = New-FarmEntry -Name 'CLEAN' -Report (New-FarmReport -Farm 'CLEAN' -Ok 4000)
+            (Get-Text -Mail (Get-Consolidated -Farms @($clean))) | Should -Match '100% healthy'
+        }
+
+        It 'uses the summary of the farm when it is given, not a recount of the report' {
+            $entry = New-FarmEntry -Name 'SUM' -Report (New-FarmReport -Farm 'SUM' -SqlFail 2 -Ok 3)
+            $entry.Summary = [PSCustomObject]@{ Ok = 40; Warn = 3; Fail = 7 }
+            $m = Get-Consolidated -Farms @($entry)
+            (Get-Text -Mail $m) | Should -Match '40 OK / 3 warn / 7 fail'
+            $m.Body -match '>(\d+)</div><div[^>]*>Failures<' | Should -BeTrue
+            $Matches[1] | Should -Be '7'
         }
     }
 
@@ -370,6 +408,14 @@ Describe 'Consolidated email (ConvertTo-SPSWeatherConsolidatedEmail)' {
             $m = ConvertTo-SPSWeatherConsolidatedEmail -FarmResult @($farms[1]) -Application '<b>app</b>' -Environment 'P&D'
             $m.Body | Should -Not -Match '<b>app</b>'
             $m.Body | Should -Match '&lt;b&gt;app&lt;/b&gt; / P&amp;D'
+        }
+
+        It 'encodes the version, the account and the duration of the footer' {
+            $m = ConvertTo-SPSWeatherConsolidatedEmail -FarmResult @($farms[1]) -Application 'a' -Environment 'e' -Version '1<i>.0' -ExecutedBy 'DOM\<u>jc</u>' -Duration '0<s>1</s>'
+            $m.Body | Should -Not -Match '<i>\.0|<u>jc|<s>1'
+            $m.Body | Should -Match '1&lt;i&gt;\.0'
+            $m.Body | Should -Match 'DOM\\&lt;u&gt;jc&lt;/u&gt;'
+            $m.Body | Should -Match '0&lt;s&gt;1&lt;/s&gt;'
         }
     }
 
