@@ -12,6 +12,7 @@ $psFiles = @(
     $functionFiles
     Get-Item -Path $modulePath
     Get-Item -Path (Join-Path -Path $moduleDir -ChildPath 'SPSWeather.Common.psm1')
+    Get-ChildItem -Path $moduleDir -Recurse -Filter '*.Strings.psd1'
 )
 
 BeforeAll {
@@ -78,6 +79,7 @@ Describe 'SPSWeather.Common module' {
             'Remove-SPSSheduledTask'
             'Resolve-SPSSmtpSetting'
             'Resolve-SPSSqlAlias'
+            'Resolve-SPSWeatherLanguage'
             'Set-SPSCredSSPClient'
             'Set-SPSSecret'
         )

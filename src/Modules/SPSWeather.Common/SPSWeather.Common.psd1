@@ -48,6 +48,7 @@
         'Remove-SPSSheduledTask'
         'Resolve-SPSSmtpSetting'
         'Resolve-SPSSqlAlias'
+        'Resolve-SPSWeatherLanguage'
         'Set-SPSCredSSPClient'
         'Set-SPSSecret'
     )
