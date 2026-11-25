@@ -1,0 +1,72 @@
+name: Translation Request
+description: Ask for a new language for the dashboard and the alert email, or offer to help translate one.
+title: "[Translation]: "
+labels: ["enhancement", "localization", "triage"]
+projects: ["SPSWeather"]
+assignees:
+  - luigilink
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping SPSWeather speak your language! The dashboard and the alert email are translated through one resource file per language (see the [Localization](https://github.com/luigilink/SPSWeather/wiki/Localization) wiki page). Adding a language is a data change: no code to write.
+
+        Only the display is translated. The values of the checks, the email subject tags (`[ALERT]`, `[WARN]`, `[OK]`) and the Event Log messages stay in English.
+
+  - type: input
+    id: culture
+    attributes:
+      label: Language (culture name)
+      description: The .NET culture name of the language you need, for example `de-DE` (German), `es-ES` (Spanish), `it-IT` (Italian), `pt-BR` (Portuguese, Brazil), `nl-NL` (Dutch).
+      placeholder: ex. de-DE
+    validations:
+      required: true
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: How can you help?
+      description: A native speaker's review matters more than the first draft. Pick the option that fits you best.
+      options:
+        - I only need the language (I cannot help translate)
+        - I can review a translation as a native speaker
+        - I can translate the file myself and open a pull request
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: terminology
+    attributes:
+      label: SharePoint terminology (Optional)
+      description: The names of the areas and sections are the ones your administrators know from the localized SharePoint Server interface (for example the timer jobs, the application pools or the Search service). Tell us which language pack or documentation to align on, or list the terms you would use.
+      placeholder: ex. We use the German SharePoint Server interface; timer jobs are "Zeitgeberaufträge".
+    validations:
+      required: false
+
+  - type: input
+    id: contact
+    attributes:
+      label: Contact Details (Optional)
+      description: How can we get in touch with you if we need more info?
+      placeholder: ex. email@example.com
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context (Optional)
+      description: Anything else we should know, for example how many administrators would read the dashboard or the email in this language.
+      placeholder: Add any other context about the request here.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/luigilink/SPSWeather/blob/main/CODE_OF_CONDUCT.md).
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

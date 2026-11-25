@@ -5,6 +5,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Issue template **Translation Request** (`.github/ISSUE_TEMPLATE/5_translation_request.yml`): asks for the
+  culture name, how the requester can help (review as a native speaker, translate the file) and the
+  SharePoint terminology to align on, with the new `localization` label. The wiki page *Localization* explains how to
+  ask for a language and what a reviewer looks at (#98).
+
+### Changed
+
+- Tests only, no change to the shipped module: the language tests no longer assume which languages are
+  shipped. The language that stands for an unavailable one is `qaa-QM` (the ISO 639 range reserved for
+  private use, so it can never be shipped), the list of available languages is read from the folders on
+  disk, and new tests prove that a new language is picked up as soon as its folder exists (by name, by
+  language, by region and with `auto`) and rendered by the dashboard and the email, without any other change (#98).
+
 ## [3.4.0] - 2026-11-25
 
 ### Added
