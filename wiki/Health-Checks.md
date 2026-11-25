@@ -12,10 +12,37 @@ This page lists every check SPSWeather runs against each farm in scope, what it 
 | Health Analyzer | Failing Health Analyzer rules surfaced in Central Administration | `HealthStatus` |
 | Trust farm API | HTTP status of the trusted-farm REST API | `APIHttpStatus` |
 | Site collections | HTTP status of the monitored site collections | `SPSiteHttpStatus` |
+| Timer service instances | Status of the Timer service instance of every server of the farm: all must be `Online` (see below) | `TimerServiceStatus` |
 | Failed timer jobs | Timer-job failures over a lookback window, with a failure-ratio threshold | `FailedTimerJob` |
 | Solutions (WSP) | Farm solution deployment status | `WSPStatus` |
 | Content databases | Status and size of each content database | _(always)_ |
 | User Profile audiences | Audience compilation status | _(always)_ |
+
+### Timer service instances
+
+Every server of the farm must have its **Timer service instance** `Online`. SPSWeather lists one row per
+instance (`(Get-SPFarm).TimerService.Instances`) in the *Timer Service - Instances* section of the
+*Timer Jobs* card, and **any status other than `Online` is a failure**: a single instance in another
+state breaks the communication between the servers, which notably blocks the deployment of a WSP (the job
+that deploys it never runs on that server). A farm that returns no instance, or a query that fails, is also
+reported as a failure (`No instance` / `Unreachable`), never as healthy.
+
+The check is **read-only**: SPSWeather detects and reports, it never changes the status of an instance. The
+manual check, and the fix that some administrators apply once the cause is understood (it changes the farm:
+test it first), are:
+
+```powershell
+$farm = Get-SPFarm
+$farm.TimerService.Instances | Select-Object @{ n = 'Server'; e = { $_.Server.Name } }, Status
+
+$notOnline = $farm.TimerService.Instances | Where-Object { $_.Status -ne 'Online' }
+foreach ($instance in $notOnline) {
+    $instance.Status = [Microsoft.SharePoint.Administration.SPObjectStatus]::Online
+    $instance.Update()
+}
+```
+
+Add `TimerServiceStatus` to `ExclusionRules` to skip the check.
 
 ## Search checks
 
@@ -87,7 +114,7 @@ In the HTML report, failing rows use the `tdfailed` (red) style, below-threshold
 
 Add the corresponding key to `ExclusionRules` in your config to skip a check. Authorized values:
 
-`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`, `SQLAliasStatus`, `SQLInstanceStatus`, `SQLDatabaseStatus`, `SQLDiskStatus`, `SQLAvailabilityStatus`.
+`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`, `TimerServiceStatus`, `SQLAliasStatus`, `SQLInstanceStatus`, `SQLDatabaseStatus`, `SQLDiskStatus`, `SQLAvailabilityStatus`.
 
 Checks marked _(always)_ above are not individually excludable.
 
