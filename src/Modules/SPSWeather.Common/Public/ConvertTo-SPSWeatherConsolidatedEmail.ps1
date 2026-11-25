@@ -178,6 +178,8 @@
     $totalFail = [int](($farms | Measure-Object -Property Fail -Sum).Sum)
     $totalWarn = [int](($farms | Measure-Object -Property Warn -Sum).Sum)
     $totalOk = [int](($farms | Measure-Object -Property Ok -Sum).Sum)
+    # The weather is the one of the worst farm, not of the sum of the failures of all of them.
+    $worstFarmFail = [int](($farms | Measure-Object -Property Fail -Maximum).Maximum)
 
     # Worst first: unreachable, alert, warning, healthy; then the most failures; then the configuration order.
     $ordered = @($farms | Sort-Object -Property @{ Expression = { $rank[$_.Status] } }, @{ Expression = { $_.Fail }; Descending = $true }, @{ Expression = { $_.Warn }; Descending = $true }, @{ Expression = { $_.Position } })
@@ -193,8 +195,8 @@
     $farmWord = if ($nFarms -eq 1) { 'farm' } else { 'farms' }
     $subject = "[$worst] $Application/$Environment - $nFarms $farmWord ($($mix -join ', ')) - SPSWeather"
 
-    if ($totalFail -gt 5) { $wx = '&#9928;&#65039;'; $wxLabel = _enc (_t 'WeatherStormy') }
-    elseif (($totalFail -gt 0) -or ($nDown -gt 0)) { $wx = '&#9925;'; $wxLabel = _enc (_t 'WeatherCloudy') }
+    if ($worstFarmFail -gt 5) { $wx = '&#9928;&#65039;'; $wxLabel = _enc (_t 'WeatherStormy') }
+    elseif (($worstFarmFail -gt 0) -or ($nDown -gt 0)) { $wx = '&#9925;'; $wxLabel = _enc (_t 'WeatherCloudy') }
     elseif ($totalWarn -gt 0) { $wx = '&#127780;&#65039;'; $wxLabel = _enc (_t 'WeatherFair') }
     else { $wx = '&#9728;&#65039;'; $wxLabel = _enc (_t 'WeatherSunny') }
 
@@ -221,8 +223,8 @@
     $cardsHtml = New-Object -TypeName System.Text.StringBuilder
     foreach ($f in $ordered) {
         $lk = $look[$f.Status]
-        $pill = "<span style=`"display:inline-block;padding:3px 10px;background:$($lk.Accent);color:#ffffff;font-size:11px;font-weight:700;letter-spacing:.05em;border-radius:12px;`">$(_enc (_t $lk.Key))</span>"
-        $serverHtml = if ($f.Server) { "<div style=`"font-size:11px;color:#8a94a3;margin-top:2px;`">$(_enc $f.Server)</div>" } else { '' }
+        $pill = "<span style=`"display:inline-block;padding:3px 10px;background:$($lk.Tint);color:$($lk.Dark);border:1px solid $($lk.Accent);font-size:11px;font-weight:700;letter-spacing:.05em;border-radius:12px;`">$(_enc (_t $lk.Key))</span>"
+        $serverHtml = if ($f.Server) { "<div style=`"font-size:11px;color:#6b7280;margin-top:2px;`">$(_enc $f.Server)</div>" } else { '' }
         [void]$cardsHtml.Append("<table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`" style=`"margin-bottom:14px;border:1px solid $($lk.Border);border-left:5px solid $($lk.Accent);border-radius:10px;overflow:hidden;`">")
         [void]$cardsHtml.Append("<tr><td style=`"padding:14px 16px 6px;`"><table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`"><tr><td><div style=`"font-size:17px;font-weight:700;color:#1b2733;`">$(_enc $f.Name)</div>$serverHtml</td><td align=`"right`" valign=`"top`">$pill</td></tr></table></td></tr>")
 
@@ -266,7 +268,7 @@
                 if ($hw -gt 0) { $parts += _count $hw 'Warning' }
                 [void]$rowsHtml.Append("<tr><td></td><td colspan=`"2`" style=`"padding:2px 0;font-size:12px;color:#6b7280;font-style:italic;`">$(_enc (_t 'MoreItems' ($hf + $hw) ($parts -join ', ')))</td></tr>")
             }
-            [void]$cardsHtml.Append("<tr><td style=`"padding:10px 16px 2px;`"><div style=`"font-size:11px;color:#8a94a3;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;`">$(_enc (_t 'FarmAttentionTitle'))</div><table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`">$($rowsHtml.ToString())</table></td></tr>")
+            [void]$cardsHtml.Append("<tr><td style=`"padding:10px 16px 2px;`"><div style=`"font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;`">$(_enc (_t 'FarmAttentionTitle'))</div><table role=`"presentation`" width=`"100%`" cellpadding=`"0`" cellspacing=`"0`">$($rowsHtml.ToString())</table></td></tr>")
         }
 
         if ($f.Url) {

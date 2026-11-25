@@ -374,6 +374,17 @@ Describe 'Consolidated email (ConvertTo-SPSWeatherConsolidatedEmail)' {
             (Get-Text -Mail (Get-Consolidated -Farms @($farms[1]))) | Should -Match 'Sunny'
         }
 
+        It 'takes the weather of the worst farm, not of the sum of the failures of all the farms' {
+            $two = 'A', 'B', 'C' | ForEach-Object { New-FarmEntry -Name $_ -Report (New-FarmReport -Farm $_ -SqlFail 2) }
+            $spread = Get-Text -Mail (Get-Consolidated -Farms $two)
+            $spread | Should -Match 'Cloudy'
+            $spread | Should -Not -Match 'Stormy'
+            $five = 'A', 'B' | ForEach-Object { New-FarmEntry -Name $_ -Report (New-FarmReport -Farm $_ -SqlFail 5) }
+            (Get-Text -Mail (Get-Consolidated -Farms $five)) | Should -Match 'Cloudy'
+            $stormy = @($two[0], (New-FarmEntry -Name 'D' -Report (New-FarmReport -Farm 'D' -SqlFail 6)))
+            (Get-Text -Mail (Get-Consolidated -Farms $stormy)) | Should -Match 'Stormy'
+        }
+
         It 'shows the footer with the version, the account and the duration' {
             $text | Should -Match 'SPSWeather 3\.4\.0 · executed by DOM\\jc · run 00:11:42'
         }
@@ -454,6 +465,50 @@ Describe 'Consolidated email (ConvertTo-SPSWeatherConsolidatedEmail)' {
             $m = Get-Consolidated -Farms @((New-DownEntry -Name 'ONLY'))
             $m.Subject | Should -Be '[ALERT] contoso/PROD - 1 farm (1 UNREACHABLE) - SPSWeather'
             (Get-Text -Mail $m) | Should -Match 'farms queried: 0 of 1'
+        }
+    }
+
+    Context 'readable colors (WCAG AA: 4.5:1 for small text)' {
+        BeforeAll {
+            function Get-Luminance([string]$Hex) {
+                $c = $Hex.TrimStart('#')
+                $v = foreach ($i in 0, 2, 4) {
+                    $x = [Convert]::ToInt32($c.Substring($i, 2), 16) / 255
+                    if ($x -le 0.03928) { $x / 12.92 } else { [math]::Pow(($x + 0.055) / 1.055, 2.4) }
+                }
+                0.2126 * $v[0] + 0.7152 * $v[1] + 0.0722 * $v[2]
+            }
+            function Get-Contrast([string]$Foreground, [string]$Background) {
+                $a = Get-Luminance $Foreground; $b = Get-Luminance $Background
+                ([math]::Max($a, $b) + 0.05) / ([math]::Min($a, $b) + 0.05)
+            }
+            $every = @($farms[0], $farms[1], $farms[2], (New-DownEntry -Name 'DOWN1'))
+            $script:colorMail = Get-Consolidated -Farms $every
+        }
+
+        It 'reads every status badge (ALERT, WARNING, HEALTHY, UNREACHABLE) at 4.5:1 or more' {
+            $badges = @([regex]::Matches($colorMail.Body, 'display:inline-block;padding:3px 10px;background:(#[0-9a-f]{6});color:(#[0-9a-f]{6});'))
+            $badges.Count | Should -Be 4
+            foreach ($b in $badges) {
+                (Get-Contrast -Foreground $b.Groups[2].Value -Background $b.Groups[1].Value) | Should -BeGreaterOrEqual 4.5 -Because "badge $($b.Groups[2].Value) on $($b.Groups[1].Value)"
+            }
+        }
+
+        It 'reads the small grey texts of a card (server, section title) at 4.5:1 or more on white' {
+            $greys = @([regex]::Matches($colorMail.Body, 'font-size:11px;color:(#[0-9a-f]{6});(?:margin-top:2px;|text-transform:uppercase;letter-spacing:\.06em;margin-bottom:4px;)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+            $greys.Count | Should -BeGreaterThan 0
+            $greys | Should -Not -Contain '#cdd8ea' -Because 'the light header label is on the blue banner, not on a card'
+            foreach ($g in $greys) {
+                (Get-Contrast -Foreground $g -Background '#ffffff') | Should -BeGreaterOrEqual 4.5 -Because "grey $g on white"
+            }
+        }
+
+        It 'reads the percentage of every farm status at 4.5:1 or more on white' {
+            $texts = @([regex]::Matches($colorMail.Body, 'padding-top:6px;font-size:13px;font-weight:700;color:(#[0-9a-f]{6});') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+            $texts.Count | Should -BeGreaterOrEqual 3
+            foreach ($t in $texts) {
+                (Get-Contrast -Foreground $t -Background '#ffffff') | Should -BeGreaterOrEqual 4.5 -Because "text $t on white"
+            }
         }
     }
 
