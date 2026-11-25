@@ -46,7 +46,8 @@ Copy `Config\CONTOSO-PROD.example.psd1` and edit it:
 | `ApplicationName` | Application code (e.g. `contoso`); fills the `Application` variable and file names. |
 | `Domain` | DNS suffix appended to each farm server short name to build the FQDN targeted for remoting. |
 | `SMTPEnabled` | Optional boolean. `$true` sends the alert email (one per farm); `$false` does not. When absent, the deprecated `-EnableSmtp` switch still decides (removed in 4.0.0); when present, the configuration takes precedence and the switch is ignored. A non-boolean value is reported and treated as `$false`. |
-| `SMTPPreview` | Optional boolean (default `$false`). `$true` also writes the email body to `Results\<App>-<Env>-<Farm>-mail.html` (overwritten at each run), so the email can be reviewed without an SMTP relay. Independent from `SMTPEnabled`. |
+| `SMTPPreview` | Optional boolean (default `$false`). `$true` also writes the email body to `Results\<App>-<Env>-<Farm>-mail.html` (`Results\<App>-<Env>-mail.html` with `EmailMode = 'Consolidated'`), overwritten at each run, so the email can be reviewed without an SMTP relay. Independent from `SMTPEnabled`. |
+| `EmailMode` | Optional. `PerFarm` (default): one short email per farm. `Consolidated`: **one email for all the farms** of the environment (see [Dashboard](Dashboard)). Any other value is reported (transcript, Event ID 2001, readiness `[WARN]`) and treated as `PerFarm`. |
 | `SMTPToAddress` | Array of report recipients (required when `SMTPEnabled = $true`). |
 | `SMTPFromAddress` / `SMTPServer` | Sender address and SMTP relay (required when `SMTPEnabled = $true`). If one of the three SMTP settings is missing while sending is on, the email is skipped with a warning. |
 | `EmailMaxItemsPerArea` | Optional. Maximum items listed per area in the alert email (default `10`, `0` = no limit); the rest is summarized as "+ N more". Counters are never capped. |

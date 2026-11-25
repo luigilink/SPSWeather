@@ -102,5 +102,6 @@ ConvertTo-SPSWeatherEmailBody -InputObject $json -Farm 'CONTENT' -Application 'c
     Set-Content .\Results\preview-fr-mail.html -Encoding UTF8
 ```
 
-With `SMTPPreview = $true` the run itself writes `Results\<App>-<Env>-<Farm>-mail.html` in the chosen
-language (see [Configuration](Configuration)).
+With `SMTPPreview = $true` the run itself writes `Results\<App>-<Env>-<Farm>-mail.html` (or
+`Results\<App>-<Env>-mail.html` with `EmailMode = 'Consolidated'`) in the chosen language (see
+[Configuration](Configuration)).

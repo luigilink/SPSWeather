@@ -26,7 +26,12 @@ Sending is controlled by the environment configuration (the deprecated `-EnableS
 # Config\contoso-PROD.psd1
 SMTPEnabled = $true   # send the alert email (one per farm); the SMTPTo/From/Server keys are then required
 SMTPPreview = $false  # $true also writes Results\<App>-<Env>-<Farm>-mail.html
+EmailMode   = 'PerFarm'  # 'Consolidated' = ONE email for all the farms (Results\<App>-<Env>-mail.html)
 ```
+
+With `EmailMode = 'Consolidated'` the run sends a single email for the whole environment, with a card per farm
+(status, counts, main areas and a link to the dashboard of the farm) and the totals of checks on top; a farm
+that could not be reached gets an `UNREACHABLE` card instead of being left out. See [Dashboard](Dashboard).
 
 Set `SMTPEnabled = $false` and `SMTPPreview = $true` to review the generated email without any SMTP relay: the HTML body is written next to the JSON snapshot and overwritten at each run. The two keys are independent, so both can be on (the email is sent and a copy is kept).
 
@@ -84,8 +89,8 @@ SPSWeather writes lifecycle entries to a dedicated **`SPSWeather`** Windows Even
 | 1000 | Information | A health-check run started. |
 | 1001 | Information | The run completed with no alert. |
 | 2000 | Warning | The run completed with **ALERT** conditions. |
-| 2001 | Warning | A configuration setting needs attention: the email settings (invalid `SMTPEnabled`/`SMTPPreview`, missing relay setting so no email is sent, deprecated `-EnableSmtp`) or a `Language` that is not available (English is used). |
-| 3000 | Error | The report email could not be sent. |
+| 2001 | Warning | A configuration setting needs attention: the email settings (invalid `SMTPEnabled`/`SMTPPreview`, missing relay setting so no email is sent, deprecated `-EnableSmtp`) an `EmailMode` other than `PerFarm` or `Consolidated` (one email per farm is used) or a `Language` that is not available (English is used). |
+| 3000 | Error | The report email (or the consolidated email) could not be built or sent. |
 | 3001 | Error | A farm server was unreachable over CredSSP and was skipped. |
 
 Each event header records the SPSWeather version, the user and the computer name:
