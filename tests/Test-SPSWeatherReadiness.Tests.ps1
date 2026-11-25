@@ -117,11 +117,18 @@ $Extra
             $script:langUnknown = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'de-DE'"
             $script:langAuto = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'auto'"
             $script:langAbsent = Invoke-Readiness -Extra "    SMTPEnabled = `$false"
+            $script:langList = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = @('fr', 'en-US')"
         }
 
         It 'reports an available language with the culture it resolves to' {
             (Get-CheckLine -Lines $langFr -Key 'Language') | Should -Match '^\[ OK \].*fr-FR'
             (Get-CheckLine -Lines $langRegion -Key 'Language') | Should -Match '^\[ OK \].*fr-FR'
+        }
+
+        It 'resolves a list the way the run does (first item), not as one joined text' {
+            $line = Get-CheckLine -Lines $langList -Key 'Language'
+            $line | Should -Match '^\[ OK \].*fr-FR'
+            $line | Should -Not -Match 'not available'
         }
 
         It 'warns, never fails, for a language that is not available' {

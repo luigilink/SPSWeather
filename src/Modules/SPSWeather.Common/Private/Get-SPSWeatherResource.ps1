@@ -39,7 +39,7 @@
     if ($culture -ne 'en-US') {
         $overlay = Import-PowerShellDataFile -Path (Join-Path -Path (Join-Path -Path $script:ModuleRoot -ChildPath $culture) -ChildPath $resourceFile)
         foreach ($key in $overlay.Keys) {
-            if ($table.ContainsKey($key) -and -not [string]::IsNullOrEmpty([string]$overlay[$key])) { $table[$key] = $overlay[$key] }
+            if ($table.ContainsKey($key) -and $overlay[$key] -is [string] -and -not [string]::IsNullOrEmpty($overlay[$key])) { $table[$key] = $overlay[$key] }
         }
     }
 

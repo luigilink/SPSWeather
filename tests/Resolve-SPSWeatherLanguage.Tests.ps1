@@ -126,6 +126,17 @@ Describe 'Resolve-SPSWeatherLanguage' {
             }
         }
 
+        It 'falls back to English and names the key when a value is not text' {
+            foreach ($bad in '42', '$true', '$null', '@(''a'', ''b'')') {
+                Invoke-WithEditedFrench -Edit { param($c) $c -replace "(AllClearTitle\s*=\s*)'Aucun[^']*'|(AllClearTitle\s*=\s*)'Tout est en ordre\.'", ('${1}${2}' + $bad) } -Check {
+                    $r = Resolve-SPSWeatherLanguage -Language 'fr-FR'
+                    $r.Culture | Should -Be 'en-US'
+                    $r.IsFallback | Should -BeTrue
+                    $r.Messages[0] | Should -Match "Language 'fr-FR' cannot be used: key 'AllClearTitle' is not text" -Because "value $bad"
+                }
+            }
+        }
+
         It 'falls back to English when a translation uses a placeholder that the English text does not provide' {
             Invoke-WithEditedFrench -Edit { param($c) $c -replace "(RowOk\s*=\s*')\{0\} OK'", '${1}{0} {1} OK''' } -Check {
                 $r = Resolve-SPSWeatherLanguage -Language 'fr-FR'

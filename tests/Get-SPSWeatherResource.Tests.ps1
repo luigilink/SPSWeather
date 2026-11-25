@@ -79,3 +79,37 @@ Describe 'Get-SPSWeatherResource' {
         }
     }
 }
+
+Describe 'Get-SPSWeatherResource with a value that is not text' {
+    BeforeAll {
+        $script:sourceModule = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'src/Modules/SPSWeather.Common'
+        $script:copy = Join-Path -Path $TestDrive -ChildPath 'SPSWeather.Common'
+        Copy-Item -Path $script:sourceModule -Destination $script:copy -Recurse
+        $frenchFile = Join-Path -Path $script:copy -ChildPath 'fr-FR/SPSWeather.Common.Strings.psd1'
+        $content = [System.IO.File]::ReadAllText($frenchFile)
+        $edited = $content -replace "(AllClearTitle\s*=\s*)'[^']*'", '${1}42'
+        [System.IO.File]::WriteAllText($frenchFile, $edited, (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $true))
+        Remove-Module -Name SPSWeather.Common -Force -ErrorAction SilentlyContinue
+        Import-Module -Name (Join-Path -Path $script:copy -ChildPath 'SPSWeather.Common.psd1') -Force
+    }
+    AfterAll {
+        Remove-Module -Name SPSWeather.Common -Force -ErrorAction SilentlyContinue
+        Import-Module -Name (Join-Path -Path $script:sourceModule -ChildPath 'SPSWeather.Common.psd1') -Force
+    }
+
+    It 'never lets the number replace the English text, even if the resolver had accepted the file' {
+        $text = InModuleScope SPSWeather.Common {
+            Mock -CommandName Resolve-SPSWeatherLanguage -MockWith { [PSCustomObject]@{ Culture = 'fr-FR' } }
+            Get-SPSWeatherResource -Language 'fr-FR'
+        }
+        $text.AllClearTitle | Should -Be 'All clear.'
+        $text.KpiFailures | Should -Be 'Échecs'
+    }
+
+    It 'shows the whole English page, with the reason reported, when the resolver sees the file' {
+        $text = InModuleScope SPSWeather.Common { Get-SPSWeatherResource -Language 'fr-FR' }
+        $text.Culture | Should -Be 'en-US'
+        $text.AllClearTitle | Should -Be 'All clear.'
+    }
+}
+

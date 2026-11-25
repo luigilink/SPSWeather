@@ -146,7 +146,7 @@ if ($null -ne $cfg) {
     # available is a WARN, never a FAIL: the run falls back to English.
     if ($cfg.Contains('Language')) {
         if (Get-Command -Name Resolve-SPSWeatherLanguage -ErrorAction SilentlyContinue) {
-            $languageCheck = Resolve-SPSWeatherLanguage -Language ([string]$cfg['Language'])
+            $languageCheck = Resolve-SPSWeatherLanguage -Language $cfg['Language']
             if ($languageCheck.Messages.Count -gt 0) {
                 Add-CheckResult -Section 'Config' -Name "Key 'Language'" -Status 'WARN' -Detail ($languageCheck.Messages -join ' ')
             }

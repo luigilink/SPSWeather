@@ -81,6 +81,10 @@
             else {
                 foreach ($key in $overlay.Keys) {
                     if (-not $reference.ContainsKey($key)) { continue }
+                    if ($overlay[$key] -isnot [string]) {
+                        $problem = "key '$key' is not text"
+                        break
+                    }
                     $allowed = @([regex]::Matches([string]$reference[$key], '\{(\d+)\}') | ForEach-Object -Process { $_.Groups[1].Value })
                     $used = @([regex]::Matches([string]$overlay[$key], '\{(\d+)\}') | ForEach-Object -Process { $_.Groups[1].Value })
                     $unknown = @($used | Where-Object -FilterScript { $allowed -notcontains $_ } | Sort-Object -Unique)
