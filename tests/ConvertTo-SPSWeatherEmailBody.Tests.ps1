@@ -222,3 +222,133 @@ Describe 'EmailMaxItemsPerArea configuration' {
         (Import-PowerShellDataFile -Path $examplePath).EmailMaxItemsPerArea | Should -Be 10
     }
 }
+
+Describe 'Alert email language (ConvertTo-SPSWeatherEmailBody -Language)' {
+    BeforeAll {
+        function New-LanguageReport {
+            param([int]$Failures = 13)
+            $report = [PSCustomObject]@{}
+            $report | Add-Member -MemberType NoteProperty -Name SQLInstanceStatus -Value @(
+                [PSCustomObject]@{ Farm = 'CONTENT'; SqlServer = 'SQL1'; Recommendation = 'MAXDOP should be 1'; IsInfo = $true })
+            $report | Add-Member -MemberType NoteProperty -Name SQLDatabaseStatus -Value @(
+                1..$Failures | ForEach-Object { [PSCustomObject]@{ Farm = 'CONTENT'; SqlServer = 'SQL1'; Name = ('DB_{0:00}' -f $_); State = 'ONLINE'; Recommendation = 'no full backup found'; IsInfo = $false } })
+            $report | Add-Member -MemberType NoteProperty -Name SQLDiskStatus -Value @(
+                [PSCustomObject]@{ Farm = 'CONTENT'; SqlServer = 'SQL1'; Volume = 'G:\'; TotalGB = 500; FreeGB = 25; FreePercent = 5.25; IsInfo = $false })
+            $report | Add-Member -MemberType NoteProperty -Name SPFailedTimerJobs -Value @(
+                [PSCustomObject]@{ Farm = 'CONTENT'; Server = 'WFE1'; JobDefinitionTitle = 'Config Refresh'; Status = 'Failed'; IsInfo = $false })
+            $report
+        }
+        function Get-Mail {
+            param($Report, [string]$Language, [int]$Cap = 10)
+            $arguments = @{ InputObject = $Report; Farm = 'CONTENT'; Application = 'zebes'; Environment = 'PROD'; Version = '3.4.0'; ExecutedBy = 'DOM\jc'; Duration = '00:04:31'; DashboardUrl = 'https://pull/sp/d.html'; MaxItemsPerArea = $Cap }
+            if ($PSBoundParameters.ContainsKey('Language')) { $arguments['Language'] = $Language }
+            $html = ConvertTo-SPSWeatherEmailBody @arguments
+            [PSCustomObject]@{ Raw = $html; Text = [System.Net.WebUtility]::HtmlDecode($html) }
+        }
+
+        $script:report = New-LanguageReport
+        $script:default = Get-Mail -Report $report
+        $script:english = Get-Mail -Report $report -Language 'en-US'
+        $script:french = Get-Mail -Report $report -Language 'fr-FR'
+        $script:unknown = Get-Mail -Report $report -Language 'de-DE'
+        $script:uncapped = @{ French = (Get-Mail -Report $report -Language 'fr-FR' -Cap 0); English = (Get-Mail -Report $report -Language 'en-US' -Cap 0) }
+        $script:clear = Get-Mail -Report ([PSCustomObject]@{ SPAPIHttpStatus = @([PSCustomObject]@{ Farm = 'C'; Title = 'Root'; Url = 'u'; HTTPCode = 200; Status = 'OK'; IsInfo = $true }) }) -Language 'fr-FR'
+    }
+
+    It 'exposes -Language with en-US as the default' {
+        $cmd = Get-Command -Name ConvertTo-SPSWeatherEmailBody
+        $cmd.Parameters.Keys | Should -Contain 'Language'
+        $cmd.Parameters['Language'].ParameterType | Should -Be ([System.String])
+    }
+
+    It 'keeps English when no language is given, and en-US gives the same email (timestamps aside)' {
+        $normalize = { param($t) $t -replace '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', '<TS>' }
+        (& $normalize $default.Raw) | Should -BeExactly (& $normalize $english.Raw)
+        $default.Text | Should -Match '<html lang="en"'
+        $default.Text | Should -Match 'need your attention on'
+        $uncapped.English.Text | Should -Match '5\.25% free'
+    }
+
+    It 'falls back to English for a language that is not available' {
+        $unknown.Text | Should -Match '<html lang="en"'
+        $unknown.Text | Should -Match 'need your attention on'
+    }
+
+    Context 'fr-FR' {
+        It 'declares the language and translates the header, the KPI strip and the call to action' {
+            $french.Text | Should -Match '<html lang="fr"'
+            foreach ($expected in 'Ferme CONTENT', 'Météo', 'Échecs', 'Avertissements', 'Contrôles OK', 'Ouvrir le tableau de bord complet') {
+                $french.Text | Should -Match ([regex]::Escape($expected))
+            }
+        }
+
+        It 'translates the intro sentence around the bold values' {
+            $french.Text | Should -Match '<b>\d+ éléments</b> à examiner sur <b>zebes / PROD</b>\. Le détail complet est dans le tableau de bord\.'
+        }
+
+        It 'translates the area names and uses the plural form of the count' {
+            $french.Text | Should -Match 'Travaux du minuteur\s+·\s+1 élément<'
+            $french.Text | Should -Match 'SQL Server\s+·\s+15 éléments<'
+        }
+
+        It 'translates the hidden-items row with singular and plural forms' {
+            # 15 SQL items, cap 10, failures first: hidden = 4 failures + 1 warning.
+            $french.Text | Should -Match '\+ 5 de plus \(4 échecs, 1 avertissement\) — voir le tableau de bord pour la liste complète'
+            $oneHidden = Get-Mail -Report (New-LanguageReport -Failures 10) -Language 'fr-FR' -Cap 10
+            $oneHidden.Text | Should -Match '\+ 2 de plus \(1 échec, 1 avertissement\)'
+        }
+
+        It 'translates the footer' {
+            $french.Text | Should -Match 'exécuté par DOM\\jc'
+            $french.Text | Should -Match 'durée 00:04:31'
+            $french.Text | Should -Match '\d+ OK / \d+ avert\. / \d+ échec\(s\)\.'
+        }
+
+        It 'translates the all-clear message and the weather' {
+            $clear.Text | Should -Match 'Tout est en ordre\.'
+            $clear.Text | Should -Match 'Aucun élément ne nécessite d.attention sur cette ferme\.'
+            $clear.Text | Should -Match 'Aucun élément à examiner sur <b>zebes / PROD</b>\.'
+            $clear.Text | Should -Match 'Ensoleillé'
+        }
+
+        It 'no longer shows the English chrome' {
+            foreach ($english in 'need your attention', 'Open full dashboard', 'executed by', 'Checks OK', 'see the dashboard', '>Weather<') {
+                $french.Text | Should -Not -Match ([regex]::Escape($english))
+            }
+        }
+
+        It 'leaves the collected values untouched' {
+            $french.Text | Should -Match 'no full backup found'
+            $french.Text | Should -Match '<b>WFE1 / Config Refresh</b>'
+            $french.Text | Should -Match '— Failed<'
+        }
+
+        It 'keeps the counters of the English email' {
+            foreach ($pattern in '>(\d+)</div><div[^>]*>Échecs<', '>(\d+)</div><div[^>]*>Avertissements<') {
+                $french.Text | Should -Match $pattern
+            }
+            $english.Text -match '>(\d+)</div><div[^>]*>Failures<' | Should -BeTrue
+            $failuresEn = $Matches[1]
+            $french.Text -match '>(\d+)</div><div[^>]*>Échecs<' | Should -BeTrue
+            $Matches[1] | Should -Be $failuresEn
+        }
+    }
+
+    Context 'numbers follow the chosen language, not the culture of the machine' {
+        BeforeAll {
+            $script:previousCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+        }
+        AfterAll {
+            [System.Threading.Thread]::CurrentThread.CurrentCulture = $script:previousCulture
+        }
+
+        It 'writes 5,25 % libres in French and 5.25% free in English whatever the host culture' {
+            foreach ($hostCulture in 'en-US', 'fr-FR', 'de-DE') {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo($hostCulture)
+                (Get-Mail -Report $report -Language 'fr-FR' -Cap 0).Text | Should -Match '5,25 % libres' -Because "host culture $hostCulture"
+                (Get-Mail -Report $report -Language 'en-US' -Cap 0).Text | Should -Match '5\.25% free' -Because "host culture $hostCulture"
+            }
+        }
+    }
+}
+
