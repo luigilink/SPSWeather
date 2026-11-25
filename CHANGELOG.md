@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **New check: every Timer service instance of the farm must be `Online`.** One row per instance of
+  `(Get-SPFarm).TimerService.Instances`; any status other than `Online` is a failure, because a single
+  instance in another state breaks the communication between the servers, which notably blocks the
+  deployment of a WSP. A farm that returns no instance, or a query that fails, is reported as a failure
+  (`No instance` / `Unreachable`), never as healthy. The section *Timer Service - Instances* is shown in
+  the *Timer Jobs* card of the dashboard and under *Timer Jobs* in the alert emails (per-farm and
+  consolidated). The check is read-only (it never changes the status of an instance), enabled by
+  default and disabled with the new `ExclusionRules` value `TimerServiceStatus`. New exported function
+  `Get-SPSTimerServiceStatus`; labels in the resource files (`en-US`, `fr-FR`) (#103).
 - **One consolidated email for all the farms** of an environment. The new optional key `EmailMode`
   of the environment configuration is `PerFarm` (default, one short email per farm, unchanged) or
   `Consolidated`: a single email with the totals of checks across the farms on top, then one card per

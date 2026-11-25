@@ -116,6 +116,7 @@
     Section_SPUpgradeStatus          = 'Upgrade Status'
     Section_SPAPIHttpStatus          = 'Trust Farm (REST)'
     Section_SPSSitesHttpStatus       = 'Site HTTP Status'
+    Section_SPTimerServiceStatus     = 'Timer Service - Instances'
     Section_SPFailedTimerJobs        = 'Failed Timer Jobs'
     Section_SPSolutionDeployment     = 'Solution Deployment'
     Section_SPSearchLastCrawlStatus  = 'Search - Last Crawl'

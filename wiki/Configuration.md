@@ -61,7 +61,7 @@ Copy `Config\CONTOSO-PROD.example.psd1` and edit it:
 
 Use `ExclusionRules` to skip checks. Authorized values:
 
-`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`.
+`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`, `TimerServiceStatus`.
 
 The default sample excludes `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus` and `WSPStatus`.
 

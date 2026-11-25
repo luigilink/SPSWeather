@@ -16,7 +16,7 @@
     $areaOf = @{
         SPUpgradeStatus = @('&#127970;', 'FarmUpgrade'); SPAPIHttpStatus = @('&#127760;', 'TrustFarm'); SPSSitesHttpStatus = @('&#127760;', 'TrustFarm')
         SPSearchLastCrawlStatus = @('&#128269;', 'Search'); SPSearchCrawlLogs = @('&#128269;', 'Search'); SPSSearchEntTopology = @('&#128269;', 'Search')
-        AppFabricStatus = @('&#9889;', 'DistributedCache'); SPFailedTimerJobs = @('&#9201;', 'TimerJobs'); SPSolutionDeployment = @('&#9201;', 'Solutions'); USPAudienceStatus = @('&#9201;', 'UserProfiles')
+        AppFabricStatus = @('&#9889;', 'DistributedCache'); SPTimerServiceStatus = @('&#9201;', 'TimerJobs'); SPFailedTimerJobs = @('&#9201;', 'TimerJobs'); SPSolutionDeployment = @('&#9201;', 'Solutions'); USPAudienceStatus = @('&#9201;', 'UserProfiles')
         SPHealthAnalyzer = @('&#129657;', 'HealthAnalyzer'); IISApplicationPoolStatus = @('&#128421;', 'IIS'); IISWorkerProcessStatus = @('&#128421;', 'IIS'); IISWebSiteCertStatus = @('&#128421;', 'IIS')
         SYSDiskUsageStatus = @('&#129513;', 'System'); SYSLastRebootStatus = @('&#129513;', 'System'); SYSEventViewerAppErrors = @('&#129513;', 'System')
         SPSContentDBStatus = @('&#128451;', 'SQL'); SQLInstanceStatus = @('&#128451;', 'SQL'); SQLDatabaseStatus = @('&#128451;', 'SQL'); SQLDiskStatus = @('&#128451;', 'SQL'); SQLAvailabilityStatus = @('&#128451;', 'SQL'); SQLAliasStatus = @('&#128451;', 'SQL')

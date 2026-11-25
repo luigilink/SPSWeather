@@ -64,6 +64,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SPSSiteHttpStatus'
             'Get-SPSSolutionStatus'
             'Get-SPSSqlStatus'
+            'Get-SPSTimerServiceStatus'
             'Get-SPSUpgradeStatus'
             'Get-SPSVersion'
             'Get-SPSWeatherHistory'
