@@ -419,6 +419,44 @@ Describe 'Consolidated email (ConvertTo-SPSWeatherConsolidatedEmail)' {
         }
     }
 
+    Context 'an environment with a single farm' {
+        It 'reads naturally in English, in alert and healthy' {
+            $alert = Get-Consolidated -Farms @($farms[2])
+            $alert.Subject | Should -Be '[ALERT] contoso/PROD - 1 farm (1 ALERT) - SPSWeather'
+            $alert.Priority | Should -Be 'High'
+            $t = Get-Text -Mail $alert
+            $t | Should -Match '1 farm · '
+            $t | Should -Match '1 farm of 1 needs your attention on contoso / PROD'
+            $t | Should -Match 'farms queried: 1 of 1'
+            $t | Should -Match 'SQL Server 17 failures'
+            $ok = Get-Consolidated -Farms @($farms[1])
+            $ok.Subject | Should -Be '[OK] contoso/PROD - 1 farm (1 OK) - SPSWeather'
+            (Get-Text -Mail $ok) | Should -Match 'No item needs attention on contoso / PROD'
+        }
+
+        It 'reads naturally in French, in alert and healthy' {
+            $t = Get-Text -Mail (Get-Consolidated -Farms @($farms[2]) -Language 'fr-FR')
+            $t | Should -Match '1 ferme · '
+            $t | Should -Match '1 ferme sur 1 nécessite votre attention sur contoso / PROD'
+            $t | Should -Match 'fermes interrogées.: 1 sur 1'
+            (Get-Text -Mail (Get-Consolidated -Farms @($farms[1]) -Language 'fr-FR')) | Should -Match 'Aucun élément à examiner sur contoso / PROD'
+        }
+
+        It 'shows one card and one totals strip that agree with the card' {
+            $m = Get-Consolidated -Farms @($farms[2])
+            ([regex]::Matches($m.Body, 'border-left:5px solid')).Count | Should -Be 1
+            $m.Body -match '>(\d+)</div><div[^>]*>Failures<' | Should -BeTrue
+            $Matches[1] | Should -Be '33'
+            (Get-Text -Mail $m) | Should -Match '115 OK / 0 warn / 33 fail'
+        }
+
+        It 'works for a single unreachable farm' {
+            $m = Get-Consolidated -Farms @((New-DownEntry -Name 'ONLY'))
+            $m.Subject | Should -Be '[ALERT] contoso/PROD - 1 farm (1 UNREACHABLE) - SPSWeather'
+            (Get-Text -Mail $m) | Should -Match 'farms queried: 0 of 1'
+        }
+    }
+
     Context 'parameters' {
         It 'refuses an empty list of farms' {
             { ConvertTo-SPSWeatherConsolidatedEmail -FarmResult @() } | Should -Throw

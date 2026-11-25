@@ -145,6 +145,27 @@ Describe 'Entry script email settings (SMTPEnabled / SMTPPreview)' {
             $entrySource | Should -Match '(?s)ConvertTo-SPSWeatherConsolidatedEmail -FarmResult \$consolidatedInput.*?-Language \$languageSetting\.Culture'
         }
 
+        It 'builds the list of entries from the real expression, whatever the shape of Farms (array, bare hashtable, several)' {
+            $line = [regex]::Match($entrySource, '\$consolidatedInput = (@\(\$spFarms \| ForEach-Object[^\r\n]+\))').Groups[1].Value
+            $line | Should -Not -BeNullOrEmpty
+            $build = [scriptblock]::Create('param($spFarms, $consolidatedEntries) ' + $line)
+            $entries = @{ A = 'entry A'; B = 'entry B' }
+
+            $one = & $build @(@{ Name = 'A'; Server = 'sa' }) $entries
+            @($one).Count | Should -Be 1
+            @($one)[0] | Should -Be 'entry A'
+
+            $bare = & $build @{ Name = 'A'; Server = 'sa' } $entries
+            @($bare).Count | Should -Be 1
+            @($bare)[0] | Should -Be 'entry A'
+
+            $two = & $build @(@{ Name = 'B' }, @{ Name = 'A' }) $entries
+            (@($two) -join ',') | Should -Be 'entry B,entry A'
+
+            $missing = & $build @(@{ Name = 'A' }, @{ Name = 'Z' }) $entries
+            (@($missing) -join ',') | Should -Be 'entry A'
+        }
+
         It 'only runs when the mode is Consolidated and an email is wanted (preview or send)' {
             $entrySource | Should -Match 'if \(\$smtpSetting\.Mode -eq ''Consolidated'' -and \(\$smtpSetting\.Preview -or \$smtpSetting\.Send\)\)'
         }
