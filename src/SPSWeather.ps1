@@ -157,6 +157,7 @@ $tbUpgradeListItems = @()
 $tbhealthListItems = @()
 $tbSPAPIHttpStatus = @()
 $tbSPSSitesHttpStatus = @()
+$tbSPTimerService = @()
 $tbSPSfailedJobs = @()
 $tbSPSolutions = @()
 $tbSPSSearchEntCrawlStatus = @()
@@ -342,6 +343,13 @@ else {
                     -InstallAccount $ADM `
                     -Farm "$($spFarm.Name)"
             }
+            # Get SharePoint Timer Service Instances Status (each one must be Online)
+            if (-not($ExclusionRules.Contains('TimerServiceStatus'))) {
+                Write-Output 'Getting SharePoint Timer Service Instances Status'
+                $tbSPTimerService += Get-SPSTimerServiceStatus -Server $spTargetServer `
+                    -InstallAccount $ADM `
+                    -Farm "$($spFarm.Name)"
+            }
             # Get SharePoint Failed TimerJob Status
             if (-not($ExclusionRules.Contains('FailedTimerJob'))) {
                 Write-Output 'Getting SharePoint Failed TimerJob Status'
@@ -482,6 +490,7 @@ else {
             SPUpgradeStatus          = $tbUpgradeListItems
             SPAPIHttpStatus          = $tbSPAPIHttpStatus
             SPSSitesHttpStatus       = $tbSPSSitesHttpStatus
+            SPTimerServiceStatus     = $tbSPTimerService
             SPFailedTimerJobs        = $tbSPSfailedJobs
             SPSolutionDeployment     = $tbSPSolutions
             SPSearchLastCrawlStatus  = $tbSPSSearchEntCrawlStatus

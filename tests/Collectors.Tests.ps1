@@ -17,7 +17,7 @@ $allCollectors = @(
     'Get-AppFabricStatus', 'Get-SPSAPIHttpStatus', 'Get-SPSContentDBStatus', 'Get-SPSFailedTimerJob',
     'Get-SPSHealthStatusFromCA', 'Get-SPSSearchEntCrawlLogs', 'Get-SPSSearchEntCrawlStatus',
     'Get-SPSSearchEntTopology', 'Get-SPSServer', 'Get-SPSSiteHttpStatus', 'Get-SPSSolutionStatus',
-    'Get-SPSUpgradeStatus', 'Get-USPAudienceStatus', 'Get-SYSDiskUsageStatus', 'Get-SYSDOTNETVersion',
+    'Get-SPSTimerServiceStatus', 'Get-SPSUpgradeStatus', 'Get-USPAudienceStatus', 'Get-SYSDiskUsageStatus', 'Get-SYSDOTNETVersion',
     'Get-SYSEvtAppErrors', 'Get-SYSIISAppPoolStatus', 'Get-SYSIISSiteCertStatus',
     'Get-SYSIISW3WPEXEStatus', 'Get-SYSLastRebootStatus'
 )
@@ -27,7 +27,7 @@ $allCollectors = @(
 $passThrough = @(
     'Get-SPSAPIHttpStatus', 'Get-SPSContentDBStatus', 'Get-SPSFailedTimerJob', 'Get-SPSHealthStatusFromCA',
     'Get-SPSSearchEntCrawlLogs', 'Get-SPSSearchEntCrawlStatus', 'Get-SPSSearchEntTopology', 'Get-SPSServer',
-    'Get-SPSSiteHttpStatus', 'Get-SPSSolutionStatus', 'Get-SPSUpgradeStatus', 'Get-USPAudienceStatus'
+    'Get-SPSSiteHttpStatus', 'Get-SPSSolutionStatus', 'Get-SPSTimerServiceStatus', 'Get-SPSUpgradeStatus', 'Get-USPAudienceStatus'
 )
 
 # Per-server collectors loop over the farm's servers, resolve DNS per host, and

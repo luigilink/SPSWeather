@@ -47,8 +47,8 @@
 
     # ExclusionRules : checks to skip. Authorized values: None, APIHttpStatus,
     # SPSiteHttpStatus, EvtViewerStatus, IISW3WPStatus, HealthStatus, WSPStatus,
-    # FailedTimerJob, SQLInstanceStatus, SQLDatabaseStatus, SQLDiskStatus,
-    # SQLAvailabilityStatus, SQLAliasStatus.
+    # FailedTimerJob, TimerServiceStatus, SQLInstanceStatus, SQLDatabaseStatus,
+    # SQLDiskStatus, SQLAvailabilityStatus, SQLAliasStatus.
     ExclusionRules    = @(
         'SPSiteHttpStatus'
         'EvtViewerStatus'

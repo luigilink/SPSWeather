@@ -142,6 +142,7 @@
         SPSSitesHttpStatus      = @{ Label = @('Url'); Detail = @('HTTPCode', 'Status') }
         SPSearchLastCrawlStatus = @{ Label = @('ContentSource'); Detail = @('CrawlState') }
         SPSearchCrawlLogs       = @{ Label = @('ContentSource'); Detail = @('Message', 'ErrorID') }
+        SPTimerServiceStatus    = @{ Label = @('Server'); Detail = @('Status') }
         SPFailedTimerJobs       = @{ Label = @('Server', 'JobDefinitionTitle'); Detail = @('Status') }
         SPSolutionDeployment    = @{ Label = @('SolutionName'); Detail = @('LastOperationResult', 'DeploymentState') }
         SPHealthAnalyzer        = @{ Label = @('title'); Detail = @('category', 'severity') }

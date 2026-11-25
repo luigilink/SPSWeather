@@ -113,6 +113,7 @@
     Section_SPUpgradeStatus          = 'État de la mise à niveau'
     Section_SPAPIHttpStatus          = 'Ferme approuvée (REST)'
     Section_SPSSitesHttpStatus       = 'État HTTP des sites'
+    Section_SPTimerServiceStatus     = 'Service de minuteur - Instances'
     Section_SPFailedTimerJobs        = 'Travaux du minuteur en échec'
     Section_SPSolutionDeployment     = 'Déploiement des solutions'
     Section_SPSearchLastCrawlStatus  = 'Recherche - Dernière analyse'

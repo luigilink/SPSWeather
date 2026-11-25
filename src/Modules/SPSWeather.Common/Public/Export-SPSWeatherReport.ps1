@@ -124,7 +124,7 @@
         [PSCustomObject]@{ Id = 'TrustFarm'; Icon = '&#127760;'; Sections = @('SPAPIHttpStatus', 'SPSSitesHttpStatus') }
         [PSCustomObject]@{ Id = 'Search'; Icon = '&#128269;'; Sections = @('SPSearchLastCrawlStatus', 'SPSearchCrawlLogs', 'SPSSearchEntTopology') }
         [PSCustomObject]@{ Id = 'DistributedCache'; Icon = '&#9889;'; Sections = @('AppFabricStatus') }
-        [PSCustomObject]@{ Id = 'TimerJobsSolutions'; Icon = '&#9201;'; Sections = @('SPFailedTimerJobs', 'SPSolutionDeployment', 'USPAudienceStatus') }
+        [PSCustomObject]@{ Id = 'TimerJobsSolutions'; Icon = '&#9201;'; Sections = @('SPTimerServiceStatus', 'SPFailedTimerJobs', 'SPSolutionDeployment', 'USPAudienceStatus') }
         [PSCustomObject]@{ Id = 'HealthAnalyzer'; Icon = '&#129657;'; Sections = @('SPHealthAnalyzer') }
         [PSCustomObject]@{ Id = 'IIS'; Icon = '&#128421;'; Sections = @('IISApplicationPoolStatus', 'IISWorkerProcessStatus', 'IISWebSiteCertStatus') }
         [PSCustomObject]@{ Id = 'System'; Icon = '&#129513;'; Sections = @('SYSDiskUsageStatus', 'SYSLastRebootStatus', 'SYSDOTNETVersion', 'SYSEventViewerAppErrors') }
