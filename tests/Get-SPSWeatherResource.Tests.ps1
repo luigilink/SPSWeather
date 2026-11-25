@@ -13,7 +13,8 @@ AfterAll {
 
 Describe 'Get-SPSWeatherResource' {
     It 'returns the English strings by default and for an unknown language' {
-        foreach ($language in $null, '', 'en-US', 'de-DE') {
+        # 'qaa-QM' is in the ISO 639 range reserved for private use (qaa-qtz): it can never be a shipped language.
+        foreach ($language in $null, '', 'en-US', 'qaa-QM') {
             $text = InModuleScope SPSWeather.Common -Parameters @{ Language = $language } { param($Language) Get-SPSWeatherResource -Language $Language }
             $text.Culture | Should -Be 'en-US'
             $text.AllClearTitle | Should -Be 'All clear.'

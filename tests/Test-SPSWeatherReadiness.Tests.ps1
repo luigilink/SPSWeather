@@ -139,7 +139,8 @@ $Extra
         BeforeAll {
             $script:langFr = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'fr-FR'"
             $script:langRegion = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'fr-BE'"
-            $script:langUnknown = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'de-DE'"
+            # 'qaa-QM' is in the ISO 639 range reserved for private use (qaa-qtz): it can never be a shipped language.
+            $script:langUnknown = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'qaa-QM'"
             $script:langAuto = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'auto'"
             $script:langAbsent = Invoke-Readiness -Extra "    SMTPEnabled = `$false"
             $script:langList = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = @('fr', 'en-US')"
@@ -159,7 +160,7 @@ $Extra
         It 'warns, never fails, for a language that is not available' {
             $line = Get-CheckLine -Lines $langUnknown -Key 'Language'
             $line | Should -Match '^\[WARN\]'
-            $line | Should -Match "Language 'de-DE' is not available"
+            $line | Should -Match "Language 'qaa-QM' is not available"
             ($langUnknown -join "`n") | Should -Not -Match "\[FAIL\]\s+Key 'Language'"
         }
 

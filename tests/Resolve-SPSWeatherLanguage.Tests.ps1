@@ -1,6 +1,15 @@
 ﻿# Behavioural tests for Resolve-SPSWeatherLanguage: how the Language configuration value maps to
 # one of the cultures that ship display strings.
 
+# Discovery: a real UI culture whose language is not shipped, whatever languages are added later
+# (the data of the -ForEach below is built before the tests run).
+$moduleFolder = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'src/Modules/SPSWeather.Common'
+$shippedLanguages = @(Get-ChildItem -Path $moduleFolder -Directory |
+        Where-Object -FilterScript { Test-Path -Path (Join-Path -Path $_.FullName -ChildPath 'SPSWeather.Common.Strings.psd1') } |
+        ForEach-Object -Process { ($_.Name -split '-')[0] })
+$unshippedUiCulture = @('ja-JP', 'ko-KR', 'sv-SE', 'pl-PL', 'ru-RU', 'tr-TR') |
+    Where-Object -FilterScript { $shippedLanguages -notcontains ($_ -split '-')[0] } | Select-Object -First 1
+
 BeforeAll {
     $repoRoot = Split-Path -Path $PSScriptRoot -Parent
     $modulePath = Join-Path -Path $repoRoot -ChildPath 'src/Modules/SPSWeather.Common/SPSWeather.Common.psd1'
@@ -42,7 +51,7 @@ Describe 'Resolve-SPSWeatherLanguage' {
     }
 
     It "falls back to en-US with a message naming the available cultures for '<Language>'" -ForEach @(
-        @{ Language = 'de-DE' }
+        @{ Language = 'qaa-QM' }
         @{ Language = 'zz' }
         @{ Language = 'not a culture' }
     ) {
@@ -51,7 +60,11 @@ Describe 'Resolve-SPSWeatherLanguage' {
         $r.IsFallback | Should -BeTrue
         $r.Messages.Count | Should -Be 1
         $r.Messages[0] | Should -Match "Language '$([regex]::Escape($Language))' is not available"
-        $r.Messages[0] | Should -Match 'en-US, fr-FR'
+        # The list comes from the folders on disk, so it stays right when a language is added.
+        $folders = @(Get-ChildItem -Path (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'src/Modules/SPSWeather.Common') -Directory |
+                Where-Object -FilterScript { Test-Path -Path (Join-Path -Path $_.FullName -ChildPath 'SPSWeather.Common.Strings.psd1') } |
+                Select-Object -ExpandProperty Name | Sort-Object)
+        $r.Messages[0] | Should -Match ([regex]::Escape("(available: $($folders -join ', '))"))
         $r.Messages[0] | Should -Match 'using en-US'
     }
 
@@ -74,7 +87,7 @@ Describe 'Resolve-SPSWeatherLanguage' {
             @{ Ui = 'fr-FR'; Expected = 'fr-FR' }
             @{ Ui = 'fr-CA'; Expected = 'fr-FR' }
             @{ Ui = 'en-GB'; Expected = 'en-US' }
-            @{ Ui = 'de-DE'; Expected = 'en-US' }
+            @{ Ui = $unshippedUiCulture; Expected = 'en-US' }
         ) {
             [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo($Ui)
             $r = Resolve-SPSWeatherLanguage -Language 'auto'
@@ -85,6 +98,76 @@ Describe 'Resolve-SPSWeatherLanguage' {
         It "accepts 'AUTO' in any case" {
             [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('fr-FR')
             (Resolve-SPSWeatherLanguage -Language 'AUTO').Culture | Should -Be 'fr-FR'
+        }
+    }
+
+    Context 'a language that is added later (a new folder with a resource file, no change in the code)' {
+        BeforeAll {
+            $script:source = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'src/Modules/SPSWeather.Common'
+            $shipped = @(Get-ChildItem -Path $script:source -Directory | ForEach-Object -Process { ($_.Name -split '-')[0] })
+            # The first real culture whose language is not shipped yet.
+            $script:added = @('de-DE', 'es-ES', 'it-IT', 'pt-BR', 'nl-NL', 'ja-JP', 'ko-KR', 'sv-SE') |
+                Where-Object -FilterScript { $shipped -notcontains ($_ -split '-')[0] } | Select-Object -First 1
+            $script:addedLanguage = ($script:added -split '-')[0]
+
+            $copy = Join-Path -Path $TestDrive -ChildPath 'added/SPSWeather.Common'
+            Copy-Item -Path $script:source -Destination $copy -Recurse
+            $folder = Join-Path -Path $copy -ChildPath $script:added
+            New-Item -Path $folder -ItemType Directory | Out-Null
+            # The new file is the French one relabelled: the point is that a folder is enough.
+            $text = [System.IO.File]::ReadAllText((Join-Path -Path $copy -ChildPath 'fr-FR/SPSWeather.Common.Strings.psd1'))
+            $text = $text -replace "(Culture\s*=\s*)'fr-FR'", "`$1'$($script:added)'" -replace "(HtmlLang\s*=\s*)'fr'", "`$1'$($script:addedLanguage)'"
+            # Keep the BOM: Windows PowerShell 5.1 reads a data file without it as ANSI.
+            [System.IO.File]::WriteAllText((Join-Path -Path $folder -ChildPath 'SPSWeather.Common.Strings.psd1'), $text, (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $true))
+
+            $script:previousUi = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+            Remove-Module -Name SPSWeather.Common -Force -ErrorAction SilentlyContinue
+            Import-Module -Name (Join-Path -Path $copy -ChildPath 'SPSWeather.Common.psd1') -Force
+        }
+        AfterAll {
+            [System.Threading.Thread]::CurrentThread.CurrentUICulture = $script:previousUi
+            Remove-Module -Name SPSWeather.Common -Force -ErrorAction SilentlyContinue
+            Import-Module -Name (Join-Path -Path $script:source -ChildPath 'SPSWeather.Common.psd1') -Force
+        }
+
+        It 'is available as soon as its folder exists, by name, by language and by region' {
+            foreach ($value in $script:added, $script:addedLanguage, "$($script:addedLanguage)-XX") {
+                $r = Resolve-SPSWeatherLanguage -Language $value
+                $r.Culture | Should -Be $script:added -Because "Language = '$value'"
+                $r.Messages.Count | Should -Be 0
+                $r.IsFallback | Should -BeFalse
+            }
+        }
+
+        It "follows the UI culture of the process with 'auto'" {
+            [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo($script:added)
+            (Resolve-SPSWeatherLanguage -Language 'auto').Culture | Should -Be $script:added
+        }
+
+        It 'is listed with the other languages in the message for an unknown one' {
+            $r = Resolve-SPSWeatherLanguage -Language 'qaa-QM'
+            $r.Culture | Should -Be 'en-US'
+            $r.Available | Should -Contain $script:added
+            $r.Available | Should -Contain 'fr-FR'
+            $r.Messages[0] | Should -Match ([regex]::Escape($script:added))
+        }
+
+        It 'leaves the other languages as they were' {
+            (Resolve-SPSWeatherLanguage -Language 'fr-FR').Culture | Should -Be 'fr-FR'
+            (Resolve-SPSWeatherLanguage -Language 'en-GB').Culture | Should -Be 'en-US'
+        }
+
+        It 'is used by the dashboard and the email without any other change' {
+            $report = [PSCustomObject]@{ SPAPIHttpStatus = @([PSCustomObject]@{ Farm = 'C'; Title = 'Root'; Url = 'u'; HTTPCode = 500; Status = 'Failed'; IsInfo = $false }) }
+            $file = Join-Path -Path $TestDrive -ChildPath 'added-dashboard.html'
+            [void](Export-SPSWeatherReport -InputObject $report -OutputFile $file -Farm 'C' -Application 'a' -Environment 'e' -Language $script:added)
+            $dashboard = Get-Content -Path $file -Raw -Encoding UTF8
+            $mail = ConvertTo-SPSWeatherEmailBody -InputObject $report -Farm 'C' -Application 'a' -Environment 'e' -Language $script:added
+            foreach ($html in $dashboard, $mail) {
+                $html | Should -Match "<html lang=""$($script:addedLanguage)"""
+                # The renderers HTML-encode the accents (&#201;chec).
+                [System.Net.WebUtility]::HtmlDecode($html) | Should -Match 'Échec' -Because 'the new language file is the relabelled French one'
+            }
         }
     }
 
