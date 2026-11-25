@@ -110,6 +110,31 @@ $Extra
         (Get-CheckLine -Lines $legacy -Key 'SMTPEnabled') | Should -BeNullOrEmpty
     }
 
+    Context 'EmailMode' {
+        BeforeAll {
+            $script:modeConsolidated = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    EmailMode = 'Consolidated'"
+            $script:modePerFarm = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    EmailMode = 'perfarm'"
+            $script:modeInvalid = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    EmailMode = 'Single'"
+            $script:modeAbsent = Invoke-Readiness -Extra "    SMTPEnabled = `$false"
+        }
+
+        It 'reports the mode it resolves to' {
+            (Get-CheckLine -Lines $modeConsolidated -Key 'EmailMode') | Should -Match '^\[ OK \].*Consolidated'
+            (Get-CheckLine -Lines $modePerFarm -Key 'EmailMode') | Should -Match '^\[ OK \].*PerFarm'
+        }
+
+        It 'warns, never fails, for a mode that does not exist' {
+            $line = Get-CheckLine -Lines $modeInvalid -Key 'EmailMode'
+            $line | Should -Match '^\[WARN\]'
+            $line | Should -Match "EmailMode must be 'PerFarm' or 'Consolidated' \(got 'Single'\)"
+            ($modeInvalid -join "`n") | Should -Not -Match "\[FAIL\]\s+Key 'EmailMode'"
+        }
+
+        It 'says nothing when no mode is configured' {
+            (Get-CheckLine -Lines $modeAbsent -Key 'EmailMode') | Should -BeNullOrEmpty
+        }
+    }
+
     Context 'Language' {
         BeforeAll {
             $script:langFr = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'fr-FR'"

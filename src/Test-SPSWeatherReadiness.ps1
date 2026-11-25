@@ -142,6 +142,24 @@ if ($null -ne $cfg) {
         }
     }
 
+    # EmailMode (optional): 'PerFarm' (default) or 'Consolidated'. An unknown value is a WARN, never
+    # a FAIL: the run falls back to one email per farm.
+    if ($cfg.Contains('EmailMode')) {
+        if (Get-Command -Name Resolve-SPSSmtpSetting -ErrorAction SilentlyContinue) {
+            $modeCheck = Resolve-SPSSmtpSetting -Config $cfg
+            $modeMessages = @($modeCheck.Messages | Where-Object -FilterScript { $_ -like 'EmailMode*' })
+            if ($modeMessages.Count -gt 0) {
+                Add-CheckResult -Section 'Config' -Name "Key 'EmailMode'" -Status 'WARN' -Detail ($modeMessages -join ' ')
+            }
+            else {
+                Add-CheckResult -Section 'Config' -Name "Key 'EmailMode'" -Status 'PASS' -Detail $modeCheck.Mode
+            }
+        }
+        else {
+            Add-CheckResult -Section 'Config' -Name "Key 'EmailMode'" -Status 'SKIP' -Detail 'SPSWeather.Common is not loaded'
+        }
+    }
+
     # Language (optional): display language of the dashboard and the email. A language that is not
     # available is a WARN, never a FAIL: the run falls back to English.
     if ($cfg.Contains('Language')) {

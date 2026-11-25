@@ -24,12 +24,17 @@
     #                 is absent, the deprecated -EnableSmtp switch of SPSWeather.ps1 still
     #                 decides (removed in 4.0.0); when present, this key takes precedence.
     #   SMTPPreview : $true also writes the email body to Results\<App>-<Env>-<Farm>-mail.html
-    #                 (overwritten at each run) so it can be reviewed without an SMTP relay.
+    #                 (Results\<App>-<Env>-mail.html with EmailMode = 'Consolidated'), overwritten
+    #                 at each run, so it can be reviewed without an SMTP relay.
     #                 Independent from SMTPEnabled. Default: $false.
+    #   EmailMode   : 'PerFarm' (default) sends one short email per farm; 'Consolidated' sends ONE
+    #                 email for all the farms, with a card per farm (status, counts, main areas
+    #                 and a link to its dashboard). A farm that cannot be reached gets its own card.
     # The three settings below are required whenever emails are sent (SMTPEnabled = $true, or
     # the deprecated -EnableSmtp switch); not needed when sending is off.
     SMTPEnabled       = $true
     SMTPPreview       = $false
+    EmailMode         = 'PerFarm'
     SMTPToAddress     = @('admin-farm@contoso.com', 'admin-setup@contoso.com')
     SMTPFromAddress   = 'noreply@contoso.com'
     SMTPServer        = 'smtp.contoso.com'

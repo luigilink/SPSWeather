@@ -274,6 +274,9 @@ else {
         # Track only the farms actually reached: an unreachable farm (skipped below)
         # must not be published/emailed as healthy.
         $probedFarms = New-Object System.Collections.ArrayList
+        # EmailMode = 'Consolidated': one entry per farm, used to build a single email at the end.
+        # A farm that cannot be reached still gets one (a grey card), so it is never left out.
+        $consolidatedEntries = @{}
         Add-SPSWeatherEvent -Message "SPSWeather $spsWeatherVersion started for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1000
         # An unattended run has nobody watching the console: also record the email configuration
         # warnings in the Event Log, so a mail that stops being sent leaves a trace.
@@ -297,6 +300,7 @@ else {
             catch {
                 Write-Warning -Message "Skipping farm '$($spFarm.Name)': '$spTargetServer' is unreachable. $($_.Exception.Message)"
                 Add-SPSWeatherEvent -Message "SPSWeather skipped farm '$($spFarm.Name)' ($spTargetServer) which was unreachable: $($_.Exception.Message)" -EntryType 'Error' -EventID 3001
+                $consolidatedEntries["$($spFarm.Name)"] = [PSCustomObject]@{ Name = "$($spFarm.Name)"; Server = "$($spFarm.Server)"; Reachable = $false }
                 continue
             }
 
@@ -534,6 +538,9 @@ else {
             $farmJsonFile = Join-Path -Path $pathResultsFolder -ChildPath ($farmStem + '.json')
             $farmHistFolder = Join-Path -Path $pathHistoryFolder -ChildPath $safeFarm
             $dashFile = Join-Path -Path $dashOutputPath -ChildPath ($farmStem + '-dashboard.html')
+            $dashUrl = if ($dashBaseUrl) { "$dashBaseUrl/$($farmStem)-dashboard.html" } else { '' }
+            $farmServer = "$((@($spFarms | Where-Object { "$($_.Name)" -eq $farmName }) | Select-Object -First 1).Server)"
+            $consolidatedEntries[$farmName] = [PSCustomObject]@{ Name = $farmName; Server = $farmServer; Reachable = $true; Report = $farmJson; Summary = $farmResult.Summary; DashboardUrl = $dashUrl }
 
             # Per-farm resilience: a failure rendering or mailing one farm must not abort
             # the others. Log it and move on (no silent broad Trap).
@@ -556,18 +563,19 @@ else {
                         -Language $languageSetting.Culture)
                 Write-Output " * Dashboard: $dashFile"
 
-                $dashUrl = if ($dashBaseUrl) { "$dashBaseUrl/$($farmStem)-dashboard.html" } else { '' }
-                $mailHTMLBody = ConvertTo-SPSWeatherEmailBody -InputObject $farmJson `
-                    -Summary $farmResult.Summary `
-                    -Farm $farmName `
-                    -Application $Application `
-                    -Environment $Environment `
-                    -Version $spsWeatherVersion `
-                    -ExecutedBy $currentUser `
-                    -Duration $runDuration `
-                    -DashboardUrl $dashUrl `
-                    -MaxItemsPerArea $emailMaxItemsPerArea `
-                    -Language $languageSetting.Culture
+                if ($smtpSetting.Mode -eq 'PerFarm') {
+                    $mailHTMLBody = ConvertTo-SPSWeatherEmailBody -InputObject $farmJson `
+                        -Summary $farmResult.Summary `
+                        -Farm $farmName `
+                        -Application $Application `
+                        -Environment $Environment `
+                        -Version $spsWeatherVersion `
+                        -ExecutedBy $currentUser `
+                        -Duration $runDuration `
+                        -DashboardUrl $dashUrl `
+                        -MaxItemsPerArea $emailMaxItemsPerArea `
+                        -Language $languageSetting.Culture
+                }
 
                 # Outcome from the shared severity counts: failures -> ALERT/High,
                 # warnings only -> WARN/Normal, otherwise OK.
@@ -587,13 +595,13 @@ else {
 
                 # Preview: keep the email body next to the JSON snapshot (overwritten at each run),
                 # before any send attempt, so it can be reviewed without an SMTP relay.
-                if ($smtpSetting.Preview) {
+                if ($smtpSetting.Preview -and $smtpSetting.Mode -eq 'PerFarm') {
                     $mailPreviewFile = Join-Path -Path $pathResultsFolder -ChildPath ($farmStem + '-mail.html')
                     Set-Content -Path $mailPreviewFile -Value $mailHTMLBody -Encoding UTF8 -Force
                     Write-Output " * Email preview ($mailSubject): $mailPreviewFile"
                 }
 
-                if ($smtpSetting.Send) {
+                if ($smtpSetting.Send -and $smtpSetting.Mode -eq 'PerFarm') {
                     $SmtpToAddress = $envCfg.SMTPToAddress
                     $SmtpFromAddress = $envCfg.SMTPFromAddress
                     $SmtpServerAddress = $envCfg.SMTPServer
@@ -617,6 +625,55 @@ else {
             catch {
                 Write-Output $_
                 Add-SPSWeatherEvent -Message "SPSWeather failed to produce the dashboard/email for $Application/$Environment farm '$farmName'. Exception: $($_.Exception.Message)" -EntryType 'Error' -EventID 3000
+            }
+        }
+
+        # EmailMode = 'Consolidated': one email for all the farms of the environment, built from the
+        # entries collected above (configuration order; unreachable farms included).
+        if ($smtpSetting.Mode -eq 'Consolidated' -and ($smtpSetting.Preview -or $smtpSetting.Send)) {
+            try {
+                $consolidatedInput = @($spFarms | ForEach-Object -Process { $consolidatedEntries["$($_.Name)"] } | Where-Object -FilterScript { $_ })
+                if ($consolidatedInput.Count -gt 0) {
+                    $consolidatedDuration = '{0:hh\:mm\:ss}' -f ((Get-Date) - $DateStarted)
+                    $consolidatedMail = ConvertTo-SPSWeatherConsolidatedEmail -FarmResult $consolidatedInput `
+                        -Application $Application `
+                        -Environment $Environment `
+                        -Version $spsWeatherVersion `
+                        -ExecutedBy $currentUser `
+                        -Duration $consolidatedDuration `
+                        -Language $languageSetting.Culture
+
+                    if ($smtpSetting.Preview) {
+                        $mailPreviewFile = Join-Path -Path $pathResultsFolder -ChildPath ("$($Application)-$($Environment)-mail.html")
+                        Set-Content -Path $mailPreviewFile -Value $consolidatedMail.Body -Encoding UTF8 -Force
+                        Write-Output " * Email preview ($($consolidatedMail.Subject)): $mailPreviewFile"
+                    }
+
+                    if ($smtpSetting.Send) {
+                        $SmtpToAddress = $envCfg.SMTPToAddress
+                        $SmtpFromAddress = $envCfg.SMTPFromAddress
+                        $SmtpServerAddress = $envCfg.SMTPServer
+                        Write-Output '--------------------------------------------------------------'
+                        Write-Output "Sending the consolidated Email ($($consolidatedInput.Count) farm(s))"
+                        Write-Output " * To: $SmtpToAddress"
+                        Write-Output " * From: $SmtpFromAddress"
+                        Write-Output " * SmtpServer: $SmtpServerAddress"
+                        Send-MailMessage -To $SmtpToAddress `
+                            -From $SmtpFromAddress `
+                            -Subject $consolidatedMail.Subject `
+                            -Body $consolidatedMail.Body `
+                            -BodyAsHtml `
+                            -Encoding 'UTF8' `
+                            -SmtpServer $SmtpServerAddress `
+                            -Priority $consolidatedMail.Priority `
+                            -ea stop
+                        Write-Output "Email sent successfully to $SmtpToAddress"
+                    }
+                }
+            }
+            catch {
+                Write-Output $_
+                Add-SPSWeatherEvent -Message "SPSWeather failed to produce the consolidated email for $Application/$Environment. Exception: $($_.Exception.Message)" -EntryType 'Error' -EventID 3000
             }
         }
 
