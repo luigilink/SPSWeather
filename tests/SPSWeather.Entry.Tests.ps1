@@ -75,5 +75,28 @@ Describe 'Entry script email settings (SMTPEnabled / SMTPPreview)' {
         $entrySource | Should -Match '(?s)if \(\$smtpSetting\.Preview\) \{.*?-mail\.html.*?Set-Content -Path \$mailPreviewFile -Value \$mailHTMLBody.*?\}.*?if \(\$smtpSetting\.Send\)'
         $entrySource | Should -Match '\$mailPreviewFile = Join-Path -Path \$pathResultsFolder -ChildPath \(\$farmStem \+ ''-mail\.html''\)'
     }
-}
 
+    It 'resolves the display language after Start-Transcript and shows its warnings' {
+        $transcript = $entrySource.IndexOf('Start-Transcript -Path')
+        $resolve = $entrySource.IndexOf('$languageSetting = Resolve-SPSWeatherLanguage -Language $envCfg.Language')
+        $transcript | Should -BeGreaterThan 0
+        $resolve | Should -BeGreaterThan $transcript
+        $entrySource | Should -Match 'foreach \(\$languageMessage in \$languageSetting\.Messages\) \{ Write-Warning -Message \$languageMessage \}'
+    }
+
+    It 'records an unavailable language in the Event Log (ID 2001) on runs' {
+        $entrySource | Should -Match '(?s)foreach \(\$languageMessage in \$languageSetting\.Messages\) \{\s*Add-SPSWeatherEvent -Message "SPSWeather language configuration: \$languageMessage" -EntryType ''Warning'' -EventID 2001'
+    }
+
+    It 'passes the resolved culture to the dashboard and to the email' {
+        $entrySource | Should -Match '(?s)Export-SPSWeatherReport -InputObject.*?-Language \$languageSetting\.Culture\)'
+        $entrySource | Should -Match '(?s)ConvertTo-SPSWeatherEmailBody -InputObject.*?-Language \$languageSetting\.Culture'
+    }
+
+    It 'keeps the English severity tags in the email subject (inbox rules filter on them)' {
+        $entrySource | Should -Match '\$farmAlert = ''ALERT''; \$farmPriority = ''High'''
+        $entrySource | Should -Match '\$farmAlert = ''WARN''; \$farmPriority = ''Normal'''
+        $entrySource | Should -Match '\$farmAlert = ''OK''; \$farmPriority = ''Normal'''
+        $entrySource | Should -Match '\$mailSubject = "\[\$farmAlert\] \$Application/\$Environment/\$farmName - SPSWeather"'
+    }
+}

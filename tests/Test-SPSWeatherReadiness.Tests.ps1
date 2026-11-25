@@ -109,5 +109,34 @@ $Extra
         (Get-CheckLine -Lines $legacy -Key 'SMTPServer') | Should -Match '^\[FAIL\]'
         (Get-CheckLine -Lines $legacy -Key 'SMTPEnabled') | Should -BeNullOrEmpty
     }
-}
 
+    Context 'Language' {
+        BeforeAll {
+            $script:langFr = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'fr-FR'"
+            $script:langRegion = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'fr-BE'"
+            $script:langUnknown = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'de-DE'"
+            $script:langAuto = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Language = 'auto'"
+            $script:langAbsent = Invoke-Readiness -Extra "    SMTPEnabled = `$false"
+        }
+
+        It 'reports an available language with the culture it resolves to' {
+            (Get-CheckLine -Lines $langFr -Key 'Language') | Should -Match '^\[ OK \].*fr-FR'
+            (Get-CheckLine -Lines $langRegion -Key 'Language') | Should -Match '^\[ OK \].*fr-FR'
+        }
+
+        It 'warns, never fails, for a language that is not available' {
+            $line = Get-CheckLine -Lines $langUnknown -Key 'Language'
+            $line | Should -Match '^\[WARN\]'
+            $line | Should -Match "Language 'de-DE' is not available"
+            ($langUnknown -join "`n") | Should -Not -Match "\[FAIL\]\s+Key 'Language'"
+        }
+
+        It "tells that 'auto' depends on the account that runs the task" {
+            (Get-CheckLine -Lines $langAuto -Key 'Language') | Should -Match '^\[ OK \].*auto ->.*may differ'
+        }
+
+        It 'says nothing when no language is configured' {
+            (Get-CheckLine -Lines $langAbsent -Key 'Language') | Should -BeNullOrEmpty
+        }
+    }
+}

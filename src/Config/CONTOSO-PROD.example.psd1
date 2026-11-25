@@ -67,6 +67,12 @@
     # Counters are never capped. 0 lists everything. Default: 10.
     EmailMaxItemsPerArea        = 10
 
+    # Language : display language of the dashboard and of the alert email. A culture name
+    # (en-US or fr-FR), or 'auto' for the UI culture of the account that runs the script. Only the
+    # labels are translated; the values of the checks stay as collected. An unknown value falls
+    # back to en-US with a warning. Default: en-US.
+    Language                    = 'en-US'
+
     # LogRetentionDays: how many days of *.log transcript files are kept under
     # Logs\ by Clear-SPSLog. 0 disables pruning. Default: 180.
     LogRetentionDays            = 180
