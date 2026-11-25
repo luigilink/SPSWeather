@@ -9,6 +9,11 @@
         a run-history bar chart, one status card per functional area, and collapsible
         detail tables.
 
+        .PARAMETER Language
+        Display language of the dashboard: a culture name such as 'fr-FR', 'auto' (UI culture of the
+        process) or nothing for en-US. An unknown language falls back to en-US. Only the labels are
+        translated; the values of the checks are shown as collected.
+
         .EXAMPLE
         Export-SPSWeatherReport -InputObject $farmReport -OutputFile $out `
             -Farm 'CONTENT' -Application 'zebes' -Environment 'PROD' -Version '3.1.0'
@@ -57,7 +62,11 @@
         # PSCustomObject with Date (string), Ok, Warn, Fail (int). The current run is appended.
         [Parameter()]
         [PSCustomObject[]]
-        $History
+        $History,
+
+        [Parameter()]
+        [System.String]
+        $Language = 'en-US'
     )
 
     if ($PSCmdlet.ParameterSetName -eq 'File') {
@@ -75,28 +84,33 @@
     # Row severity: IsInfo drives ok/fail; severity string drives warn (Health Analyzer).
     function _sev($row) { Get-SPSWeatherRowSeverity -Row $row }
 
-    $areas = @(
-        [PSCustomObject]@{ Name = 'Farm & Upgrade'; Icon = '&#127970;'; Sections = @('SPUpgradeStatus') }
-        [PSCustomObject]@{ Name = 'Trust Farm (REST)'; Icon = '&#127760;'; Sections = @('SPAPIHttpStatus', 'SPSSitesHttpStatus') }
-        [PSCustomObject]@{ Name = 'Search'; Icon = '&#128269;'; Sections = @('SPSearchLastCrawlStatus', 'SPSearchCrawlLogs', 'SPSSearchEntTopology') }
-        [PSCustomObject]@{ Name = 'Distributed Cache'; Icon = '&#9889;'; Sections = @('AppFabricStatus') }
-        [PSCustomObject]@{ Name = 'Timer Jobs & Solutions'; Icon = '&#9201;'; Sections = @('SPFailedTimerJobs', 'SPSolutionDeployment', 'USPAudienceStatus') }
-        [PSCustomObject]@{ Name = 'Health Analyzer'; Icon = '&#129657;'; Sections = @('SPHealthAnalyzer') }
-        [PSCustomObject]@{ Name = 'IIS'; Icon = '&#128421;'; Sections = @('IISApplicationPoolStatus', 'IISWorkerProcessStatus', 'IISWebSiteCertStatus') }
-        [PSCustomObject]@{ Name = 'System'; Icon = '&#129513;'; Sections = @('SYSDiskUsageStatus', 'SYSLastRebootStatus', 'SYSDOTNETVersion', 'SYSEventViewerAppErrors') }
-        [PSCustomObject]@{ Name = 'SQL Server'; Icon = '&#128451;'; Sections = @('SPSContentDBStatus', 'SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus', 'SQLAvailabilityStatus', 'SQLAliasStatus') }
-    )
-
-    $sectionLabel = @{
-        SPHealthAnalyzer = 'Health Analyzer'; SPUpgradeStatus = 'Upgrade Status'; SPAPIHttpStatus = 'Trust Farm (REST)'
-        SPSSitesHttpStatus = 'Site HTTP Status'; SPFailedTimerJobs = 'Failed Timer Jobs'; SPSolutionDeployment = 'Solution Deployment'
-        SPSearchLastCrawlStatus = 'Search - Last Crawl'; SPSearchCrawlLogs = 'Search - Crawl Logs'; SPSSearchEntTopology = 'Search - Topology'
-        AppFabricStatus = 'Distributed Cache'; USPAudienceStatus = 'User Profile Audiences'; IISApplicationPoolStatus = 'IIS - Application Pools'
-        IISWorkerProcessStatus = 'IIS - Worker Processes'; IISWebSiteCertStatus = 'IIS - SSL Certificates'; SYSEventViewerAppErrors = 'System - Event Log Errors'
-        SYSDiskUsageStatus = 'System - Disk Usage'; SYSLastRebootStatus = 'System - Last Reboot'; SYSDOTNETVersion = 'System - .NET Framework'
-        SPSContentDBStatus = 'Content Databases'; SQLInstanceStatus = 'SQL - Instances'; SQLDatabaseStatus = 'SQL - Databases'
-        SQLDiskStatus = 'SQL - Disk Volumes'; SQLAvailabilityStatus = 'SQL - Availability Groups'; SQLAliasStatus = 'SQL - Alias Mapping'
+    # Display strings of the chosen language (English underneath: a missing key shows the English
+    # text). _t formats a string with the arguments that follow its key, using the language's culture.
+    $text = Get-SPSWeatherResource -Language $Language
+    $ci = [System.Globalization.CultureInfo]::GetCultureInfo($text.Culture)
+    function _t([string]$key) {
+        $s = $text[$key]
+        if ($null -eq $s) { return $key }
+        if ($args.Count -gt 0) { return [string]::Format($ci, $s, [object[]]$args) }
+        return $s
     }
+    function _label([string]$sectionKey) {
+        $s = $text["Section_$sectionKey"]
+        if ($null -eq $s) { return $sectionKey }
+        return $s
+    }
+
+    $areas = @(
+        [PSCustomObject]@{ Id = 'FarmUpgrade'; Icon = '&#127970;'; Sections = @('SPUpgradeStatus') }
+        [PSCustomObject]@{ Id = 'TrustFarm'; Icon = '&#127760;'; Sections = @('SPAPIHttpStatus', 'SPSSitesHttpStatus') }
+        [PSCustomObject]@{ Id = 'Search'; Icon = '&#128269;'; Sections = @('SPSearchLastCrawlStatus', 'SPSearchCrawlLogs', 'SPSSearchEntTopology') }
+        [PSCustomObject]@{ Id = 'DistributedCache'; Icon = '&#9889;'; Sections = @('AppFabricStatus') }
+        [PSCustomObject]@{ Id = 'TimerJobsSolutions'; Icon = '&#9201;'; Sections = @('SPFailedTimerJobs', 'SPSolutionDeployment', 'USPAudienceStatus') }
+        [PSCustomObject]@{ Id = 'HealthAnalyzer'; Icon = '&#129657;'; Sections = @('SPHealthAnalyzer') }
+        [PSCustomObject]@{ Id = 'IIS'; Icon = '&#128421;'; Sections = @('IISApplicationPoolStatus', 'IISWorkerProcessStatus', 'IISWebSiteCertStatus') }
+        [PSCustomObject]@{ Id = 'System'; Icon = '&#129513;'; Sections = @('SYSDiskUsageStatus', 'SYSLastRebootStatus', 'SYSDOTNETVersion', 'SYSEventViewerAppErrors') }
+        [PSCustomObject]@{ Id = 'SQL'; Icon = '&#128451;'; Sections = @('SPSContentDBStatus', 'SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus', 'SQLAvailabilityStatus', 'SQLAliasStatus') }
+    )
 
     # Per-section and global counts. Only rows that are actual checks (carrying IsInfo or a
     # severity) count toward OK, so pure info-only rows (reboot time, .NET version) do not
@@ -125,10 +139,10 @@
     $gTotal = $gOk + $gWarn + $gFail
     $healthPct = if ($gTotal -gt 0) { [math]::Round(($gOk / $gTotal) * 100) } else { 100 }
 
-    if ($gFail -eq 0 -and $gWarn -eq 0) { $wx = '&#9728;&#65039;'; $wxLabel = 'Sunny' }
-    elseif ($gFail -eq 0) { $wx = '&#127780;&#65039;'; $wxLabel = 'Fair' }
-    elseif ($gFail -le 5) { $wx = '&#9925;'; $wxLabel = 'Cloudy' }
-    else { $wx = '&#9928;&#65039;'; $wxLabel = 'Stormy' }
+    if ($gFail -eq 0 -and $gWarn -eq 0) { $wx = '&#9728;&#65039;'; $wxLabel = _enc (_t 'WeatherSunny') }
+    elseif ($gFail -eq 0) { $wx = '&#127780;&#65039;'; $wxLabel = _enc (_t 'WeatherFair') }
+    elseif ($gFail -le 5) { $wx = '&#9925;'; $wxLabel = _enc (_t 'WeatherCloudy') }
+    else { $wx = '&#9928;&#65039;'; $wxLabel = _enc (_t 'WeatherStormy') }
     $attention = $gWarn + $gFail
 
     $pOk = if ($gTotal -gt 0) { [math]::Round(($gOk / $gTotal) * 100, 1) } else { 100 }
@@ -148,26 +162,26 @@
             }
         }
         if ($present.Count -eq 0) { continue }
-        if ($aFail -gt 0) { $cls = 'fail'; $pill = "$aFail failed" }
-        elseif ($aWarn -gt 0) { $cls = 'warn'; $pill = "$aWarn warning" }
-        else { $cls = 'ok'; $pill = 'healthy' }
+        if ($aFail -gt 0) { $cls = 'fail'; $pill = _t 'PillFailed' $aFail }
+        elseif ($aWarn -gt 0) { $cls = 'warn'; $pill = _t 'PillWarning' $aWarn }
+        else { $cls = 'ok'; $pill = _t 'Healthy' }
         $aTot = $aOk + $aWarn + $aFail
         $okw = if ($aTot) { [math]::Round($aOk / $aTot * 100) } else { 100 }
         $warw = if ($aTot) { [math]::Round($aWarn / $aTot * 100) } else { 0 }
         $faw = 100 - $okw - $warw
         $anchor = 'd-' + ($present[0] -replace '[^A-Za-z0-9_-]', '')
 
-        [void]$cardsHtml.Append("<div class=`"card`"><div class=`"head`"><div class=`"ci $cls`">$($area.Icon)</div><h4>$(_enc $area.Name)</h4><div class=`"st $cls`">$(_enc $pill)</div></div><div class=`"body`"><div class=`"bar`"><i style=`"width:$okw%;background:#2fae66`"></i><i style=`"width:$warw%;background:#e8923a`"></i><i style=`"width:$faw%;background:#e24a4a`"></i></div>")
+        [void]$cardsHtml.Append("<div class=`"card`"><div class=`"head`"><div class=`"ci $cls`">$($area.Icon)</div><h4>$(_enc (_t "Area_$($area.Id)"))</h4><div class=`"st $cls`">$(_enc $pill)</div></div><div class=`"body`"><div class=`"bar`"><i style=`"width:$okw%;background:#2fae66`"></i><i style=`"width:$warw%;background:#e8923a`"></i><i style=`"width:$faw%;background:#e24a4a`"></i></div>")
         foreach ($sk in $present) {
             $st = $sectionStats[$sk]
-            $lbl = if ($sectionLabel.ContainsKey($sk)) { $sectionLabel[$sk] } else { $sk }
-            if ($st.Fail -gt 0) { $vcls = 'fail'; $vtxt = "$($st.Fail) alert" }
-            elseif ($st.Warn -gt 0) { $vcls = 'warn'; $vtxt = "$($st.Warn) warn" }
-            elseif ($st.Ok -gt 0) { $vcls = 'ok'; $vtxt = "$($st.Ok) OK" }
-            else { $vcls = 'ok'; $vtxt = "$($st.Count) info" }
+            $lbl = _label $sk
+            if ($st.Fail -gt 0) { $vcls = 'fail'; $vtxt = _t 'RowAlert' $st.Fail }
+            elseif ($st.Warn -gt 0) { $vcls = 'warn'; $vtxt = _t 'RowWarn' $st.Warn }
+            elseif ($st.Ok -gt 0) { $vcls = 'ok'; $vtxt = _t 'RowOk' $st.Ok }
+            else { $vcls = 'ok'; $vtxt = _t 'RowInfo' $st.Count }
             [void]$cardsHtml.Append("<div class=`"rowline`"><span>$(_enc $lbl)</span><span class=`"v $vcls`">$(_enc $vtxt)</span></div>")
         }
-        [void]$cardsHtml.Append("</div><div class=`"foot`"><a href=`"#$anchor`">View detail &rarr;</a></div></div>")
+        [void]$cardsHtml.Append("</div><div class=`"foot`"><a href=`"#$anchor`">$(_enc (_t 'ViewDetail')) &rarr;</a></div></div>")
     }
 
     # History chart (append current run, cap 30, one x-label every 5 bars).
@@ -185,7 +199,7 @@
         $wp = if ($t) { [math]::Round($w / $t * 100) } else { 0 }
         $fp = if ($t) { 100 - $okp - $wp } else { 0 }
         $now = ($i -eq $lastIdx)
-        $tip = _enc "$($h.Date)$(if ($now) { ' (now)' }): $o OK / $w warn / $f fail"
+        $tip = _enc (_t 'BarTip' "$($h.Date)$(if ($now) { _t 'NowSuffix' })" $o $w $f)
         [void]$barsHtml.Append("<div class=`"bcol$(if ($now) { ' now' })`"><div class=`"stack`" title=`"$tip`" style=`"height:88%`"><i class=`"f`" style=`"height:$fp%`"></i><i class=`"w`" style=`"height:$wp%`"></i><i class=`"o`" style=`"height:$okp%`"></i></div></div>")
         $show = $now -or ($i % 5 -eq 0)
         $xt = if ($show) { if ($now) { "<b>$(_enc $h.Date)</b>" } else { _enc $h.Date } } else { '' }
@@ -208,9 +222,9 @@
             $rows = @($InputObject.$sk | Where-Object { $null -ne $_ })
             $cols = @($rows[0].PSObject.Properties.Name | Where-Object { $noiseColumns -notcontains $_ })
             $anchor = 'd-' + ($sk -replace '[^A-Za-z0-9_-]', '')
-            $lbl = if ($sectionLabel.ContainsKey($sk)) { $sectionLabel[$sk] } else { $sk }
+            $lbl = _label $sk
             $st = $sectionStats[$sk]
-            if ($st.Fail -gt 0) { $pc = 'fail'; $pt = "$($st.Fail) failed" } elseif ($st.Warn -gt 0) { $pc = 'warn'; $pt = "$($st.Warn) warning" } else { $pc = 'ok'; $pt = "$($st.Count) OK" }
+            if ($st.Fail -gt 0) { $pc = 'fail'; $pt = _t 'PillFailed' $st.Fail } elseif ($st.Warn -gt 0) { $pc = 'warn'; $pt = _t 'PillWarning' $st.Warn } else { $pc = 'ok'; $pt = _t 'RowOk' $st.Count }
             [void]$detailHtml.Append("<details class=`"sec`" id=`"$anchor`"><summary><span class=`"sg-ico $pc`">&#9679;</span> $(_enc $lbl) <span class=`"pill $pc`">$(_enc $pt)</span><span class=`"chev`">&#9654;</span></summary><div class=`"tw`"><table><thead><tr>")
             foreach ($c in $cols) { [void]$detailHtml.Append("<th>$(_enc $c)</th>") }
             [void]$detailHtml.Append('</tr></thead><tbody>')
@@ -226,13 +240,13 @@
 
     $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm')
     $envLine = (@($Application, $Environment) | Where-Object { $_ }) -join ' / '
-    if ($Farm) { $envLine = "Farm $Farm &middot; $envLine" }
+    if ($Farm) { $envLine = "$(_enc (_t 'FarmLabel')) $Farm &middot; $envLine" }
 
     $page = @"
 <!DOCTYPE html>
-<html lang="en"><head>
+<html lang="$(_enc (_t 'HtmlLang'))"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SPSWeather Dashboard - $(_enc $Application)/$(_enc $Environment)/$(_enc $Farm)</title>
+<title>$(_enc (_t 'DashboardTitle')) - $(_enc $Application)/$(_enc $Environment)/$(_enc $Farm)</title>
 <style>
 :root{--ink:#1b2733;--muted:#6b7280;--bg:#eef2f7;--card:#fff;--line:#e3e8ef;--brand:#2b5797;--brand2:#1e3d6b;--ok:#2fae66;--ok-bg:#e6f7ee;--warn:#e8923a;--warn-bg:#fdf1e4;--fail:#e24a4a;--fail-bg:#fdeaea;--shadow:0 1px 3px rgba(16,34,54,.08),0 8px 24px rgba(16,34,54,.06)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 'Segoe UI','Aptos',Arial,sans-serif}
@@ -266,37 +280,37 @@ footer{max-width:1180px;margin:10px auto 36px;padding:0 20px;color:var(--muted);
 </style></head>
 <body>
 <header class="top">
-  <div class="brand"><div class="logo">$wx</div><div><h1>SPSWeather Dashboard</h1><div class="sub">$envLine &middot; SharePoint Server Subscription Edition</div></div></div>
-  <div class="top-right"><div class="weather"><div class="ico">$wx</div><div class="lbl">$wxLabel<small>$attention item(s) need attention</small></div></div><div class="meta">Generated<br><b>$generated</b><br>$(_enc $Duration) &middot; v$(_enc $Version)</div></div>
+  <div class="brand"><div class="logo">$wx</div><div><h1>$(_enc (_t 'DashboardTitle'))</h1><div class="sub">$envLine &middot; SharePoint Server Subscription Edition</div></div></div>
+  <div class="top-right"><div class="weather"><div class="ico">$wx</div><div class="lbl">$wxLabel<small>$(_enc (_t 'NeedAttention' $attention))</small></div></div><div class="meta">$(_enc (_t 'Generated'))<br><b>$generated</b><br>$(_enc $Duration) &middot; v$(_enc $Version)</div></div>
 </header>
 <div class="wrap">
   <div class="hero">
-    <div class="donutcard"><h3>Overall health</h3>
+    <div class="donutcard"><h3>$(_enc (_t 'OverallHealth'))</h3>
       <div class="donut"><svg viewBox="0 0 42 42" width="170" height="170">
         <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#eef2f7" stroke-width="6"></circle>
         <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#2fae66" stroke-width="6" stroke-dasharray="$pOk $([math]::Round(100-$pOk,1))" stroke-dashoffset="25"></circle>
         <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#e8923a" stroke-width="6" stroke-dasharray="$pWarn $([math]::Round(100-$pWarn,1))" stroke-dashoffset="$offWarn"></circle>
         <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#e24a4a" stroke-width="6" stroke-dasharray="$pFail $([math]::Round(100-$pFail,1))" stroke-dashoffset="$offFail"></circle>
-      </svg><div class="center"><div class="big">$healthPct%</div><div class="small">healthy</div></div></div>
-      <div class="legend"><span><i class="dot ok"></i>OK $gOk</span><span><i class="dot warn"></i>Warn $gWarn</span><span><i class="dot fail"></i>Fail $gFail</span></div>
+      </svg><div class="center"><div class="big">$healthPct%</div><div class="small">$(_enc (_t 'Healthy'))</div></div></div>
+      <div class="legend"><span><i class="dot ok"></i>$(_enc (_t 'ShortOk')) $gOk</span><span><i class="dot warn"></i>$(_enc (_t 'ShortWarn')) $gWarn</span><span><i class="dot fail"></i>$(_enc (_t 'ShortFail')) $gFail</span></div>
     </div>
     <div class="histcard">
-      <div class="histhead"><h3>Run history &mdash; last $($runs.Count) runs</h3>
-        <div class="histstats"><div class="hs fail"><span class="n">$gFail</span><span class="t">Fail</span>$fArrow</div><div class="hs warn"><span class="n">$gWarn</span><span class="t">Warn</span>$wArrow</div><div class="hs ok"><span class="n">$gOk</span><span class="t">OK</span></div></div>
+      <div class="histhead"><h3>$(_enc (_t 'RunHistory')) &mdash; $(_enc (_t 'LastRuns' $runs.Count))</h3>
+        <div class="histstats"><div class="hs fail"><span class="n">$gFail</span><span class="t">$(_enc (_t 'ShortFail'))</span>$fArrow</div><div class="hs warn"><span class="n">$gWarn</span><span class="t">$(_enc (_t 'ShortWarn'))</span>$wArrow</div><div class="hs ok"><span class="n">$gOk</span><span class="t">$(_enc (_t 'ShortOk'))</span></div></div>
       </div>
       <div class="chart"><div class="gl" style="bottom:25%"></div><div class="gl" style="bottom:50%"></div><div class="gl" style="bottom:75%"></div>
         $($barsHtml.ToString())
       </div>
       <div class="xlabels">$($xHtml.ToString())</div>
-      <div class="histlegend"><span><i class="dot ok"></i>OK</span><span><i class="dot warn"></i>Warning</span><span><i class="dot fail"></i>Failure</span><span style="margin-left:auto">hover a bar for the run totals</span></div>
+      <div class="histlegend"><span><i class="dot ok"></i>$(_enc (_t 'ShortOk'))</span><span><i class="dot warn"></i>$(_enc (_t 'LegendWarning'))</span><span><i class="dot fail"></i>$(_enc (_t 'LegendFailure'))</span><span style="margin-left:auto">$(_enc (_t 'HoverBar'))</span></div>
     </div>
   </div>
-  <div class="section-title">Health by area</div>
+  <div class="section-title">$(_enc (_t 'HealthByArea'))</div>
   <div class="cards">$($cardsHtml.ToString())</div>
-  <div class="detail-head"><div class="section-title" style="margin:0">Detail</div><div class="exp"><button type="button" onclick="document.querySelectorAll('details.sec').forEach(function(d){d.open=true})">Expand all</button> &middot; <button type="button" onclick="document.querySelectorAll('details.sec').forEach(function(d){d.open=false})">Collapse all</button></div></div>
+  <div class="detail-head"><div class="section-title" style="margin:0">$(_enc (_t 'Detail'))</div><div class="exp"><button type="button" onclick="document.querySelectorAll('details.sec').forEach(function(d){d.open=true})">$(_enc (_t 'ExpandAll'))</button> &middot; <button type="button" onclick="document.querySelectorAll('details.sec').forEach(function(d){d.open=false})">$(_enc (_t 'CollapseAll'))</button></div></div>
   <div class="details">$($detailHtml.ToString())</div>
 </div>
-<footer><span>SPSWeather $(_enc $Version) &middot; $envLine</span><span>Executed by $(_enc $ExecutedBy) &middot; $generated</span></footer>
+<footer><span>SPSWeather $(_enc $Version) &middot; $envLine</span><span>$(_enc (_t 'ExecutedBy')) $(_enc $ExecutedBy) &middot; $generated</span></footer>
 </body></html>
 "@
 

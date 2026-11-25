@@ -71,3 +71,110 @@ Describe 'Dashboard renderer (Export-SPSWeatherReport)' {
         $html3 | Should -Not -Match '<i class="f" style="height:100%">'
     }
 }
+
+Describe 'Dashboard language (Export-SPSWeatherReport -Language)' {
+    BeforeAll {
+        $report = [PSCustomObject]@{}
+        $report | Add-Member -MemberType NoteProperty -Name SPAPIHttpStatus -Value @(
+            [PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Search REST'; Url = 'https://sp/_api/search'; HTTPCode = 500; Status = 'Failed'; IsInfo = $false }
+            [PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Root'; Url = 'https://sp'; HTTPCode = 200; Status = 'OK'; IsInfo = $true }
+        )
+        $report | Add-Member -MemberType NoteProperty -Name SQLDatabaseStatus -Value @(
+            [PSCustomObject]@{ Farm = 'CONTENT'; SqlServer = 'SQL1'; Name = 'DB_01'; State = 'ONLINE'; Recommendation = 'no full backup found'; IsInfo = $false }
+        )
+        $report | Add-Member -MemberType NoteProperty -Name SYSLastRebootStatus -Value @(
+            [PSCustomObject]@{ Farm = 'CONTENT'; Server = 'APP1'; OSName = 'Windows Server 2022'; LastRebootTime = '2026-11-01' }
+        )
+        $history = @([PSCustomObject]@{ Date = '06-01'; Ok = 12; Warn = 0; Fail = 1 })
+
+        function Get-Dashboard {
+            param([string]$Language)
+            $file = Join-Path -Path $TestDrive -ChildPath ('dash-' + [guid]::NewGuid().ToString('N') + '.html')
+            $arguments = @{ InputObject = $report; OutputFile = $file; Farm = 'CONTENT'; Application = 'zebes'; Environment = 'PROD'; Version = '3.4.0'; ExecutedBy = 'DOM\jc'; Duration = '00:04:31'; History = $history }
+            if ($PSBoundParameters.ContainsKey('Language')) { $arguments['Language'] = $Language }
+            [void](Export-SPSWeatherReport @arguments)
+            # The renderer HTML-encodes accented characters; compare the decoded text.
+            $html = Get-Content -Path $file -Raw -Encoding UTF8
+            [PSCustomObject]@{ Raw = $html; Text = [System.Net.WebUtility]::HtmlDecode($html) }
+        }
+
+        $script:default = Get-Dashboard
+        $script:english = Get-Dashboard -Language 'en-US'
+        $script:french = Get-Dashboard -Language 'fr-FR'
+        $script:unknown = Get-Dashboard -Language 'de-DE'
+        $script:frenchRegion = Get-Dashboard -Language 'fr-BE'
+    }
+
+    It 'exposes -Language with en-US as the default' {
+        $cmd = Get-Command -Name Export-SPSWeatherReport
+        $cmd.Parameters.Keys | Should -Contain 'Language'
+        $cmd.Parameters['Language'].ParameterType | Should -Be ([System.String])
+    }
+
+    It 'keeps English when no language is given, and en-US gives the same page (timestamps aside)' {
+        $normalize = { param($t) ($t -replace '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', '<TS>') -replace '\d{2}-\d{2}(?= \(now\))', '<MD>' -replace '<b>\d{2}-\d{2}</b>', '<b><MD></b>' }
+        (& $normalize $default.Raw) | Should -BeExactly (& $normalize $english.Raw)
+        $default.Text | Should -Match '<html lang="en">'
+        $default.Text | Should -Match 'Overall health'
+        $default.Text | Should -Match 'Health by area'
+    }
+
+    It 'falls back to English for a language that is not available' {
+        $unknown.Text | Should -Match '<html lang="en">'
+        $unknown.Text | Should -Match 'Overall health'
+    }
+
+    Context 'fr-FR' {
+        It 'declares the page language' {
+            $french.Text | Should -Match '<html lang="fr">'
+        }
+
+        It 'translates the header, the donut, the history and the section titles' {
+            foreach ($expected in 'Tableau de bord SPSWeather', 'Santé globale', 'Historique des exécutions', 'Santé par domaine', 'Détail', 'Tout développer', 'Tout réduire', 'Voir le détail', 'Exécuté par', 'Généré le') {
+                $french.Text | Should -Match ([regex]::Escape($expected))
+            }
+        }
+
+        It 'translates the area cards and the section labels' {
+            foreach ($expected in 'Ferme approuvée \(REST\)', '<h4>Système</h4>', '<h4>SQL Server</h4>', 'SQL - Bases de données', 'Système - Dernier redémarrage') {
+                $french.Text | Should -Match $expected
+            }
+        }
+
+        It 'translates the counters and the pills with their numbers' {
+            $french.Text | Should -Match '\d+ élément\(s\) à examiner'
+            $french.Text | Should -Match '\d+ en échec'
+            $french.Text | Should -Match '\d+ alerte\(s\)'
+            $french.Text | Should -Match 'dernières exécutions'
+        }
+
+        It 'no longer shows the English chrome' {
+            foreach ($english in 'Overall health', 'Health by area', 'Expand all', 'Collapse all', 'View detail', 'Executed by', 'Run history', 'hover a bar') {
+                $french.Text | Should -Not -Match ([regex]::Escape($english))
+            }
+        }
+
+        It 'leaves the collected values and the column headers untouched' {
+            # Values and headers are data: translating them would break the severity model and the history.
+            $french.Text | Should -Match '<td>Failed</td>'
+            $french.Text | Should -Match 'no full backup found'
+            $french.Text | Should -Match '<th>Server</th>'
+            $french.Text | Should -Match '<th>HTTPCode</th>'
+        }
+
+        It 'keeps the numbers and the verdict of the English page' {
+            foreach ($pattern in '<div class="big">\d+%</div>', 'class="bcol now"') {
+                $english.Text | Should -Match $pattern
+                $french.Text | Should -Match $pattern
+            }
+            ([regex]::Matches($french.Text, '<div class="card">')).Count | Should -Be ([regex]::Matches($english.Text, '<div class="card">')).Count
+            ([regex]::Matches($french.Text, '<details class="sec"')).Count | Should -Be ([regex]::Matches($english.Text, '<details class="sec"')).Count
+        }
+
+        It 'is also reached through a French region' {
+            $frenchRegion.Text | Should -Match '<html lang="fr">'
+            $frenchRegion.Text | Should -Match 'Santé globale'
+        }
+    }
+}
+
