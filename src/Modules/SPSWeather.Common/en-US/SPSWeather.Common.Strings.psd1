@@ -80,6 +80,23 @@
     CountsSummary    = '{0} OK / {1} warn / {2} fail'
     FreePercent      = '{0}% free'
 
+    # Consolidated email (all the farms of an environment in one message)
+    FarmCountOne       = '{0} farm'
+    FarmCountMany      = '{0} farms'
+    FarmStatusAlert    = 'ALERT'
+    FarmStatusWarn     = 'WARNING'
+    FarmStatusOk       = 'HEALTHY'
+    FarmStatusDown     = 'UNREACHABLE'
+    FarmHealth         = '{0} healthy'
+    FarmAttentionTitle = 'Needs attention'
+    UnreachableTitle   = 'The farm could not be reached.'
+    UnreachableText    = 'No check was run. See the SPSWeather Event Log (ID 3001).'
+    FarmsOfTotalOne    = '{0} farm of {1}'
+    FarmsOfTotalMany   = '{0} farms of {1}'
+    IntroFarmsOne      = '{0} needs your attention on {1}. Full detail is in the dashboard of each farm.'
+    IntroFarmsMany     = '{0} need your attention on {1}. Full detail is in the dashboard of each farm.'
+    FooterFarmsQueried = 'farms queried: {0} of {1}'
+
     # Functional areas (dashboard cards and email groups)
     Area_FarmUpgrade        = 'Farm & Upgrade'
     Area_TrustFarm          = 'Trust Farm (REST)'

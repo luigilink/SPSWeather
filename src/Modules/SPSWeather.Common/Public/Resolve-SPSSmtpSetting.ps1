@@ -10,12 +10,15 @@
             deprecation warning when it is also passed);
           - SMTPEnabled absent: the legacy switch decides (with a deprecation warning), so
             existing scheduled tasks keep sending mail;
-          - SMTPPreview: write the email body to a file (independent from sending).
+          - SMTPPreview: write the email body to a file (independent from sending);
+          - EmailMode: 'PerFarm' (default, one short email per farm) or 'Consolidated' (one email
+            for all the farms). A missing key is PerFarm; a value that is neither is reported and
+            treated as PerFarm.
         A non-boolean value is never cast (the string 'false' would become $true): it is
         reported and treated as disabled. When sending is on but SMTPToAddress, SMTPFromAddress
         or SMTPServer is missing, sending is turned off with an explicit message.
 
-        Returns Send, Preview, ConfigDefinesEnabled (so -Action Install knows whether the
+        Returns Send, Preview, Mode, ConfigDefinesEnabled (so -Action Install knows whether the
         scheduled task can drop the deprecated switch) and Messages (warnings to display).
 
         .PARAMETER Config
@@ -77,6 +80,18 @@
         }
     }
 
+    # The mode is a name, not a flag: anything else than the two known names is a mistake to report.
+    $mode = 'PerFarm'
+    if (($null -ne $Config) -and $Config.Contains('EmailMode')) {
+        $rawMode = $Config['EmailMode']
+        $knownMode = if ($rawMode -is [string]) { @('PerFarm', 'Consolidated') | Where-Object -FilterScript { $_ -ieq $rawMode.Trim() } | Select-Object -First 1 } else { $null }
+        if ($knownMode) { $mode = $knownMode }
+        else {
+            $shown = if ($rawMode -is [string]) { "'$rawMode'" } elseif ($null -eq $rawMode) { '$null' } else { "a value of type $($rawMode.GetType().Name)" }
+            [void]$messages.Add("EmailMode must be 'PerFarm' or 'Consolidated' (got $shown); using PerFarm.")
+        }
+    }
+
     if ($send) {
         $missing = @('SMTPToAddress', 'SMTPFromAddress', 'SMTPServer' | Where-Object {
                 -not (($null -ne $Config) -and $Config.Contains($_) -and -not [string]::IsNullOrWhiteSpace((@($Config[$_]) -join '')))
@@ -90,6 +105,7 @@
     return [PSCustomObject]@{
         Send                 = [bool]$send
         Preview              = [bool]$preview.Value
+        Mode                 = $mode
         ConfigDefinesEnabled = [bool]$enabled.Defined
         Messages             = @($messages)
     }

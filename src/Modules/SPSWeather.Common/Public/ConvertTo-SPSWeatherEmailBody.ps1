@@ -132,15 +132,9 @@
         return (_t 'FreePercent' ([double]$p).ToString('0.##', $ci))
     }
 
-    # section -> (icon, area id) for grouping alerts; the area name is the Area_<id> resource
-    $areaOf = @{
-        SPUpgradeStatus = @('&#127970;', 'FarmUpgrade'); SPAPIHttpStatus = @('&#127760;', 'TrustFarm'); SPSSitesHttpStatus = @('&#127760;', 'TrustFarm')
-        SPSearchLastCrawlStatus = @('&#128269;', 'Search'); SPSearchCrawlLogs = @('&#128269;', 'Search'); SPSSearchEntTopology = @('&#128269;', 'Search')
-        AppFabricStatus = @('&#9889;', 'DistributedCache'); SPFailedTimerJobs = @('&#9201;', 'TimerJobs'); SPSolutionDeployment = @('&#9201;', 'Solutions'); USPAudienceStatus = @('&#9201;', 'UserProfiles')
-        SPHealthAnalyzer = @('&#129657;', 'HealthAnalyzer'); IISApplicationPoolStatus = @('&#128421;', 'IIS'); IISWorkerProcessStatus = @('&#128421;', 'IIS'); IISWebSiteCertStatus = @('&#128421;', 'IIS')
-        SYSDiskUsageStatus = @('&#129513;', 'System'); SYSLastRebootStatus = @('&#129513;', 'System'); SYSEventViewerAppErrors = @('&#129513;', 'System')
-        SPSContentDBStatus = @('&#128451;', 'SQL'); SQLInstanceStatus = @('&#128451;', 'SQL'); SQLDatabaseStatus = @('&#128451;', 'SQL'); SQLDiskStatus = @('&#128451;', 'SQL'); SQLAvailabilityStatus = @('&#128451;', 'SQL'); SQLAliasStatus = @('&#128451;', 'SQL')
-    }
+    # section -> (icon, area id) and the order of the areas: shared with the consolidated email
+    $areaMap = Get-SPSWeatherEmailAreaMap
+    $areaOf = $areaMap.Map
     # section -> (label fields, detail fields) to compose a one-line alert
     $lineOf = @{
         SPUpgradeStatus         = @{ Label = @('server', 'Server'); Detail = @('UpgradeStatus', 'SPBuildVersion') }
@@ -165,7 +159,7 @@
         SQLAvailabilityStatus   = @{ Label = @('Name', 'SqlServer'); Detail = @('Detail') }
         SQLAliasStatus          = @{ Label = @('Name'); Detail = @('Note') }
     }
-    $areaOrder = @('FarmUpgrade', 'TrustFarm', 'Search', 'DistributedCache', 'TimerJobs', 'Solutions', 'UserProfiles', 'HealthAnalyzer', 'IIS', 'System', 'SQL')
+    $areaOrder = $areaMap.Order
 
     # Collect alerts (non-ok rows), grouped by area.
     $groups = [ordered]@{}

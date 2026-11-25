@@ -17,6 +17,17 @@ IIS site (as SPSUpdate does), so operators browse a stable URL per farm.
   pointing at the hosted URL. Each area lists at most `EmailMaxItemsPerArea` items
   (default 10, `0` = no limit); the rest is summarized as "+ N more" and the counters
   always include every item.
+- **One consolidated email for all the farms** (`EmailMode = 'Consolidated'`, instead of one email
+  per farm): a header with the weather of the worst farm, the **totals of checks across all the
+  farms** (failures, warnings, OK), then **one card per farm**, worst first. A card shows the status
+  of the farm (`ALERT`, `WARNING`, `HEALTHY` or `UNREACHABLE`), a health bar and percentage, the
+  counts, the three areas with the most failures (`+ N more` for the rest) and a button to the
+  dashboard of the farm (hidden when `Dashboard.Url` is empty). A farm that could not be reached
+  gets a grey card instead of disappearing from the report. The subject is
+  `[ALERT] <App>/<Env> - 3 farms (1 ALERT, 1 WARN, 1 OK) - SPSWeather`: the tag is the worst status
+  (an unreachable farm counts as `ALERT`), in English like the per-farm email, and the priority is
+  High when a farm is in alert or unreachable. The dashboards, the history and the JSON snapshots
+  are unchanged; `SMTPPreview = $true` writes `Results\<App>-<Env>-mail.html`.
 
 The dashboard replaces the legacy full-table HTML report; data collection is unchanged.
 

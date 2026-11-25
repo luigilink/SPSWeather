@@ -44,6 +44,7 @@
         'Get-SYSLastRebootStatus'
         'Get-USPAudienceStatus'
         'Import-SPSSharePointCommand'
+        'ConvertTo-SPSWeatherConsolidatedEmail'
         'ConvertTo-SPSWeatherEmailBody'
         'Remove-SPSSheduledTask'
         'Resolve-SPSSmtpSetting'

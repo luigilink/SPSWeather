@@ -136,5 +136,56 @@ Describe 'Resolve-SPSSmtpSetting' {
         $r = InModuleScope SPSWeather.Common { Resolve-SPSSmtpSetting -Config $null }
         $r.Send | Should -BeFalse
         $r.Preview | Should -BeFalse
+        $r.Mode | Should -Be 'PerFarm'
+    }
+
+    Context 'EmailMode' {
+        It 'is PerFarm, without any message, when the key is absent (nothing changes for existing configurations)' {
+            $r = InModuleScope SPSWeather.Common { Resolve-SPSSmtpSetting -Config @{ SMTPEnabled = $true } }
+            $r.Mode | Should -Be 'PerFarm'
+            ($r.Messages -join ' ') | Should -Not -Match 'EmailMode'
+        }
+
+        It "accepts '<Value>' as <Expected>, in any case and with spaces around" -ForEach @(
+            @{ Value = 'PerFarm'; Expected = 'PerFarm' }
+            @{ Value = 'Consolidated'; Expected = 'Consolidated' }
+            @{ Value = 'consolidated'; Expected = 'Consolidated' }
+            @{ Value = ' CONSOLIDATED '; Expected = 'Consolidated' }
+            @{ Value = 'perfarm'; Expected = 'PerFarm' }
+        ) {
+            $r = InModuleScope SPSWeather.Common -Parameters @{ Value = $Value } { param($Value) Resolve-SPSSmtpSetting -Config @{ SMTPEnabled = $false; EmailMode = $Value } }
+            $r.Mode | Should -Be $Expected
+            $r.Messages.Count | Should -Be 0
+        }
+
+        It 'reports a value that is not a known mode and falls back to PerFarm: <Name>' -ForEach @(
+            @{ Name = 'an unknown name'; Value = 'Single'; Shown = "'Single'" }
+            @{ Name = 'an empty text'; Value = ''; Shown = "''" }
+            @{ Name = 'a number'; Value = 1; Shown = 'a value of type Int32' }
+            @{ Name = 'a boolean'; Value = $true; Shown = 'a value of type Boolean' }
+            @{ Name = 'a list'; Value = @('Consolidated'); Shown = 'a value of type Object\[\]' }
+            @{ Name = 'a $null'; Value = $null; Shown = '\$null' }
+        ) {
+            $r = InModuleScope SPSWeather.Common -Parameters @{ Value = $Value } { param($Value) Resolve-SPSSmtpSetting -Config @{ SMTPEnabled = $false; EmailMode = $Value } }
+            $r.Mode | Should -Be 'PerFarm'
+            $r.Messages.Count | Should -Be 1
+            $r.Messages[0] | Should -Match "^EmailMode must be 'PerFarm' or 'Consolidated' \(got $Shown\); using PerFarm\.$"
+        }
+
+        It 'is independent from sending and from the preview' {
+            $r = InModuleScope SPSWeather.Common -Parameters @{ Keys = $smtpKeys } { param($Keys) Resolve-SPSSmtpSetting -Config ($Keys + @{ SMTPEnabled = $true; SMTPPreview = $true; EmailMode = 'Consolidated' }) }
+            $r.Mode | Should -Be 'Consolidated'
+            $r.Send | Should -BeTrue
+            $r.Preview | Should -BeTrue
+            $off = InModuleScope SPSWeather.Common { Resolve-SPSSmtpSetting -Config @{ SMTPEnabled = $false; EmailMode = 'Consolidated' } }
+            $off.Mode | Should -Be 'Consolidated'
+            $off.Send | Should -BeFalse
+        }
+
+        It 'works with the deprecated switch (no SMTPEnabled key)' {
+            $r = InModuleScope SPSWeather.Common -Parameters @{ Keys = $smtpKeys } { param($Keys) Resolve-SPSSmtpSetting -Config ($Keys + @{ EmailMode = 'Consolidated' }) -EnableSmtp }
+            $r.Mode | Should -Be 'Consolidated'
+            $r.Send | Should -BeTrue
+        }
     }
 }

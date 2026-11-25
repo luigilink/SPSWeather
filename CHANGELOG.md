@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **One consolidated email for all the farms** of an environment. The new optional key `EmailMode`
+  of the environment configuration is `PerFarm` (default, one short email per farm, unchanged) or
+  `Consolidated`: a single email with the totals of checks across the farms on top, then one card per
+  farm (worst first) with its status, health bar, counts, the three areas that need the most attention
+  and a button to its dashboard. A farm that cannot be reached gets an `UNREACHABLE` card instead of
+  being left out of the report. The subject is `[ALERT] <App>/<Env> - 3 farms (1 ALERT, 1 WARN, 1 OK) - SPSWeather`
+  (the tag is the worst status, an unreachable farm counting as `ALERT`; English like the per-farm
+  email, so inbox rules keep working) and the priority is High when a farm is in alert or unreachable.
+  The dashboards, the history and the JSON snapshots are unchanged; `SMTPPreview` writes
+  `Results\<App>-<Env>-mail.html`. An invalid `EmailMode` is reported (transcript, Event ID 2001,
+  readiness `[WARN]`) and treated as `PerFarm`. New exported function
+  `ConvertTo-SPSWeatherConsolidatedEmail`; the labels are in the resource files (`en-US`, `fr-FR`) (#101).
 - Localization of the dashboard and of the alert email, with a French (`fr-FR`) translation.
   The labels live in resource files, one per culture (`<module>\<culture>\SPSWeather.Common.Strings.psd1`),
   and the new `Language` key of the environment configuration (`en-US` by default, `fr-FR`, or
