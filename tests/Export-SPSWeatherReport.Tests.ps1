@@ -130,7 +130,7 @@ Describe 'Dashboard language (Export-SPSWeatherReport -Language)' {
         }
 
         It 'translates the header, the donut, the history and the section titles' {
-            foreach ($expected in 'Tableau de bord SPSWeather', 'Santé globale', 'Historique des exécutions', 'Santé par domaine', 'Détail', 'Tout développer', 'Tout réduire', 'Voir le détail', 'Exécuté par', 'Généré le') {
+            foreach ($expected in 'Tableau de bord SPSWeather', 'Santé globale', 'Historique', 'Santé par composant', 'Détail', 'Tout développer', 'Tout réduire', 'Voir le détail', 'Exécuté par', 'Généré le') {
                 $french.Text | Should -Match ([regex]::Escape($expected))
             }
         }
@@ -163,7 +163,9 @@ Describe 'Dashboard language (Export-SPSWeatherReport -Language)' {
         }
 
         It 'keeps the numbers and the verdict of the English page' {
-            foreach ($pattern in '<div class="big">\d+%</div>', 'class="bcol now"') {
+            $english.Text | Should -Match '<div class="big">\d+%</div>'
+            $french.Text | Should -Match '<div class="big">\d+\u00A0%</div>'
+            foreach ($pattern in 'class="bcol now"') {
                 $english.Text | Should -Match $pattern
                 $french.Text | Should -Match $pattern
             }
@@ -176,5 +178,71 @@ Describe 'Dashboard language (Export-SPSWeatherReport -Language)' {
             $frenchRegion.Text | Should -Match 'Santé globale'
         }
     }
-}
 
+    Context 'a translation that would break the formatting (defence in depth)' {
+        It 'never lets a label stop the dashboard or the email' {
+            # Even if a defective table reaches a renderer (the resolver normally rejects it first),
+            # formatting falls back to the English text instead of throwing.
+            $report = [PSCustomObject]@{
+                SPAPIHttpStatus = @([PSCustomObject]@{ Farm = 'C'; Title = 'Root'; Url = 'u'; HTTPCode = 500; Status = 'Failed'; IsInfo = $false })
+            }
+            $file = Join-Path -Path $TestDrive -ChildPath 'broken-dash.html'
+            $reference = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'src/Modules/SPSWeather.Common/en-US/SPSWeather.Common.Strings.psd1'
+            $body = [scriptblock]::Create(@"
+param(`$Language)
+`$table = Import-PowerShellDataFile -Path '$reference'
+if (`$Language -eq 'broken') {
+    `$table['PillFailed'] = '{0} {5} en echec'
+    `$table['IntroAttention'] = '{0} {7} a examiner'
+}
+`$table
+"@)
+            Mock -ModuleName SPSWeather.Common -CommandName Get-SPSWeatherResource -MockWith $body
+            { Export-SPSWeatherReport -InputObject $report -OutputFile $file -Farm 'C' -Language 'broken' } | Should -Not -Throw
+            (Get-Content -Path $file -Raw) | Should -Match '1 failed'
+            { ConvertTo-SPSWeatherEmailBody -InputObject $report -Farm 'C' -Language 'broken' } | Should -Not -Throw
+            (ConvertTo-SPSWeatherEmailBody -InputObject $report -Farm 'C' -Language 'broken') | Should -Match 'need your attention on'
+        }
+    }
+
+    Context 'history title and dates' {
+        BeforeAll {
+            function Get-HistoryDashboard {
+                param([string]$Language, $History)
+                $file = Join-Path -Path $TestDrive -ChildPath ('hist-' + [guid]::NewGuid().ToString('N') + '.html')
+                $report = [PSCustomObject]@{ SPAPIHttpStatus = @([PSCustomObject]@{ Farm = 'C'; Title = 'Root'; Url = 'u'; HTTPCode = 200; Status = 'OK'; IsInfo = $true }) }
+                [void](Export-SPSWeatherReport -InputObject $report -OutputFile $file -Farm 'C' -Application 'a' -Environment 'e' -Version 'v' -ExecutedBy 'x' -Duration 'd' -History $History -Language $Language)
+                [System.Net.WebUtility]::HtmlDecode((Get-Content -Path $file -Raw -Encoding UTF8))
+            }
+            $script:march4 = [datetime]'2026-03-04T10:00:00'
+            $script:past = @(
+                [PSCustomObject]@{ Date = '03-04'; When = $script:march4; Ok = 5; Warn = 1; Fail = 0 }
+                [PSCustomObject]@{ Date = '03-05'; When = $script:march4.AddDays(1); Ok = 5; Warn = 0; Fail = 1 }
+            )
+        }
+
+        It 'uses the singular title for the first run and the plural afterwards, in both languages' {
+            (Get-HistoryDashboard -Language 'en-US' -History @()) | Should -Match 'Run history — last run<'
+            (Get-HistoryDashboard -Language 'en-US' -History $past) | Should -Match 'Run history — last 3 runs<'
+            (Get-HistoryDashboard -Language 'fr-FR' -History @()) | Should -Match 'Historique — dernière exécution<'
+            (Get-HistoryDashboard -Language 'fr-FR' -History $past) | Should -Match 'Historique — 3 dernières exécutions<'
+        }
+
+        It 'writes the date of a past run month first in English and day first in French' {
+            $en = Get-HistoryDashboard -Language 'en-US' -History $past
+            $fr = Get-HistoryDashboard -Language 'fr-FR' -History $past
+            $en | Should -Match 'title="03-04: 5 OK / 1 warn / 0 fail"'
+            $fr | Should -Match 'title="04/03 : 5 OK / 1 avert\. / 0 échec\(s\)"'
+            $fr | Should -Not -Match 'title="03-04'
+        }
+
+        It 'still accepts a past run that only has the Date text (callers and old objects)' {
+            $legacy = @([PSCustomObject]@{ Date = '06-01'; Ok = 12; Warn = 0; Fail = 1 })
+            (Get-HistoryDashboard -Language 'fr-FR' -History $legacy) | Should -Match 'title="06-01 : 12 OK'
+        }
+
+        It 'writes the percentage with a non-breaking space in French (never a lone % on a line)' {
+            (Get-HistoryDashboard -Language 'fr-FR' -History @()) | Should -Match '<div class="big">\d+\u00A0%</div>'
+        }
+    }
+}

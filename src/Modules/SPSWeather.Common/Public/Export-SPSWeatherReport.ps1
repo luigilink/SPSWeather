@@ -59,7 +59,8 @@
         $Duration = '',
 
         # Previous-run summaries for the history bar chart (oldest first). Each item:
-        # PSCustomObject with Date (string), Ok, Warn, Fail (int). The current run is appended.
+        # PSCustomObject with Date (string), Ok, Warn, Fail (int) and optionally When (datetime,
+        # written in the order of the display language). The current run is appended.
         [Parameter()]
         [PSCustomObject[]]
         $History,
@@ -87,12 +88,30 @@
     # Display strings of the chosen language (English underneath: a missing key shows the English
     # text). _t formats a string with the arguments that follow its key, using the language's culture.
     $text = Get-SPSWeatherResource -Language $Language
-    $ci = [System.Globalization.CultureInfo]::GetCultureInfo($text.Culture)
+    $english = Get-SPSWeatherResource -Language 'en-US'
+    $ci = try { [System.Globalization.CultureInfo]::GetCultureInfo([string]$text.Culture) } catch { [System.Globalization.CultureInfo]::InvariantCulture }
     function _t([string]$key) {
         $s = $text[$key]
         if ($null -eq $s) { return $key }
-        if ($args.Count -gt 0) { return [string]::Format($ci, $s, [object[]]$args) }
+        if ($args.Count -gt 0) {
+            # A label must never stop the report: if the text cannot be formatted with these arguments,
+            # fall back to the English text rather than throwing.
+            try { return [string]::Format($ci, $s, [object[]]$args) }
+            catch { return [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, $english[$key], [object[]]$args) }
+        }
         return $s
+    }
+    # Label of a run on the history chart: the real date in the order of the display language when
+    # the run carries it (When), otherwise the Date text it was given.
+    function _runDate($run) {
+        if ($run.PSObject.Properties.Name -contains 'When' -and $run.When -is [datetime]) {
+            try { return $run.When.ToString($text['HistoryDateFormat'], $ci) } catch { return [string]$run.Date }
+        }
+        return [string]$run.Date
+    }
+    function _count([int]$n, [string]$base) {
+        $key = if ($n -gt 1) { "${base}Many" } else { "${base}One" }
+        return (_t $key $n)
     }
     function _label([string]$sectionKey) {
         $s = $text["Section_$sectionKey"]
@@ -187,7 +206,7 @@
     # History chart (append current run, cap 30, one x-label every 5 bars).
     $runs = @()
     if ($null -ne $History) { $runs += @($History) }
-    $runs += [PSCustomObject]@{ Date = (Get-Date).ToString('MM-dd'); Ok = $gOk; Warn = $gWarn; Fail = $gFail; Now = $true }
+    $runs += [PSCustomObject]@{ Date = (Get-Date).ToString('MM-dd'); When = (Get-Date); Ok = $gOk; Warn = $gWarn; Fail = $gFail; Now = $true }
     if ($runs.Count -gt 30) { $runs = $runs[($runs.Count - 30)..($runs.Count - 1)] }
     $barsHtml = New-Object -TypeName System.Text.StringBuilder
     $xHtml = New-Object -TypeName System.Text.StringBuilder
@@ -199,10 +218,11 @@
         $wp = if ($t) { [math]::Round($w / $t * 100) } else { 0 }
         $fp = if ($t) { 100 - $okp - $wp } else { 0 }
         $now = ($i -eq $lastIdx)
-        $tip = _enc (_t 'BarTip' "$($h.Date)$(if ($now) { _t 'NowSuffix' })" $o $w $f)
+        $runDate = _runDate $h
+        $tip = _enc (_t 'BarTip' "$runDate$(if ($now) { _t 'NowSuffix' })" $o $w $f)
         [void]$barsHtml.Append("<div class=`"bcol$(if ($now) { ' now' })`"><div class=`"stack`" title=`"$tip`" style=`"height:88%`"><i class=`"f`" style=`"height:$fp%`"></i><i class=`"w`" style=`"height:$wp%`"></i><i class=`"o`" style=`"height:$okp%`"></i></div></div>")
         $show = $now -or ($i % 5 -eq 0)
-        $xt = if ($show) { if ($now) { "<b>$(_enc $h.Date)</b>" } else { _enc $h.Date } } else { '' }
+        $xt = if ($show) { if ($now) { "<b>$(_enc $runDate)</b>" } else { _enc $runDate } } else { '' }
         [void]$xHtml.Append("<span>$xt</span>")
     }
     # trend vs previous run
@@ -291,11 +311,11 @@ footer{max-width:1180px;margin:10px auto 36px;padding:0 20px;color:var(--muted);
         <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#2fae66" stroke-width="6" stroke-dasharray="$pOk $([math]::Round(100-$pOk,1))" stroke-dashoffset="25"></circle>
         <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#e8923a" stroke-width="6" stroke-dasharray="$pWarn $([math]::Round(100-$pWarn,1))" stroke-dashoffset="$offWarn"></circle>
         <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#e24a4a" stroke-width="6" stroke-dasharray="$pFail $([math]::Round(100-$pFail,1))" stroke-dashoffset="$offFail"></circle>
-      </svg><div class="center"><div class="big">$healthPct%</div><div class="small">$(_enc (_t 'Healthy'))</div></div></div>
+      </svg><div class="center"><div class="big">$(_enc (_t 'Percent' $healthPct))</div><div class="small">$(_enc (_t 'Healthy'))</div></div></div>
       <div class="legend"><span><i class="dot ok"></i>$(_enc (_t 'ShortOk')) $gOk</span><span><i class="dot warn"></i>$(_enc (_t 'ShortWarn')) $gWarn</span><span><i class="dot fail"></i>$(_enc (_t 'ShortFail')) $gFail</span></div>
     </div>
     <div class="histcard">
-      <div class="histhead"><h3>$(_enc (_t 'RunHistory')) &mdash; $(_enc (_t 'LastRuns' $runs.Count))</h3>
+      <div class="histhead"><h3>$(_enc (_t 'RunHistory')) &mdash; $(_enc (_count $runs.Count 'LastRuns'))</h3>
         <div class="histstats"><div class="hs fail"><span class="n">$gFail</span><span class="t">$(_enc (_t 'ShortFail'))</span>$fArrow</div><div class="hs warn"><span class="n">$gWarn</span><span class="t">$(_enc (_t 'ShortWarn'))</span>$wArrow</div><div class="hs ok"><span class="n">$gOk</span><span class="t">$(_enc (_t 'ShortOk'))</span></div></div>
       </div>
       <div class="chart"><div class="gl" style="bottom:25%"></div><div class="gl" style="bottom:50%"></div><div class="gl" style="bottom:75%"></div>

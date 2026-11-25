@@ -306,7 +306,7 @@ Describe 'Alert email language (ConvertTo-SPSWeatherEmailBody -Language)' {
 
         It 'translates the all-clear message and the weather' {
             $clear.Text | Should -Match 'Tout est en ordre\.'
-            $clear.Text | Should -Match 'Aucun élément ne nécessite d.attention sur cette ferme\.'
+            $clear.Text | Should -Match 'Aucun élément à examiner sur cette ferme\.'
             $clear.Text | Should -Match 'Aucun élément à examiner sur <b>zebes / PROD</b>\.'
             $clear.Text | Should -Match 'Ensoleillé'
         }
@@ -342,10 +342,10 @@ Describe 'Alert email language (ConvertTo-SPSWeatherEmailBody -Language)' {
             [System.Threading.Thread]::CurrentThread.CurrentCulture = $script:previousCulture
         }
 
-        It 'writes 5,25 % libres in French and 5.25% free in English whatever the host culture' {
+        It 'writes 5,25 % d''espace libre in French and 5.25% free in English whatever the host culture' {
             foreach ($hostCulture in 'en-US', 'fr-FR', 'de-DE') {
                 [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo($hostCulture)
-                (Get-Mail -Report $report -Language 'fr-FR' -Cap 0).Text | Should -Match '5,25 % libres' -Because "host culture $hostCulture"
+                (Get-Mail -Report $report -Language 'fr-FR' -Cap 0).Text | Should -Match "5,25$([char]0xA0)% d'espace libre" -Because "host culture $hostCulture"
                 (Get-Mail -Report $report -Language 'en-US' -Cap 0).Text | Should -Match '5\.25% free' -Because "host culture $hostCulture"
             }
         }

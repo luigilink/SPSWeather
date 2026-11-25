@@ -20,19 +20,22 @@
     NeedAttention  = '{0} élément(s) à examiner'
     OverallHealth  = 'Santé globale'
     Healthy        = 'sain'
+    Percent = '{0} %'
     ShortOk        = 'OK'
     ShortWarn      = 'Avert.'
     ShortFail      = 'Échecs'
-    RunHistory     = 'Historique des exécutions'
-    LastRuns       = '{0} dernières exécutions'
+    RunHistory     = 'Historique'
+    LastRunsMany       = '{0} dernières exécutions'
+    LastRunsOne = 'dernière exécution'
     LegendWarning  = 'Avertissement'
     LegendFailure  = 'Échec'
-    HoverBar       = 'survolez une barre pour voir les totaux de l''exécution'
+    HoverBar       = 'survolez une barre pour les totaux'
+    HistoryDateFormat = 'dd/MM'
     NowSuffix      = ' (maintenant)'
     BarTip         = '{0} : {1} OK / {2} avert. / {3} échec(s)'
 
     # Dashboard: areas, detail and footer
-    HealthByArea = 'Santé par domaine'
+    HealthByArea = 'Santé par composant'
     Detail       = 'Détail'
     ExpandAll    = 'Tout développer'
     CollapseAll  = 'Tout réduire'
@@ -42,13 +45,13 @@
     RowAlert     = '{0} alerte(s)'
     RowWarn      = '{0} avert.'
     RowOk        = '{0} OK'
-    RowInfo      = '{0} info'
+    RowInfo      = '{0} info(s)'
     ExecutedBy   = 'Exécuté par'
 
     # Weather
     WeatherLabel  = 'Météo'
     WeatherSunny  = 'Ensoleillé'
-    WeatherFair   = 'Éclaircies'
+    WeatherFair   = 'Peu nuageux'
     WeatherCloudy = 'Nuageux'
     WeatherStormy = 'Orageux'
 
@@ -62,7 +65,7 @@
     MoreItems        = '+ {0} de plus ({1})'
     MoreSeeDashboard = 'voir le tableau de bord pour la liste complète'
     AllClearTitle    = 'Tout est en ordre.'
-    AllClearText     = 'Aucun élément ne nécessite d''attention sur cette ferme.'
+    AllClearText     = 'Aucun élément à examiner sur cette ferme.'
     IntroAttention   = '{0} à examiner sur {1}. Le détail complet est dans le tableau de bord.'
     IntroClear       = 'Aucun élément à examiner sur {0}.'
     KpiFailures      = 'Échecs'
@@ -72,8 +75,7 @@
     FooterExecutedBy = 'exécuté par'
     FooterRun        = 'durée'
     CountsSummary    = '{0} OK / {1} avert. / {2} échec(s)'
-    FreePercent      = '{0} % libres'
-
+    FreePercent      = '{0} % d''espace libre'
     # Functional areas (dashboard cards and email groups)
     Area_FarmUpgrade        = 'Ferme & mise à niveau'
     Area_TrustFarm          = 'Ferme approuvée (REST)'
@@ -112,5 +114,5 @@
     Section_SQLDatabaseStatus        = 'SQL - Bases de données'
     Section_SQLDiskStatus            = 'SQL - Volumes de disque'
     Section_SQLAvailabilityStatus    = 'SQL - Groupes de disponibilité'
-    Section_SQLAliasStatus           = 'SQL - Correspondance des alias'
+    Section_SQLAliasStatus           = 'SQL - Alias'
 }

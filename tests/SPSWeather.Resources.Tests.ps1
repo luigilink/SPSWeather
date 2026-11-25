@@ -112,7 +112,10 @@ Describe 'Resource keys versus the renderers' {
         $sectionLists = @([regex]::Matches($script:dashboard, 'Sections = @\(([^)]*)\)') | ForEach-Object -Process { $_.Groups[1].Value })
         $sections = @($sectionLists | ForEach-Object -Process { [regex]::Matches($_, "'(\w+)'") | ForEach-Object -Process { $_.Groups[1].Value } })
 
-        $script:literalKeys = @($literal + $counted | Sort-Object -Unique)
+        # Keys read directly from the table (not through _t): $text['Key'].
+        $direct = @([regex]::Matches($script:both, '\$text\[''(\w+)''\]') | ForEach-Object -Process { $_.Groups[1].Value })
+
+        $script:literalKeys = @($literal + $counted + $direct | Sort-Object -Unique)
         $script:familyKeys = @(($areaIds | Sort-Object -Unique | ForEach-Object -Process { "Area_$_" }) + ($sections | Sort-Object -Unique | ForEach-Object -Process { "Section_$_" }))
         $script:areaIds = @($areaIds | Sort-Object -Unique)
         $script:sections = @($sections | Sort-Object -Unique)
@@ -134,6 +137,21 @@ Describe 'Resource keys versus the renderers' {
         $used = @($script:literalKeys + $script:familyKeys + 'Culture')
         $dead = @($script:reference.Keys | Where-Object -FilterScript { $used -notcontains $_ })
         $dead | Should -BeNullOrEmpty -Because 'a key that nothing uses is a translation effort for nothing'
+    }
+
+    It '<Culture> has a date format that formats a date without throwing' -ForEach $allCultures {
+        $table = Import-PowerShellDataFile -Path $Path
+        $table.HistoryDateFormat | Should -Not -BeNullOrEmpty
+        $culture = [System.Globalization.CultureInfo]::GetCultureInfo($table.Culture)
+        { (Get-Date -Year 2026 -Month 3 -Day 4).ToString($table.HistoryDateFormat, $culture) } | Should -Not -Throw
+    }
+
+    It 'writes 4 March as 03-04 in English and 04/03 in French (no month-first date for a French reader)' {
+        $date = Get-Date -Year 2026 -Month 3 -Day 4
+        $en = Import-PowerShellDataFile -Path (Join-Path -Path (Split-Path -Path $script:referencePath -Parent) -ChildPath 'SPSWeather.Common.Strings.psd1')
+        $fr = Import-PowerShellDataFile -Path (Join-Path -Path (Join-Path -Path (Split-Path -Path (Split-Path -Path $script:referencePath -Parent) -Parent) -ChildPath 'fr-FR') -ChildPath 'SPSWeather.Common.Strings.psd1')
+        $date.ToString($en.HistoryDateFormat, [System.Globalization.CultureInfo]::GetCultureInfo('en-US')) | Should -Be '03-04'
+        $date.ToString($fr.HistoryDateFormat, [System.Globalization.CultureInfo]::GetCultureInfo('fr-FR')) | Should -Be '04/03'
     }
 
     It 'never builds a label from a hard-coded English area or section name any more' {

@@ -87,4 +87,96 @@ Describe 'Resolve-SPSWeatherLanguage' {
             (Resolve-SPSWeatherLanguage -Language 'AUTO').Culture | Should -Be 'fr-FR'
         }
     }
+
+    Context 'a defective translation file' {
+        BeforeAll {
+            $script:sourceModule = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'src/Modules/SPSWeather.Common'
+
+            # Builds a copy of the module whose fr-FR file is edited by the given script block, loads it,
+            # runs the check and always restores the shipped module.
+            function Invoke-WithEditedFrench {
+                param([scriptblock]$Edit, [scriptblock]$Check)
+                $copy = Join-Path -Path $TestDrive -ChildPath ('m-' + [guid]::NewGuid().ToString('N') + '/SPSWeather.Common')
+                Copy-Item -Path $script:sourceModule -Destination $copy -Recurse
+                $file = Join-Path -Path $copy -ChildPath 'fr-FR/SPSWeather.Common.Strings.psd1'
+                $content = [System.IO.File]::ReadAllText($file)
+                $edited = & $Edit $content
+                # Keep the BOM: Windows PowerShell 5.1 reads a data file without it as ANSI.
+                [System.IO.File]::WriteAllText($file, $edited, (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $true))
+                try {
+                    Remove-Module -Name SPSWeather.Common -Force -ErrorAction SilentlyContinue
+                    Import-Module -Name (Join-Path -Path $copy -ChildPath 'SPSWeather.Common.psd1') -Force
+                    & $Check
+                }
+                finally {
+                    Remove-Module -Name SPSWeather.Common -Force -ErrorAction SilentlyContinue
+                    Import-Module -Name (Join-Path -Path $script:sourceModule -ChildPath 'SPSWeather.Common.psd1') -Force
+                }
+            }
+        }
+
+        It 'falls back to English and says why when the file cannot be parsed' {
+            Invoke-WithEditedFrench -Edit { param($c) $c -replace "(AllClearTitle\s*=\s*'Tout est en ordre\.)'", '$1' } -Check {
+                $r = Resolve-SPSWeatherLanguage -Language 'fr-FR'
+                $r.Culture | Should -Be 'en-US'
+                $r.IsFallback | Should -BeTrue
+                $r.Messages.Count | Should -Be 1
+                $r.Messages[0] | Should -Match "Language 'fr-FR' cannot be used: the file cannot be read"
+                $r.Messages[0] | Should -Match 'using en-US'
+            }
+        }
+
+        It 'falls back to English when a translation uses a placeholder that the English text does not provide' {
+            Invoke-WithEditedFrench -Edit { param($c) $c -replace "(RowOk\s*=\s*')\{0\} OK'", '${1}{0} {1} OK''' } -Check {
+                $r = Resolve-SPSWeatherLanguage -Language 'fr-FR'
+                $r.Culture | Should -Be 'en-US'
+                $r.Messages[0] | Should -Match "key 'RowOk' uses \{1\} which the English text does not provide"
+            }
+        }
+
+        It 'falls back to English when a value contains a stray brace' {
+            Invoke-WithEditedFrench -Edit { param($c) $c -replace "(AllClearTitle\s*=\s*')Tout est en ordre\.'", '${1}Tout {est} en ordre.''' } -Check {
+                $r = Resolve-SPSWeatherLanguage -Language 'fr-FR'
+                $r.Culture | Should -Be 'en-US'
+                $r.Messages[0] | Should -Match "key 'AllClearTitle' contains a brace"
+            }
+        }
+
+        It 'falls back to English when the Culture key does not match the folder' {
+            Invoke-WithEditedFrench -Edit { param($c) $c -replace "(Culture\s*=\s*')fr-FR'", '${1}fr-CA''' } -Check {
+                $r = Resolve-SPSWeatherLanguage -Language 'fr-FR'
+                $r.Culture | Should -Be 'en-US'
+                $r.Messages[0] | Should -Match "its Culture key is 'fr-CA' instead of 'fr-FR'"
+            }
+        }
+
+        It 'still accepts a translation that simply drops a placeholder or a key' {
+            Invoke-WithEditedFrench -Edit { param($c) $c -replace "(?m)^\s*AllClearTitle\s*=.*\r?\n", '' } -Check {
+                $r = Resolve-SPSWeatherLanguage -Language 'fr-FR'
+                $r.Culture | Should -Be 'fr-FR'
+                $r.Messages.Count | Should -Be 0
+            }
+        }
+
+        It 'gives the English strings, not an error, to the loader for a defective file' {
+            Invoke-WithEditedFrench -Edit { param($c) $c -replace "(AllClearTitle\s*=\s*'Tout est en ordre\.)'", '$1' } -Check {
+                $text = InModuleScope SPSWeather.Common { Get-SPSWeatherResource -Language 'fr-FR' }
+                $text.Culture | Should -Be 'en-US'
+                $text.AllClearTitle | Should -Be 'All clear.'
+            }
+        }
+    }
+
+    Context 'a value that is not text' {
+        It "does not throw for <Description> and resolves it like text" -ForEach @(
+            @{ Description = 'a one-item list'; Value = @('fr-FR'); Expected = 'fr-FR' }
+            @{ Description = 'a two-item list (the first one counts)'; Value = @('fr-FR', 'en-US'); Expected = 'fr-FR' }
+            @{ Description = 'an empty list'; Value = @(); Expected = 'en-US' }
+            @{ Description = 'a number'; Value = 5; Expected = 'en-US' }
+            @{ Description = 'a boolean'; Value = $true; Expected = 'en-US' }
+        ) {
+            { Resolve-SPSWeatherLanguage -Language $Value } | Should -Not -Throw
+            (Resolve-SPSWeatherLanguage -Language $Value).Culture | Should -Be $Expected
+        }
+    }
 }

@@ -6,8 +6,10 @@
         .DESCRIPTION
         The reference culture (en-US) is always loaded first and the resolved culture is laid over it,
         so a key that a translation does not define shows the English text instead of an empty label.
-        The language goes through Resolve-SPSWeatherLanguage: an unknown language gives the English
-        strings. The returned table has a 'Culture' key holding the culture that was used.
+        The language goes through Resolve-SPSWeatherLanguage, which only returns a culture whose file
+        really loads and whose placeholders match the reference: an unknown or defective language
+        gives the English strings. The returned table has a 'Culture' key holding the culture that
+        was used.
 
         .PARAMETER Language
         A culture name, 'auto', or nothing (en-US). See Resolve-SPSWeatherLanguage.

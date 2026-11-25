@@ -59,7 +59,12 @@ Modules\SPSWeather.Common\
   them, in the order the target language needs.
 - A key missing from a translation shows the **English text** instead of an empty label: the English
   strings are always loaded first and the chosen culture is laid over them.
-- Singular and plural forms are separate keys (`ItemCountOne` / `ItemCountMany`).
+- Singular and plural forms are separate keys (`ItemCountOne` / `ItemCountMany`, `LastRunsOne` /
+  `LastRunsMany`).
+- **`HistoryDateFormat`** is the .NET format of the dates under the history bars (`MM-dd` in English,
+  `dd/MM` in French): write the order your readers expect.
+- **`Percent`** and **`FreePercent`** place the `%` sign. In French a **non-breaking space**
+  (U+00A0) goes before it, so the sign never wraps alone onto the next line.
 
 ## Adding a language
 
@@ -69,10 +74,14 @@ Modules\SPSWeather.Common\
 3. Save the file as **UTF-8 with BOM**: Windows PowerShell 5.1 reads a file without a BOM as ANSI and
    corrupts accented characters.
 4. Write an apostrophe inside a value as `''` (two ASCII apostrophes). A typographic apostrophe
-   (`’`) is read by PowerShell as a quote and closes the string, so the file would no longer load.
+   (`’`) is read by PowerShell as a quote and closes the string, so the file cannot be loaded: the
+   run then shows the English text and reports `Language 'de-DE' cannot be used: ...` (transcript,
+   Event ID 2001, readiness `[WARN]`). It never stops the report.
 5. Run the test suite. It checks that the new file has **exactly the same keys and placeholders**
-   as `en-US`, no empty value, no HTML, no stray brace, and that every key used by the code is
-   defined. Then set `Language = 'de-DE'` in a configuration and run the readiness check.
+   as `en-US`, no empty value, no HTML, no stray brace, a date format that works, and that every key
+   used by the code is defined. Then set `Language = 'de-DE'` in a configuration and run the
+   readiness check: it loads the file and rejects a wrong `Culture`, a placeholder the English text
+   does not have, or a stray brace.
 
 ## Previewing a language without running a check
 

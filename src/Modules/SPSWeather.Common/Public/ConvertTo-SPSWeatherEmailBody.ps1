@@ -86,17 +86,24 @@
     # culture; _th HTML-encodes the template first and inserts its arguments as ready-made HTML;
     # _count picks the singular or plural form of a counted noun.
     $text = Get-SPSWeatherResource -Language $Language
-    $ci = [System.Globalization.CultureInfo]::GetCultureInfo($text.Culture)
+    $english = Get-SPSWeatherResource -Language 'en-US'
+    $ci = try { [System.Globalization.CultureInfo]::GetCultureInfo([string]$text.Culture) } catch { [System.Globalization.CultureInfo]::InvariantCulture }
     function _t([string]$key) {
         $s = $text[$key]
         if ($null -eq $s) { return $key }
-        if ($args.Count -gt 0) { return [string]::Format($ci, $s, [object[]]$args) }
+        if ($args.Count -gt 0) {
+            # A label must never stop the report: if the text cannot be formatted with these arguments,
+            # fall back to the English text rather than throwing.
+            try { return [string]::Format($ci, $s, [object[]]$args) }
+            catch { return [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, $english[$key], [object[]]$args) }
+        }
         return $s
     }
     function _th([string]$key) {
         $s = $text[$key]
         if ($null -eq $s) { $s = $key }
-        return [string]::Format($ci, (_enc $s), [object[]]$args)
+        try { return [string]::Format($ci, (_enc $s), [object[]]$args) }
+        catch { return [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, (_enc $english[$key]), [object[]]$args) }
     }
     function _count([int]$n, [string]$base) {
         $key = if ($n -gt 1) { "${base}Many" } else { "${base}One" }
