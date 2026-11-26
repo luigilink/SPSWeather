@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disk, and new tests prove that a new language is picked up as soon as its folder exists (by name, by
   language, by region and with `auto`) and rendered by the dashboard and the email, without any other change (#98).
 
+### Fixed
+
+- Dashboard: the **View detail →** link of an area card now opens the matching section. It jumped to the section
+  but left it collapsed, because a fragment link only reveals a `<details>` that *contains* its target, never the
+  `<details>` that *is* the target, and the page had no script to open it (since 3.1.0). A small script now opens
+  the targeted section when a card link is clicked (also a second time, after the user closed it) and when the page is
+  opened with a `#d-<Section>` fragment (a link pasted in a mail or a chat). *Expand all* and *Collapse all* are
+  unchanged (#114).
+
 ## [3.4.0] - 2026-11-25
 
 ### Added
