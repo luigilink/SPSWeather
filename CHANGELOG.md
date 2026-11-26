@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Run journal**: every run now appends one record to `Results\<App>-<Env>-runs.json` (new public function
+  `Add-SPSWeatherRunJournalEntry`, private reader `Read-SPSWeatherRunJournal`): start time, duration, script version,
+  display language, email mode, the outcome of the email (`sent`, `preview`, `disabled`, `failed`, `none`) and, for
+  each configured farm, whether it was collected or unreachable with its counts of checks. A farm that cannot be
+  reached leaves no JSON snapshot, so this journal is the only trace of it over time; the multi-farm cockpit page
+  planned for 3.5.0 reads it. Nothing new is collected from the farms. The file is written through a temporary file
+  that replaces the journal (a crash never truncates it), is pruned with `JsonHistoryRetentionDays` (0 keeps every
+  record) and never holds more than 1000 records. A journal that cannot be read is kept aside as `<name>.corrupt` and a
+  new one starts; a journal that cannot be written only produces a warning, never a failed run (#107).
 - Issue template **Translation Request** (`.github/ISSUE_TEMPLATE/5_translation_request.yml`): asks for the
   culture name, how the requester can help (review as a native speaker, translate the file) and the
   SharePoint terminology to align on, with the new `localization` label. The wiki page *Localization* explains how to

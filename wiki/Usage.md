@@ -59,6 +59,7 @@ Each run writes, next to `SPSWeather.ps1`:
 
 - `Results\<app>-<env>-<date>.html` — the HTML report (also used as the email body).
 - `Results\<app>-<env>-<date>.json` — a JSON snapshot of the collected data.
+- `Results\<app>-<env>-runs.json` — the run journal: one small record per run (start, duration, version, email outcome, and for each farm collected or unreachable with its counts). It is the only trace of a farm that could not be reached, and is pruned with `JsonHistoryRetentionDays`.
 - `Logs\<app>-<env>-<date>.log` — the PowerShell transcript. Logs older than the retention window are pruned automatically.
 
 The email subject is prefixed with the overall status, e.g. `[ALERT]contoso_PROD - Meteo SharePoint <date>`. The priority is raised to **High** when an alert is detected. See [Health Checks](Health-Checks) for the list of checks and how an **ALERT** is raised.
