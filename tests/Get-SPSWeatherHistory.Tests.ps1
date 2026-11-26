@@ -49,6 +49,59 @@ Describe 'Get-SPSWeatherHistory' {
         }
     }
 
+    Context 'a history folder shared by several environments (-NamePrefix)' {
+        BeforeAll {
+            function script:New-SharedHistory {
+                $folder = Join-Path -Path $TestDrive -ChildPath ('hist-' + [guid]::NewGuid().ToString('N'))
+                New-Item -Path $folder -ItemType Directory -Force | Out-Null
+                $specs = @(
+                    @{ Name = 'zebes-PROD-CONTENT-20261120-0900.json'; Fail = 1; DaysAgo = 6 }
+                    @{ Name = 'zebes-TEST-CONTENT-20261121-0900.json'; Fail = 9; DaysAgo = 5 }
+                    @{ Name = 'zebes-PROD-CONTENT-20261122-0900.json'; Fail = 2; DaysAgo = 4 }
+                    @{ Name = 'other-PROD-CONTENT-20261123-0900.json'; Fail = 8; DaysAgo = 3 }
+                    @{ Name = 'zebes-PROD-CONTENT-20261124-0900.json'; Fail = 3; DaysAgo = 2 }
+                    @{ Name = 'zebes-TEST-CONTENT-20261125-0900.json'; Fail = 7; DaysAgo = 1 }
+                )
+                foreach ($spec in $specs) {
+                    $rows = @(); foreach ($i in 1..$spec.Fail) { $rows += [PSCustomObject]@{ IsInfo = $false } }
+                    $file = Join-Path -Path $folder -ChildPath $spec.Name
+                    Set-Content -Path $file -Value (ConvertTo-Json -InputObject ([PSCustomObject]@{ SPAPIHttpStatus = $rows }) -Depth 5)
+                    (Get-Item $file).LastWriteTime = (Get-Date).AddDays(-$spec.DaysAgo)
+                }
+                $folder
+            }
+            function script:Get-Bars {
+                param($Folder, [string]$Prefix, [int]$Max = 30)
+                InModuleScope SPSWeather.Common -Parameters @{ F = $Folder; P = $Prefix; M = $Max } {
+                    param($F, $P, $M)
+                    if ($P) { @(Get-SPSWeatherHistory -HistoryFolder $F -NamePrefix $P -Max $M) } else { @(Get-SPSWeatherHistory -HistoryFolder $F -Max $M) }
+                }
+            }
+        }
+
+        It 'reads only the runs of one environment when a prefix is given' {
+            $bars = Get-Bars -Folder (New-SharedHistory) -Prefix 'zebes-PROD-CONTENT-'
+            @($bars | ForEach-Object { $_.Fail }) | Should -Be @(1, 2, 3)
+        }
+
+        It 'reads every file of the folder, as before, without a prefix' {
+            @(Get-Bars -Folder (New-SharedHistory) -Prefix '').Count | Should -Be 6
+        }
+
+        It 'matches the prefix whatever its case' {
+            @(Get-Bars -Folder (New-SharedHistory) -Prefix 'ZEBES-prod-content-').Count | Should -Be 3
+        }
+
+        It 'keeps the most recent runs of that environment when there are more than -Max, whatever the other environments wrote later' {
+            $bars = Get-Bars -Folder (New-SharedHistory) -Prefix 'zebes-PROD-CONTENT-' -Max 2
+            @($bars | ForEach-Object { $_.Fail }) | Should -Be @(2, 3)
+        }
+
+        It 'returns nothing when no file has the prefix' {
+            @(Get-Bars -Folder (New-SharedHistory) -Prefix 'nobody-').Count | Should -Be 0
+        }
+    }
+
     It 'gives every run a When date next to the MM-dd text, so a language can format it' {
         $folder = Join-Path -Path $TestDrive -ChildPath 'hist-when'
         New-Item -Path $folder -ItemType Directory -Force | Out-Null

@@ -15,8 +15,14 @@
         .PARAMETER HistoryFolder
         Folder holding the per-farm *.json snapshots (Backup-SPSWeatherJsonFile output).
 
+        .PARAMETER NamePrefix
+        Only the snapshots whose file name starts with this text are read (not case sensitive). The history
+        folder of a farm is shared by the environments of an installation that name a farm the same, and the
+        file name is what tells them apart: pass '<App>-<Env>-<Farm>-' to read the runs of one environment.
+        Without it every *.json of the folder is read, as before.
+
         .PARAMETER Max
-        Maximum number of most-recent runs to return. Defaults to 30.
+        Maximum number of most-recent runs to return, among the snapshots that were read. Defaults to 30.
     #>
     [CmdletBinding()]
     [OutputType([System.Object[]])]
@@ -27,6 +33,10 @@
         $HistoryFolder,
 
         [Parameter()]
+        [System.String]
+        $NamePrefix,
+
+        [Parameter()]
         [System.Int32]
         $Max = 30
     )
@@ -34,6 +44,7 @@
     if (-not (Test-Path -Path $HistoryFolder)) { return @() }
 
     $files = Get-ChildItem -Path $HistoryFolder -Filter '*.json' -File -ErrorAction SilentlyContinue |
+        Where-Object { [string]::IsNullOrEmpty($NamePrefix) -or $_.Name.StartsWith($NamePrefix, [System.StringComparison]::OrdinalIgnoreCase) } |
         Sort-Object LastWriteTime
     if ($null -eq $files -or $files.Count -eq 0) { return @() }
     if ($files.Count -gt $Max) { $files = $files[($files.Count - $Max)..($files.Count - 1)] }
