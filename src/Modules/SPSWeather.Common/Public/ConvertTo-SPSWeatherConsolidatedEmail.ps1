@@ -81,9 +81,7 @@
         return [System.Net.WebUtility]::HtmlEncode([string]$v)
     }
 
-    # Display strings of the chosen language (English underneath: a missing key shows the English
-    # text). A label must never stop the report: a text that cannot be formatted with its
-    # arguments falls back to the English one.
+    # Display strings of the language (a missing key or a bad format falls back to English)
     $text = Get-SPSWeatherResource -Language $Language
     $english = Get-SPSWeatherResource -Language 'en-US'
     $ci = try { [System.Globalization.CultureInfo]::GetCultureInfo([string]$text.Culture) } catch { [System.Globalization.CultureInfo]::InvariantCulture }

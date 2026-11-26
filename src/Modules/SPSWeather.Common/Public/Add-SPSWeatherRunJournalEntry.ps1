@@ -4,26 +4,10 @@
         Appends one record to the run journal of an environment.
 
         .DESCRIPTION
-        A farm that cannot be reached leaves no JSON snapshot, so a page that tracks the
-        collections over time has nothing to read for it. Add-SPSWeatherRunJournalEntry records every
-        run in a small JSON file: when it started, how long it took, the script version, the display
-        language, the email mode and the outcome of the email, and for each configured farm whether
-        it was collected (ok) or unreachable, with its counts of checks when collected.
-
-        The journal is never allowed to break a run: the function returns $true when the record was
-        written and $false (with a warning) otherwise. It writes through a temporary file that then
-        replaces the journal, so a crash never leaves a truncated file. A journal that cannot be read
-        (corrupt, unexpected shape, newer schema) is kept aside as <name>.corrupt and a new one starts.
-
-        Two runs of the same environment can overlap (a manual run next to the scheduled task): the whole
-        read, prune, append and replace sequence is serialized with an exclusive lock on <name>.lock, a small
-        empty file that stays next to the journal. A run that cannot get the lock within -LockTimeoutSeconds
-        gives up with a warning rather than wait for ever, and the operating system releases the lock if a
-        run is killed. Fields of the journal that this version does not know are kept when it is rewritten.
-
-        Records older than -RetentionDays are pruned (0 keeps them all) and the journal never holds
-        more than -MaxEntries records. Nothing is collected from the farm: the record only holds
-        the farm name, its outcome and the counts that the snapshot already contains.
+        Records when the run started, how long it took, the email outcome, the outcome of each farm (ok or
+        unreachable, with its counts) and the settings in effect. It never breaks a run: it returns $true when the
+        record was written and $false, with a warning, otherwise. The write is atomic and serialized by a lock,
+        and an unreadable journal is kept aside as <name>.corrupt. See the wiki page Cockpit-Data.
 
         .PARAMETER Path
         Full path of the journal file (Results\<App>-<Env>.runs.json). Created when missing.
@@ -44,23 +28,19 @@
         PerFarm or Consolidated.
 
         .PARAMETER Mail
-        Outcome of the email: sent, preview, disabled, failed, or none (nothing to send).
+        Outcome of the email: sent, preview, disabled, failed or none.
 
         .PARAMETER Farm
-        One object per configured farm with the properties Name, Outcome (ok or unreachable) and,
-        for a collected farm, Ok, Warn and Fail.
+        One object per configured farm: Name, Outcome (ok or unreachable) and, when reached, Ok, Warn and Fail.
 
         .PARAMETER RetentionDays
         Records older than this many days are removed. 0 (default) keeps every record.
 
         .PARAMETER MaxEntries
-        Upper bound on the number of records kept (the oldest are removed first). Default: 1000.
+        Upper bound on the number of records kept. Default: 1000.
 
         .PARAMETER Setting
-        The settings in effect for the run, as returned in the Record property of Get-SPSWeatherRunSetting:
-        stored as the 'settings' of the record, so that a page can show which thresholds a run used. Optional:
-        without it the record has no 'settings'. The function stores what it is given, so pass the Record
-        of Get-SPSWeatherRunSetting and never the configuration itself.
+        The Record of Get-SPSWeatherRunSetting, stored as the settings of the record. Never pass the configuration itself.
 
         .PARAMETER LockTimeoutSeconds
         How long to wait for another run to finish writing the journal. Default: 20.
@@ -166,16 +146,14 @@
         }
         if ($null -ne $Setting) { $record['settings'] = $Setting }
 
-        # Exclusive lock for the whole read-modify-write: without it two overlapping runs read the same
-        # journal and the last one to replace it silently drops the record of the other.
+        # One writer at a time: overlapping runs would drop each other's record
         $deadline = [System.DateTime]::UtcNow.AddSeconds($LockTimeoutSeconds)
         while ($null -eq $lock) {
             try {
                 $lock = [System.IO.File]::Open($fullPath + '.lock', [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
             }
             catch [System.IO.IOException] {
-                # Only a plain IOException is a lock held by another run (a missing folder or a path that is
-                # too long are IOException subclasses and must fail at once, not after the timeout).
+                # Only a plain IOException means locked: its subclasses (missing folder, long path) fail at once
                 if ($_.Exception.GetType() -ne [System.IO.IOException]) { throw }
                 if ([System.DateTime]::UtcNow -ge $deadline) {
                     throw "another run kept the journal locked for $LockTimeoutSeconds seconds."
@@ -214,7 +192,7 @@
         $json = ConvertTo-Json -InputObject $content -Depth 20
         $tempFile = '{0}.{1}.tmp' -f $fullPath, [System.Diagnostics.Process]::GetCurrentProcess().Id
         [System.IO.File]::WriteAllText($tempFile, $json, (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false))
-        # Replace swaps the content in one step (the journal never disappears) and throws on failure.
+        # Replace is a single step and throws on failure
         if ([System.IO.File]::Exists($fullPath)) { [System.IO.File]::Replace($tempFile, $fullPath, [NullString]::Value) }
         else { [System.IO.File]::Move($tempFile, $fullPath) }
         $tempFile = $null

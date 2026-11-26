@@ -1,32 +1,13 @@
 ﻿function Get-SPSWeatherRunSetting {
     <#
         .SYNOPSIS
-        Resolves the thresholds and options of a run, and the part of them that the run journal records.
+        Resolves the thresholds of a run and the part of them that the run journal records.
 
         .DESCRIPTION
-        The entry script used to read each optional threshold of the environment configuration with its own
-        "if the key is set, else the default" expression, so nothing could say afterwards which value a run
-        had really used: a key missing from the configuration silently fell back to its default. This function
-        is now the only place that resolves them, so the values that a run uses and the values that its journal
-        record shows cannot drift apart.
-
-        Each of SQLDiskFreeThresholdPercent (15), SQLBackupMaxAgeDays (3), JsonHistoryRetentionDays (30),
-        EmailMaxItemsPerArea (10) and LogRetentionDays (180) is a whole number of 0 or more. A key that is missing
-        (or $null) takes its default. A key that is not a whole number of 0 or more takes its default too, with a
-        message to show, instead of an undefined value (EmailMaxItemsPerArea keeps its historical rule: a negative
-        number counts as 0, which lists everything).
-
-        Returns Value (the numbers to use), Record (what the run journal stores, see below) and Messages
-        (warnings to display).
-
-        Record holds only what is listed here, never "the configuration": the file name of the configuration
-        (no folder), for each threshold its value and its source (config or default, plus invalid = true when
-        the configuration held a value that could not be used), and the exclusions that the run really applies:
-        for each real exclusion value (the fixed list below) it asks the ExclusionRules value of the configuration
-        the same question as the entry script, $ExclusionRules.Contains('Name'), so the record and the run always
-        agree, whatever the form of the value (a list of names, or a single string). A typo, a server name or a
-        path typed there excludes nothing and is not recorded. The names are listed in the order of the fixed list.
-        No server name, address, credential key, URL or path is ever part of it.
+        The only place that resolves the optional thresholds, so that the values a run uses and the ones its
+        journal shows cannot drift apart. Returns Value (the numbers to use), Record (what the journal stores:
+        no server, address, credential key, URL or path) and Messages (warnings to display). See the wiki page
+        Cockpit-Data.
 
         .PARAMETER Config
         The environment configuration (hashtable loaded from the .psd1).
@@ -36,7 +17,6 @@
 
         .EXAMPLE
         $runSetting = Get-SPSWeatherRunSetting -Config $envCfg -ConfigFile $ConfigFile
-        $runSetting.Value.SQLBackupMaxAgeDays
     #>
     [CmdletBinding()]
     [OutputType([System.Management.Automation.PSCustomObject])]
@@ -61,8 +41,7 @@
         @{ Name = 'LogRetentionDays'; Default = 180; ClampNegative = $false }
     )
 
-    # The values that the entry script tests with $ExclusionRules.Contains(...) (and None): a test keeps this list
-    # in step with the entry script and with the example configuration.
+    # The values that the entry script tests (a test keeps this list in step)
     $knownExclusions = @(
         'None', 'APIHttpStatus', 'SPSiteHttpStatus', 'EvtViewerStatus', 'IISW3WPStatus', 'HealthStatus', 'WSPStatus',
         'FailedTimerJob', 'TimerServiceStatus', 'SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus',
@@ -81,7 +60,7 @@
         $entry = [ordered]@{ value = $definition.Default; source = 'default' }
         if ($null -ne $raw) {
             $number = $null
-            # A blank string casts to 0, which is a number nobody meant: treat it as an invalid value.
+            # A blank string casts to 0: treat it as invalid
             if (-not ($raw -is [System.String] -and [string]::IsNullOrWhiteSpace($raw))) {
                 try { $number = [int]$raw } catch { $number = $null }
             }
@@ -99,9 +78,7 @@
         $thresholds[$name] = $entry
     }
 
-    # The entry script tests `$ExclusionRules.Contains('Name')` on the raw value of the configuration: an exact,
-    # case-sensitive element of a list, or a case-sensitive substring of a single string. Asking the same question
-    # of the same value is what keeps the record equal to what the run did.
+    # Same question as the entry script: $ExclusionRules.Contains('Name')
     $rawExclusions = $null
     if ($null -ne $Config -and $Config.Contains('ExclusionRules')) { $rawExclusions = $Config['ExclusionRules'] }
     $names = New-Object -TypeName System.Collections.ArrayList

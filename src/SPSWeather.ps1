@@ -110,10 +110,7 @@ Write-Output "| Started on : $DateStarted by $currentUser"
 Write-Output "| PowerShell Version: $psVersion"
 Write-Output '-------------------------------------'
 
-# Email behavior: SMTPEnabled / SMTPPreview from the configuration, with the deprecated
-# -EnableSmtp switch as a fallback while SMTPEnabled is not defined. Resolved after
-# Start-Transcript so the warnings (e.g. sending turned off because a relay setting is
-# missing) are kept in the log of an unattended run.
+# Email behavior (after Start-Transcript, so the warnings are kept in the log of an unattended run)
 $smtpSetting = Resolve-SPSSmtpSetting -Config $envCfg -EnableSmtp:$EnableSmtp
 foreach ($smtpMessage in $smtpSetting.Messages) { Write-Warning -Message $smtpMessage }
 
@@ -265,8 +262,7 @@ else {
             Throw "Credential '$($envCfg.CredentialKey)' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Action Install as the service account, or populate secrets.psd1 manually. See the wiki for details."
         }
         $spFarms = $envCfg.Farms
-        # Optional thresholds (config overrides, with safe defaults). One function resolves them, so the
-        # values used here are the values recorded in the run journal (value and config/default source).
+        # Thresholds: the values used here are the ones recorded in the run journal
         $runSetting = Get-SPSWeatherRunSetting -Config $envCfg -ConfigFile $ConfigFile
         foreach ($settingMessage in $runSetting.Messages) { Write-Warning -Message $settingMessage }
         $sqlDiskThreshold = $runSetting.Value.SQLDiskFreeThresholdPercent
@@ -697,10 +693,9 @@ else {
             }
         }
 
-        # Run journal: one record per run. A farm that could not be reached leaves no JSON snapshot,
-        # so this record is its only trace for a page that tracks the collections over time.
+        # Run journal: one record per run
         $mailExpected = if ($smtpSetting.Mode -eq 'Consolidated') { [int]($consolidatedEntries.Count -gt 0) } else { $probedFarms.Count }
-        # Sending was asked for but a missing relay setting turned it off: an email was expected and none went out.
+        # Sending was requested but a missing relay setting turned it off: failed
         $mailOutcome = if ($smtpSetting.SendRequested -and -not $smtpSetting.Send) { 'failed' }
         elseif (-not ($smtpSetting.Send -or $smtpSetting.Preview)) { 'disabled' }
         elseif (-not $smtpSetting.Send) { 'preview' }
