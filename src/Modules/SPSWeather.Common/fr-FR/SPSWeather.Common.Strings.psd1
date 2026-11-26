@@ -93,6 +93,10 @@
     IntroFarmsOne      = '{0} nécessite votre attention sur {1}. Le détail complet est dans le tableau de bord de chaque ferme.'
     IntroFarmsMany     = '{0} nécessitent votre attention sur {1}. Le détail complet est dans le tableau de bord de chaque ferme.'
     FooterFarmsQueried = 'fermes interrogées : {0} sur {1}'
+    FooterConfigFile   = 'configuration : {0}'
+    FooterSqlBackupAge = 'âge max des sauvegardes SQL : {0} j'
+    FooterSqlDiskFree  = 'espace libre SQL minimum : {0} %'
+    FooterDefaultMark  = '(par défaut)'
 
     # Functional areas (dashboard cards and email groups)
     Area_FarmUpgrade        = 'Ferme & mise à niveau'

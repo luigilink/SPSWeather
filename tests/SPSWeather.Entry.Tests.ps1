@@ -89,7 +89,7 @@ Describe 'Entry script email settings (SMTPEnabled / SMTPPreview)' {
     }
 
     It 'passes the resolved culture to the dashboard and to the email' {
-        $entrySource | Should -Match '(?s)Export-SPSWeatherReport -InputObject.*?-Language \$languageSetting\.Culture\)'
+        $entrySource | Should -Match '(?s)Export-SPSWeatherReport -InputObject.*?-Language \$languageSetting\.Culture [`\)]'
         $entrySource | Should -Match '(?s)ConvertTo-SPSWeatherEmailBody -InputObject.*?-Language \$languageSetting\.Culture'
     }
 
@@ -235,6 +235,10 @@ Describe 'Entry script run journal' {
     It 'shows the threshold messages in the transcript and records them in the Event Log (ID 2001)' {
         $entrySource | Should -Match 'foreach \(\$settingMessage in \$runSetting\.Messages\) \{ Write-Warning -Message \$settingMessage \}'
         $entrySource | Should -Match '(?s)foreach \(\$settingMessage in \$runSetting\.Messages\) \{\s*Add-SPSWeatherEvent -Message "SPSWeather configuration: \$settingMessage" -EntryType ''Warning'' -EventID 2001'
+    }
+
+    It 'also hands the record of the settings to the dashboard, which shows the SQL thresholds in its footer' {
+        $entrySource | Should -Match '(?s)Export-SPSWeatherReport -InputObject.*?-Setting \$runSetting\.Record\)'
     }
 
     It 'hands the record of the settings, not the configuration, to the run journal' {

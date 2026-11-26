@@ -96,6 +96,10 @@
     IntroFarmsOne      = '{0} needs your attention on {1}. Full detail is in the dashboard of each farm.'
     IntroFarmsMany     = '{0} need your attention on {1}. Full detail is in the dashboard of each farm.'
     FooterFarmsQueried = 'farms queried: {0} of {1}'
+    FooterConfigFile   = 'configuration: {0}'
+    FooterSqlBackupAge = 'SQL backup max age: {0} d'
+    FooterSqlDiskFree  = 'SQL free space minimum: {0}%'
+    FooterDefaultMark  = '(default)'
 
     # Functional areas (dashboard cards and email groups)
     Area_FarmUpgrade        = 'Farm & Upgrade'

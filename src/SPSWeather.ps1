@@ -577,7 +577,8 @@ else {
                         -ExecutedBy $currentUser `
                         -Duration $runDuration `
                         -History $farmHistory `
-                        -Language $languageSetting.Culture)
+                        -Language $languageSetting.Culture `
+                        -Setting $runSetting.Record)
                 Write-Output " * Dashboard: $dashFile"
 
                 if ($smtpSetting.Mode -eq 'PerFarm') {

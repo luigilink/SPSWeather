@@ -60,6 +60,74 @@ Describe 'Dashboard renderer (Export-SPSWeatherReport)' {
         $summary.Ok | Should -Be 1
     }
 
+    Context 'settings in the footer' {
+        BeforeAll {
+            function script:Get-Footer {
+                param($Setting, [string]$Language = 'en-US', [switch]$NoSetting)
+                $report = [PSCustomObject]@{}
+                $report | Add-Member -MemberType NoteProperty -Name SPAPIHttpStatus -Value @([PSCustomObject]@{ Farm = 'CONTENT'; Title = 'Root'; Url = 'https://sp'; HTTPCode = 200; Status = 'OK'; IsInfo = $true })
+                $file = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('spsw-footer-' + [guid]::NewGuid().ToString('N') + '.html')
+                $arguments = @{ InputObject = $report; OutputFile = $file; Farm = 'CONTENT'; Application = 'zebes'; Environment = 'PROD'; Version = '3.5.0'; ExecutedBy = 'DOM\svc'; Duration = '00:01:00'; Language = $Language }
+                if (-not $NoSetting) { $arguments['Setting'] = $Setting }
+                [void](Export-SPSWeatherReport @arguments)
+                $html = Get-Content -Path $file -Raw
+                Remove-Item -Path $file -Force
+                [regex]::Match($html, '(?s)<footer>.*?</footer>').Value
+            }
+        }
+
+        It 'says which configuration file was used and the SQL thresholds applied' {
+            $setting = (Get-SPSWeatherRunSetting -Config @{ SQLBackupMaxAgeDays = 8; SQLDiskFreeThresholdPercent = 20 } -ConfigFile 'D:\Temp\Config\SPSWeather-QTP.psd1').Record
+            $footer = Get-Footer -Setting $setting
+            $footer | Should -Match 'configuration: SPSWeather-QTP\.psd1'
+            $footer | Should -Match 'SQL backup max age: 8 d(?! \(default\))'
+            $footer | Should -Match 'SQL free space minimum: 20%(?! \(default\))'
+            $footer | Should -Not -Match 'D:\\Temp'
+        }
+
+        It 'marks a value that is the default, and only that one' {
+            $setting = (Get-SPSWeatherRunSetting -Config @{ SQLBackupMaxAgeDays = 8 } -ConfigFile 'x.psd1').Record
+            $footer = Get-Footer -Setting $setting
+            $footer | Should -Match 'SQL backup max age: 8 d(?! \(default\))'
+            $footer | Should -Match 'SQL free space minimum: 15% \(default\)'
+        }
+
+        It 'marks both thresholds as the default when the configuration sets none' {
+            $footer = Get-Footer -Setting (Get-SPSWeatherRunSetting -Config @{} -ConfigFile 'x.psd1').Record
+            $footer | Should -Match 'SQL backup max age: 3 d \(default\)'
+            $footer | Should -Match 'SQL free space minimum: 15% \(default\)'
+        }
+
+        It 'is shown in French when the dashboard is in French' {
+            $footer = Get-Footer -Language 'fr-FR' -Setting (Get-SPSWeatherRunSetting -Config @{ SQLBackupMaxAgeDays = 8 } -ConfigFile 'x.psd1').Record
+            $decoded = [System.Net.WebUtility]::HtmlDecode($footer)
+            $decoded | Should -Match 'configuration\u00A0: x\.psd1'
+            $decoded | Should -Match 'âge max des sauvegardes SQL\u00A0: 8 j'
+            $decoded | Should -Match 'espace libre SQL minimum\u00A0: 15\u00A0% \(par défaut\)'
+        }
+
+        It 'HTML-encodes the configuration file name' {
+            $setting = [PSCustomObject]@{ configFile = '<script>alert(1)</script>.psd1'; thresholds = [PSCustomObject]@{ SQLBackupMaxAgeDays = [PSCustomObject]@{ value = 8; source = 'config' } } }
+            $footer = Get-Footer -Setting $setting
+            $footer | Should -Not -Match '<script>'
+            $footer | Should -Match '&lt;script&gt;'
+        }
+
+        It 'leaves the footer as it was when no settings are given' -ForEach @(
+            @{ Mode = 'parameter not used' }
+            @{ Mode = 'null' }
+        ) {
+            $footer = if ($Mode -eq 'null') { Get-Footer -Setting $null } else { Get-Footer -NoSetting }
+            $footer | Should -Not -Match 'configuration:'
+            $footer | Should -Not -Match 'SQL backup max age'
+            ([regex]::Matches($footer, '<span')).Count | Should -Be 2
+        }
+
+        It 'shows no line for settings without thresholds' {
+            (Get-Footer -Setting ([PSCustomObject]@{ configFile = 'x.psd1' })) | Should -Not -Match 'configuration:'
+        }
+    }
+
     Context 'View detail links' {
         BeforeAll {
             $script:cardLinks = @([regex]::Matches($dash, '<div class="foot"><a href="#(d-[A-Za-z0-9_-]+)">') | ForEach-Object { $_.Groups[1].Value })
