@@ -1,6 +1,6 @@
 ﻿@{
     RootModule        = 'SPSWeather.Common.psm1'
-    ModuleVersion     = '3.4.1'
+    ModuleVersion     = '3.5.0'
     GUID              = 'c39bd612-8520-4e65-9037-80060894d654'
     Author            = 'Jean-Cyril DROUHIN'
     CompanyName       = 'luigilink'

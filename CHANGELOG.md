@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-11-26
+
 ### Added
 
 - **Cockpit page**: new public function `Export-SPSWeatherCockpit` writes the multi-farm page of an environment as **one
@@ -17,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from 390 px, keyboard accessible and follows the light or dark system setting. Every label comes from the resource
   files (new `Cockpit...` keys in en-US and fr-FR) and the page holds every shipped language. Every value that comes from
   the farms is HTML-escaped, and the embedded JSON cannot close the script element. A red banner replaces a blank page
-  when the script fails. The file is replaced in one step. The run does not produce the page yet (#111). New wiki page
+  when the script fails. The file is replaced in one step. The run produces it when `Dashboard.Cockpit` is `$true` (next entry). New wiki page
   *Cockpit page* (#109).
 - **Cockpit page, produced by the run (opt-in)**: new optional key `Dashboard.Cockpit` (a boolean, `$false` by default). When it is `$true` the run writes
   `<App>-<Env>-cockpit.html` into `Dashboard.OutputPath` (`Results` when it is empty), at the end of the run: after the emails, so it never delays an
@@ -46,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   display language, email mode, the outcome of the email (`sent`, `preview`, `disabled`, `failed`, `none`) and, for
   each configured farm, whether it was collected or unreachable with its counts of checks. A farm that cannot be
   reached leaves no JSON snapshot, so this journal is the only trace of it over time; the multi-farm cockpit page
-  planned for 3.5.0 reads it. Nothing new is collected from the farms. The name has a dot (`.runs.json`) so that it
+  reads it. Nothing new is collected from the farms. The name has a dot (`.runs.json`) so that it
   can never be the name of the snapshot of a farm, which only holds letters, digits, `_` and `-`. The file is written
   through a temporary file that replaces the journal (a crash never truncates it), is pruned with
   `JsonHistoryRetentionDays` (0 keeps every record) and never holds more than 1000 records. Two overlapping runs
@@ -63,12 +65,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the names listed in `ExclusionRules`. Nothing else of the configuration is recorded (no server, address,
   credential key, URL or path): the new function `Get-SPSWeatherRunSetting` builds the record from a fixed list of keys,
   and records the exclusions that the run really applies, asking the value of `ExclusionRules` the same question as the entry script does (`Contains('Name')`), so the record and the run agree whatever the form of the value; a typo, a server name or a path typed there excludes nothing and is not recorded. A journal written before this change is
-  still valid. The multi-farm cockpit planned for 3.5.0 shows these values in its *Settings* tab (#117).
+  still valid. The multi-farm cockpit shows these values in its *Settings* tab (#117).
 - The footer of the per-farm dashboard says which configuration file the run used and which SQL thresholds it
   applied (`SQL backup max age`, `SQL free space minimum`), with `(default)` next to a value that the file does not
   set, so that an alert that looks wrong can be explained at once. Translated (`en-US`, `fr-FR`) (#117).
-- **The dataset of the multi-farm cockpit page** (private function `Get-SPSWeatherCockpitData`, nothing visible
-  yet: the page that shows it comes next). It reads, read-only, the archived snapshots of every farm, the snapshot of
+- **The dataset of the multi-farm cockpit page** (private function `Get-SPSWeatherCockpitData`; the cockpit
+  page shows it). It reads, read-only, the archived snapshots of every farm, the snapshot of
   the last run and the run journal, and builds one structure (`schemaVersion` 1) with: the days (one per calendar
   day, with the weekends), for each farm and day the OK / warning / failure counts of the last snapshot of that
   day, the weather and the number of runs and of unreachable runs, what needs attention in the last snapshot of each
@@ -112,7 +114,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `<App>-<Env>-<Farm>-`), and `Get-SPSWeatherHistory` has an optional `-NamePrefix` that the entry script uses to read
   only the runs of its own application and environment. Without the parameter the reader reads every file of the folder, as
   before. Archives of another environment that were already deleted by a retention are gone; nothing else changes (#120).
-
 - **The Failed timer jobs check reports in a real run again, and the collectors keep their default values.** A collector
   handed its parameters to the remote script block as they were written by the caller, so a parameter that was left out and
   kept its default (`-LookbackHours 24`, `-FailureThresholdPercent 5`, `-Farm 'SPS'`) reached the block empty. The entry
@@ -122,7 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   threshold). The farm label of the other eleven collectors was already written by the entry script, so only the Failed timer
   jobs result changes: a job that failed more often than the threshold over the last 24 hours now appears in the dashboard
   and in the alerts of the email, which it did not before. `Get-SPSSqlStatus` already read its defaults safely and is
-  unchanged (#126).
+  unchanged. The defect has been there since 2.0.0; the 2.x line has the same fix in 2.4.1 (#126, #132).
 
 ## [3.4.1] - 2026-11-26
 
