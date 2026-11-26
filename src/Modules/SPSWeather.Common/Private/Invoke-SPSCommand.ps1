@@ -25,9 +25,9 @@
 
     $VerbosePreference = 'Continue'
     $baseScript = @"
-        if (-not (Get-Module -Name SharePointServer))
+        if (`$null -eq (Get-PSSnapin -Name Microsoft.SharePoint.PowerShell -ErrorAction SilentlyContinue))
         {
-            Import-Module -Name SharePointServer -Verbose:`$false -WarningAction SilentlyContinue -DisableNameChecking
+            Add-PSSnapin Microsoft.SharePoint.PowerShell
         }
 
 "@
