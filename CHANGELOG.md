@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.1] - 2026-11-26
+
 ### Added
 
 - Issue template **Translation Request** (`.github/ISSUE_TEMPLATE/5_translation_request.yml`): asks for the
