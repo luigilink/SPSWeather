@@ -564,7 +564,7 @@ else {
             try {
                 # History: archive the previous snapshot, build the past-runs series, write the new one.
                 [void](Backup-SPSWeatherJsonFile -Path $farmJsonFile -HistoryFolder $farmHistFolder -RetentionDays $jsonHistoryRetentionDays -ErrorAction SilentlyContinue)
-                $farmHistory = Get-SPSWeatherHistory -HistoryFolder $farmHistFolder -Max $historyBars -ErrorAction SilentlyContinue
+                $farmHistory = Get-SPSWeatherHistory -HistoryFolder $farmHistFolder -NamePrefix "$farmStem-" -Max $historyBars -ErrorAction SilentlyContinue
                 $farmJson | ConvertTo-Json -Depth 6 | Set-Content -Path $farmJsonFile -Force
 
                 $runDuration = '{0:hh\:mm\:ss}' -f ((Get-Date) - $DateStarted)

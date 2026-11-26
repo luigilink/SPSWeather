@@ -10,8 +10,9 @@
         snapshot afterwards.
 
         The function does not perform retention itself: pass -RetentionDays to also prune
-        history files older than that many days. Returns the full path of the backup
-        that was created, or $null when -Path does not exist (first run).
+        history files older than that many days; only the archives of this file are pruned (names
+        starting with the name of -Path and a dash), as environments can share a history folder.
+        Returns the full path of the backup, or $null when -Path does not exist (first run).
 
         .PARAMETER Path
         The JSON file about to be overwritten.
@@ -72,8 +73,9 @@
 
     if ($RetentionDays -gt 0) {
         $cutoff = (Get-Date).AddDays(-[double]$RetentionDays)
+        $ownPrefix = "$name-"
         Get-ChildItem -Path $HistoryFolder -Filter '*.json' -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastWriteTime -lt $cutoff } |
+            Where-Object { $_.LastWriteTime -lt $cutoff -and $_.Name.StartsWith($ownPrefix, [System.StringComparison]::OrdinalIgnoreCase) } |
             Remove-Item -Force -ErrorAction SilentlyContinue
     }
 

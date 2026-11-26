@@ -246,6 +246,11 @@ Describe 'Entry script run journal' {
         $entrySource | Should -Not -Match '-Setting \$envCfg'
     }
 
+    It 'reads the bars of a farm from the archives of its own application and environment only' {
+        $entrySource | Should -Match 'Get-SPSWeatherHistory -HistoryFolder \$farmHistFolder -NamePrefix "\$farmStem-" -Max \$historyBars'
+        $entrySource | Should -Match '\$farmStem = "\$\(\$Application\)-\$\(\$Environment\)-\$\(\$safeFarm\)"'
+    }
+
     It 'counts an email as sent only after Send-MailMessage succeeded' {
         ([regex]::Matches($entrySource, '(?s)-ea stop\s+\$mailsSent\+\+\s+Write-Output "Email sent successfully')).Count | Should -Be 2
     }

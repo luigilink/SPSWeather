@@ -17,6 +17,10 @@
 
         .PARAMETER Max
         Maximum number of most-recent runs to return. Defaults to 30.
+
+        .PARAMETER NamePrefix
+        Only the snapshots whose file name starts with this text are read (any case), for example
+        '<App>-<Env>-<Farm>-'. Without it every *.json of the folder is read.
     #>
     [CmdletBinding()]
     [OutputType([System.Object[]])]
@@ -28,12 +32,17 @@
 
         [Parameter()]
         [System.Int32]
-        $Max = 30
+        $Max = 30,
+
+        [Parameter()]
+        [System.String]
+        $NamePrefix
     )
 
     if (-not (Test-Path -Path $HistoryFolder)) { return @() }
 
     $files = Get-ChildItem -Path $HistoryFolder -Filter '*.json' -File -ErrorAction SilentlyContinue |
+        Where-Object { [string]::IsNullOrEmpty($NamePrefix) -or $_.Name.StartsWith($NamePrefix, [System.StringComparison]::OrdinalIgnoreCase) } |
         Sort-Object LastWriteTime
     if ($null -eq $files -or $files.Count -eq 0) { return @() }
     if ($files.Count -gt $Max) { $files = $files[($files.Count - $Max)..($files.Count - 1)] }
