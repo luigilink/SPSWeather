@@ -5,6 +5,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Failed timer jobs check reports in a real run again, and the collectors keep their default values.** A collector
+  handed its parameters to the remote script block as they were written by the caller, so a parameter that was left out and
+  kept its default (`-LookbackHours 24`, `-FailureThresholdPercent 5`, `-Farm 'SPS'`) reached the block empty. The entry
+  script calls `Get-SPSFailedTimerJob` with only `-Server`, `-InstallAccount` and `-Farm`: the look-back window was zero hours,
+  no run was ever inside it, and the check returned no row, so a timer job that failed was never reported. The collectors
+  that read a farm label now hand the block the value they resolved (`Get-SPSFailedTimerJob` also hands the look-back and the
+  threshold). The farm label of the other twelve collectors (`Get-AppFabricStatus`, the SharePoint 2016 and 2019 branch, among
+  them) was already written by the entry script, so only the Failed timer jobs result changes: a job that failed more often than the threshold over the last 24 hours now appears in the dashboard
+  and in the alerts of the email, which it did not before. `Get-SPSSqlStatus` already read its defaults safely and is
+  unchanged. This is the fix of 3.5.0 (#126), brought to the 2.x line (#132).
+
 ## [2.4.0] - 2026-11-26
 
 Maintenance release of the **2.x line** for SharePoint Server **2016 and 2019** (end of support on 14 July 2026), still
