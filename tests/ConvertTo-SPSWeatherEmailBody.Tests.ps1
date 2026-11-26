@@ -213,8 +213,14 @@ Describe 'ConvertTo-SPSWeatherEmailBody -MaxItemsPerArea' {
 Describe 'EmailMaxItemsPerArea configuration' {
     It 'is read from the environment config and passed to the email renderer by the entry script' {
         $entry = Get-Content -Path (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'src/SPSWeather.ps1') -Raw
-        $entry | Should -Match '\$envCfg\.EmailMaxItemsPerArea'
+        $entry | Should -Match '\$emailMaxItemsPerArea = \$runSetting\.Value\.EmailMaxItemsPerArea'
         $entry | Should -Match '-MaxItemsPerArea \$emailMaxItemsPerArea'
+    }
+
+    It 'is resolved from the environment config by Get-SPSWeatherRunSetting (default 10, a negative number counts as 0)' {
+        Get-SPSWeatherRunSetting -Config @{ EmailMaxItemsPerArea = 4 } | ForEach-Object { $_.Value.EmailMaxItemsPerArea } | Should -Be 4
+        (Get-SPSWeatherRunSetting -Config @{}).Value.EmailMaxItemsPerArea | Should -Be 10
+        (Get-SPSWeatherRunSetting -Config @{ EmailMaxItemsPerArea = -2 }).Value.EmailMaxItemsPerArea | Should -Be 0
     }
 
     It 'is documented in the example environment config with its default' {

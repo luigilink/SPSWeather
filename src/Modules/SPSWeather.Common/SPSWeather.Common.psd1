@@ -36,6 +36,7 @@
         'Get-SPSUpgradeStatus'
         'Get-SPSVersion'
         'Get-SPSWeatherHistory'
+        'Get-SPSWeatherRunSetting'
         'Get-SPWeatherListInfo'
         'Get-SYSDiskUsageStatus'
         'Get-SYSDOTNETVersion'

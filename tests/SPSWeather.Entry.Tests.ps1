@@ -217,6 +217,31 @@ Describe 'Entry script run journal' {
         "zebes-PROD-$safeFarm.json".ToLowerInvariant() | Should -Not -Be 'zebes-prod.runs.json'
     }
 
+    It 'resolves the thresholds once, through Get-SPSWeatherRunSetting, so the run and its journal record agree' {
+        ([regex]::Matches($entrySource, 'Get-SPSWeatherRunSetting')).Count | Should -Be 1
+        $entrySource | Should -Match '\$runSetting = Get-SPSWeatherRunSetting -Config \$envCfg -ConfigFile \$ConfigFile'
+        foreach ($pair in @(
+                @{ Variable = 'sqlDiskThreshold'; Key = 'SQLDiskFreeThresholdPercent' }
+                @{ Variable = 'sqlBackupMaxAge'; Key = 'SQLBackupMaxAgeDays' }
+                @{ Variable = 'jsonHistoryRetentionDays'; Key = 'JsonHistoryRetentionDays' }
+                @{ Variable = 'emailMaxItemsPerArea'; Key = 'EmailMaxItemsPerArea' }
+                @{ Variable = 'logRetentionDays'; Key = 'LogRetentionDays' })) {
+            $entrySource | Should -Match ('\$' + $pair.Variable + ' = \$runSetting\.Value\.' + $pair.Key + '\r?\n')
+            # No second, inline reading of the same key: the journal could then record another value than the one used.
+            $entrySource | Should -Not -Match ('\$envCfg\.' + $pair.Key)
+        }
+    }
+
+    It 'shows the threshold messages in the transcript and records them in the Event Log (ID 2001)' {
+        $entrySource | Should -Match 'foreach \(\$settingMessage in \$runSetting\.Messages\) \{ Write-Warning -Message \$settingMessage \}'
+        $entrySource | Should -Match '(?s)foreach \(\$settingMessage in \$runSetting\.Messages\) \{\s*Add-SPSWeatherEvent -Message "SPSWeather configuration: \$settingMessage" -EntryType ''Warning'' -EventID 2001'
+    }
+
+    It 'hands the record of the settings, not the configuration, to the run journal' {
+        $entrySource | Should -Match '(?s)Add-SPSWeatherRunJournalEntry .*?-Setting \$runSetting\.Record'
+        $entrySource | Should -Not -Match '-Setting \$envCfg'
+    }
+
     It 'counts an email as sent only after Send-MailMessage succeeded' {
         ([regex]::Matches($entrySource, '(?s)-ea stop\s+\$mailsSent\+\+\s+Write-Output "Email sent successfully')).Count | Should -Be 2
     }

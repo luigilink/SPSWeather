@@ -268,6 +268,43 @@ Describe 'Add-SPSWeatherRunJournalEntry' {
         }
     }
 
+    Context 'the settings in effect' {
+        It 'stores the settings given as the settings of the record' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'settings-runs.json'
+            $setting = (Get-SPSWeatherRunSetting -Config @{ SQLBackupMaxAgeDays = 8; ExclusionRules = @('WSPStatus') } -ConfigFile 'D:\Config\prod.psd1').Record
+            Add-SPSWeatherRunJournalEntry -Path $file -Started (Get-Date) -Duration ([timespan]::FromSeconds(1)) -Version 'x' -Language 'en-US' `
+                -EmailMode 'PerFarm' -Mail 'none' -Farm @() -Setting $setting | Should -BeTrue
+
+            $run = @((Read-Journal -Path $file).runs)[0]
+            $run.settings.configFile | Should -Be 'prod.psd1'
+            $run.settings.thresholds.SQLBackupMaxAgeDays.value | Should -Be 8
+            $run.settings.thresholds.SQLBackupMaxAgeDays.source | Should -Be 'config'
+            $run.settings.thresholds.SQLDiskFreeThresholdPercent.source | Should -Be 'default'
+            @($run.settings.exclusionRules) | Should -Be @('WSPStatus')
+        }
+
+        It 'writes no settings when none are given (the record is the same as before)' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'nosettings-runs.json'
+            New-Entry -Path $file | Out-Null
+            @((Read-Journal -Path $file).runs)[0].PSObject.Properties.Name | Should -Not -Contain 'settings'
+        }
+
+        It 'keeps the settings of the earlier records, and still reads a journal written before settings existed' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'mixed-runs.json'
+            [System.IO.File]::WriteAllText($file, '{"schemaVersion":1,"runs":[{"started":"2026-11-20T08:00:00+01:00","durationSeconds":9,"farms":[]}]}')
+            $setting = (Get-SPSWeatherRunSetting -Config @{ SQLBackupMaxAgeDays = 8 }).Record
+            Add-SPSWeatherRunJournalEntry -Path $file -Started (Get-Date) -Duration ([timespan]::FromSeconds(1)) -Version 'x' -Language 'en-US' `
+                -EmailMode 'PerFarm' -Mail 'none' -Farm @() -Setting $setting | Out-Null
+            New-Entry -Path $file | Out-Null
+
+            $runs = @((Read-Journal -Path $file).runs)
+            $runs.Count | Should -Be 3
+            $runs[0].PSObject.Properties.Name | Should -Not -Contain 'settings'
+            $runs[1].settings.thresholds.SQLBackupMaxAgeDays.value | Should -Be 8
+            $runs[2].PSObject.Properties.Name | Should -Not -Contain 'settings'
+        }
+    }
+
     Context 'fields that this version does not know' {
         It 'keeps the extra top-level fields of the journal' {
             $file = Join-Path -Path $TestDrive -ChildPath 'meta-runs.json'
