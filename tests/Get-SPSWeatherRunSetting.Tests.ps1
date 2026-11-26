@@ -25,7 +25,8 @@ Describe 'Get-SPSWeatherRunSetting' {
                 $r.Value.$key | Should -Be $defaults[$key]
                 $r.Record.thresholds.$key.value | Should -Be $defaults[$key]
                 $r.Record.thresholds.$key.source | Should -Be 'default'
-                $r.Record.thresholds.$key.PSObject.Properties.Name | Should -Not -Contain 'invalid'
+                $r.Record.thresholds.$key.Contains('invalid') | Should -BeFalse
+                $r.Record.thresholds.$key.invalid | Should -BeNullOrEmpty
             }
             @($r.Messages).Count | Should -Be 0
         }
@@ -132,14 +133,39 @@ Describe 'Get-SPSWeatherRunSetting' {
             @((Get-SPSWeatherRunSetting -Config @{}).Record.exclusionRules).Count | Should -Be 0
         }
 
-        It 'drops anything that is not a plain check name (a path, an address, a URL, a sentence)' {
-            $r = Get-SPSWeatherRunSetting -Config @{ ExclusionRules = @('WSPStatus', '\\srv\share', 'admin@contoso.com', 'https://portal.contoso.com', 'two words', '', $null, 42, ('A' * 65)) }
+        It 'records only real exclusion values: a path, an address, a URL, a server name, a typo or a wrong case is dropped' {
+            $typed = @('WSPStatus', '\\srv\share', 'admin@contoso.com', 'https://portal.contoso.com', 'two words', 'SPWFE01', 'svc_spfarm', 'WSPStatu', 'wspstatus', '', $null, 42, ('A' * 65))
+            $r = Get-SPSWeatherRunSetting -Config @{ ExclusionRules = $typed }
             @($r.Record.exclusionRules) | Should -Be @('WSPStatus')
         }
 
-        It 'caps the number of recorded exclusions' {
-            $many = 1..80 | ForEach-Object { "Rule$_" }
-            @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = $many }).Record.exclusionRules).Count | Should -Be 50
+        It 'records an exclusion only with its exact spelling, as the entry script matches it case-sensitively' {
+            @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = @('wspstatus', 'WSPSTATUS') }).Record.exclusionRules).Count | Should -Be 0
+            @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = @('wspstatus', 'WSPStatus') }).Record.exclusionRules) | Should -Be @('WSPStatus')
+        }
+
+        It 'does not let a trailing line break through (<Name>)' -ForEach @(
+            @{ Name = 'LF'; Typed = "WSPStatus`n" }
+            @{ Name = 'CRLF'; Typed = "WSPStatus`r`n" }
+            @{ Name = 'two LF'; Typed = "WSPStatus`n`n" }
+            @{ Name = 'a space'; Typed = 'WSPStatus ' }
+        ) {
+            @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = @($Typed) }).Record.exclusionRules).Count | Should -Be 0
+        }
+
+        It 'knows every exclusion that the entry script tests, and the ones that the example configuration lists' {
+            $repoRoot = Split-Path -Path $PSScriptRoot -Parent
+            $entry = Get-Content -Path (Join-Path -Path $repoRoot -ChildPath 'src/SPSWeather.ps1') -Raw
+            $inEntry = @([regex]::Matches($entry, 'ExclusionRules\.Contains\([''"](\w+)[''"]\)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+            $inEntry.Count | Should -BeGreaterThan 10
+            $recorded = @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = $inEntry }).Record.exclusionRules | Sort-Object)
+            $recorded | Should -Be $inEntry
+
+            $example = Get-Content -Path (Join-Path -Path $repoRoot -ChildPath 'src/Config/CONTOSO-PROD.example.psd1') -Raw
+            $documented = [regex]::Match($example, '(?s)Authorized values:(.*?)\.\s*\r?\n\s*ExclusionRules').Groups[1].Value
+            $listed = @(($documented -replace '#', ' ') -split '[,\s]+' | Where-Object { $_ } | Sort-Object -Unique)
+            $listed.Count | Should -BeGreaterThan 10
+            @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = $listed }).Record.exclusionRules | Sort-Object) | Should -Be $listed
         }
 
         It 'never lets another value of the configuration reach the record' {

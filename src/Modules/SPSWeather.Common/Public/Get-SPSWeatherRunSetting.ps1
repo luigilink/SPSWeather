@@ -21,9 +21,9 @@
 
         Record holds only what is listed here, never "the configuration": the file name of the configuration
         (no folder), for each threshold its value and its source (config or default, plus invalid = true when
-        the configuration held a value that could not be used), and the names listed in ExclusionRules (only
-        names made of letters, digits and underscores, so that a path or an address typed there can never reach
-        the journal). No server name, address, credential key, URL or path is ever part of it.
+        the configuration held a value that could not be used), and the names listed in ExclusionRules that are
+        real exclusion values (the fixed list below; a typo, a server name or a path typed there has no effect on
+        the run and is not recorded). No server name, address, credential key, URL or path is ever part of it.
 
         .PARAMETER Config
         The environment configuration (hashtable loaded from the .psd1).
@@ -56,6 +56,14 @@
         @{ Name = 'JsonHistoryRetentionDays'; Default = 30; ClampNegative = $false }
         @{ Name = 'EmailMaxItemsPerArea'; Default = 10; ClampNegative = $true }
         @{ Name = 'LogRetentionDays'; Default = 180; ClampNegative = $false }
+    )
+
+    # The values that the entry script tests with $ExclusionRules.Contains(...) (and None): a test keeps this list
+    # in step with the entry script and with the example configuration.
+    $knownExclusions = @(
+        'None', 'APIHttpStatus', 'SPSiteHttpStatus', 'EvtViewerStatus', 'IISW3WPStatus', 'HealthStatus', 'WSPStatus',
+        'FailedTimerJob', 'TimerServiceStatus', 'SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus',
+        'SQLAvailabilityStatus', 'SQLAliasStatus'
     )
 
     $messages = New-Object -TypeName System.Collections.ArrayList
@@ -91,7 +99,9 @@
     $names = New-Object -TypeName System.Collections.ArrayList
     if ($null -ne $Config -and $Config.Contains('ExclusionRules')) {
         foreach ($rule in @($Config['ExclusionRules'])) {
-            if ($rule -is [System.String] -and $rule -match '^[A-Za-z0-9_]{1,64}$' -and $names -notcontains $rule -and $names.Count -lt 50) {
+            # -ceq: the entry script tests $ExclusionRules.Contains('Name'), which is case-sensitive on an array,
+            # so only an exact name has an effect, and only an exact name is recorded.
+            if ($rule -is [System.String] -and @($knownExclusions | Where-Object -FilterScript { $_ -ceq $rule }).Count -gt 0 -and $names -notcontains $rule) {
                 [void]$names.Add($rule)
             }
         }
