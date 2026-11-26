@@ -15,12 +15,18 @@
         replaces the journal, so a crash never leaves a truncated file. A journal that cannot be read
         (corrupt, unexpected shape, newer schema) is kept aside as <name>.corrupt and a new one starts.
 
+        Two runs of the same environment can overlap (a manual run next to the scheduled task): the whole
+        read, prune, append and replace sequence is serialized with an exclusive lock on <name>.lock, a small
+        empty file that stays next to the journal. A run that cannot get the lock within -LockTimeoutSeconds
+        gives up with a warning rather than wait for ever, and the operating system releases the lock if a
+        run is killed. Fields of the journal that this version does not know are kept when it is rewritten.
+
         Records older than -RetentionDays are pruned (0 keeps them all) and the journal never holds
         more than -MaxEntries records. Nothing is collected from the farm: the record only holds
         the farm name, its outcome and the counts that the snapshot already contains.
 
         .PARAMETER Path
-        Full path of the journal file (Results\<App>-<Env>-runs.json). Created when missing.
+        Full path of the journal file (Results\<App>-<Env>.runs.json). Created when missing.
 
         .PARAMETER Started
         When the run started.
@@ -49,6 +55,9 @@
 
         .PARAMETER MaxEntries
         Upper bound on the number of records kept (the oldest are removed first). Default: 1000.
+
+        .PARAMETER LockTimeoutSeconds
+        How long to wait for another run to finish writing the journal. Default: 20.
 
         .EXAMPLE
         Add-SPSWeatherRunJournalEntry -Path $journalFile -Started $DateStarted -Duration ((Get-Date) - $DateStarted) `
@@ -101,11 +110,17 @@
         [Parameter()]
         [ValidateRange(1, 100000)]
         [System.Int32]
-        $MaxEntries = 1000
+        $MaxEntries = 1000,
+
+        [Parameter()]
+        [ValidateRange(0, 600)]
+        [System.Int32]
+        $LockTimeoutSeconds = 20
     )
 
     $invariant = [System.Globalization.CultureInfo]::InvariantCulture
     $tempFile = $null
+    $lock = $null
 
     try {
         $fullPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
@@ -139,6 +154,24 @@
             farms           = @($farmRecords)
         }
 
+        # Exclusive lock for the whole read-modify-write: without it two overlapping runs read the same
+        # journal and the last one to replace it silently drops the record of the other.
+        $deadline = [System.DateTime]::UtcNow.AddSeconds($LockTimeoutSeconds)
+        while ($null -eq $lock) {
+            try {
+                $lock = [System.IO.File]::Open($fullPath + '.lock', [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+            }
+            catch [System.IO.IOException] {
+                # Only a plain IOException is a lock held by another run (a missing folder or a path that is
+                # too long are IOException subclasses and must fail at once, not after the timeout).
+                if ($_.Exception.GetType() -ne [System.IO.IOException]) { throw }
+                if ([System.DateTime]::UtcNow -ge $deadline) {
+                    throw "another run kept the journal locked for $LockTimeoutSeconds seconds."
+                }
+                Start-Sleep -Milliseconds (Get-Random -Minimum 50 -Maximum 150)
+            }
+        }
+
         $existing = Read-SPSWeatherRunJournal -Path $fullPath
         if ($existing.Status -eq 'Corrupt') {
             $aside = $fullPath + '.corrupt'
@@ -159,7 +192,14 @@
         [void]$runs.Add($record)
         if ($runs.Count -gt $MaxEntries) { $runs.RemoveRange(0, $runs.Count - $MaxEntries) }
 
-        $json = ConvertTo-Json -InputObject ([ordered]@{ schemaVersion = 1; runs = $runs.ToArray() }) -Depth 20
+        $content = [ordered]@{ schemaVersion = 1 }
+        if ($existing.Status -eq 'Ok') {
+            foreach ($property in $existing.Journal.PSObject.Properties) {
+                if ($property.Name -notin @('schemaVersion', 'runs')) { $content[$property.Name] = $property.Value }
+            }
+        }
+        $content['runs'] = $runs.ToArray()
+        $json = ConvertTo-Json -InputObject $content -Depth 20
         $tempFile = '{0}.{1}.tmp' -f $fullPath, [System.Diagnostics.Process]::GetCurrentProcess().Id
         [System.IO.File]::WriteAllText($tempFile, $json, (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false))
         # Replace swaps the content in one step (the journal never disappears) and throws on failure.
@@ -173,6 +213,7 @@
         return $false
     }
     finally {
+        if ($null -ne $lock) { $lock.Dispose() }
         if ($null -ne $tempFile -and [System.IO.File]::Exists($tempFile)) {
             Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
         }

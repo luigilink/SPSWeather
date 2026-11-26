@@ -4,10 +4,11 @@
         Reads the run journal written by Add-SPSWeatherRunJournalEntry.
 
         .DESCRIPTION
-        Returns an object with a Status and the Runs found in the file at -Path:
-        Missing (no file yet, first run), Ok, or Corrupt (the file is not valid JSON, has
-        an unexpected shape or comes from a newer schema). Runs is then an empty array and the
-        caller decides what to do. A file that exists but cannot be opened (sharing violation,
+        Returns an object with a Status, the Runs found in the file at -Path and the Journal object
+        as it was read (so the caller can keep the fields it does not know): Missing (no file yet,
+        first run), Ok, or Corrupt (the file is not valid JSON, has an unexpected shape - 'runs'
+        missing or not a list - or comes from a newer schema). Runs is then an empty array, Journal
+        $null, and the caller decides what to do. A file that exists but cannot be opened (sharing violation,
         access denied) is NOT reported as Corrupt: the I/O exception is left to the caller, so a
         healthy journal is never set aside because of a transient lock.
 
@@ -16,7 +17,7 @@
         would otherwise change the format of the records when they are written back.
 
         .PARAMETER Path
-        Full path of the journal file (Results\<App>-<Env>-runs.json).
+        Full path of the journal file (Results\<App>-<Env>.runs.json).
 
         .EXAMPLE
         (Read-SPSWeatherRunJournal -Path $journalFile).Runs
@@ -31,8 +32,8 @@
     )
 
     $supportedSchemaVersion = 1
-    $missing = [PSCustomObject]@{ Status = 'Missing'; Runs = @() }
-    $corrupt = [PSCustomObject]@{ Status = 'Corrupt'; Runs = @() }
+    $missing = [PSCustomObject]@{ Status = 'Missing'; Runs = @(); Journal = $null }
+    $corrupt = [PSCustomObject]@{ Status = 'Corrupt'; Runs = @(); Journal = $null }
 
     $fullPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
     if (-not [System.IO.File]::Exists($fullPath)) {
@@ -52,7 +53,7 @@
     if ($null -eq $journal -or -not [int]::TryParse("$($journal.schemaVersion)", [ref]$schema) -or $schema -lt 1 -or $schema -gt $supportedSchemaVersion) {
         return $corrupt
     }
-    if ($null -eq $journal.PSObject.Properties['runs']) {
+    if ($null -eq $journal.PSObject.Properties['runs'] -or $journal.runs -isnot [System.Array]) {
         return $corrupt
     }
 
@@ -65,5 +66,5 @@
         [void]$runs.Add($run)
     }
 
-    return [PSCustomObject]@{ Status = 'Ok'; Runs = $runs.ToArray() }
+    return [PSCustomObject]@{ Status = 'Ok'; Runs = $runs.ToArray(); Journal = $journal }
 }

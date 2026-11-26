@@ -194,7 +194,97 @@ Describe 'Add-SPSWeatherRunJournalEntry' {
             $file = Join-Path -Path $folder -ChildPath 'x-runs.json'
             New-Entry -Path $file | Out-Null
             New-Entry -Path $file | Out-Null
-            @(Get-ChildItem -Path $folder).Name | Should -Be @('x-runs.json')
+            @(Get-ChildItem -Path $folder).Name | Sort-Object | Should -Be @('x-runs.json', 'x-runs.json.lock')
+        }
+    }
+
+    Context 'overlapping runs' {
+        It 'keeps the record of every run when several runs write the same journal at the same time' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'concurrent-runs.json'
+            $modulePath = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'src/Modules/SPSWeather.Common/SPSWeather.Common.psd1'
+            $workers = 4
+            $perWorker = 10
+            $pool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, $workers)
+            $pool.Open()
+            try {
+                $jobs = foreach ($id in 1..$workers) {
+                    $ps = [powershell]::Create()
+                    $ps.RunspacePool = $pool
+                    [void]$ps.AddScript({
+                            param($Module, $File, $Count)
+                            Import-Module -Name $Module -Force
+                            $written = 0
+                            foreach ($i in 1..$Count) {
+                                $done = Add-SPSWeatherRunJournalEntry -Path $File -Started (Get-Date) -Duration ([timespan]::FromSeconds(1)) `
+                                    -Version 'x' -Language 'en-US' -EmailMode 'PerFarm' -Mail 'none' -Farm @() -WarningAction SilentlyContinue
+                                if ($done -eq $true) { $written++ }
+                            }
+                            $written
+                        }).AddArgument($modulePath).AddArgument($file).AddArgument($perWorker)
+                    [PSCustomObject]@{ Shell = $ps; Handle = $ps.BeginInvoke() }
+                }
+                $written = 0
+                foreach ($job in $jobs) { $written += @($job.Shell.EndInvoke($job.Handle))[0]; $job.Shell.Dispose() }
+            }
+            finally { $pool.Dispose() }
+
+            $written | Should -Be ($workers * $perWorker)
+            @((Read-Journal -Path $file).runs).Count | Should -Be ($workers * $perWorker)
+        }
+
+        It 'gives up with a warning, and leaves the journal alone, when another run keeps it locked' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'busy-runs.json'
+            New-Entry -Path $file | Out-Null
+            $before = [System.IO.File]::ReadAllText($file)
+            $holder = [System.IO.File]::Open("$file.lock", 'OpenOrCreate', 'ReadWrite', 'None')
+            try {
+                $started = Get-Date
+                $result = Add-SPSWeatherRunJournalEntry -Path $file -Started (Get-Date) -Duration ([timespan]::FromSeconds(1)) -Version 'x' -Language 'en-US' `
+                    -EmailMode 'PerFarm' -Mail 'none' -Farm @() -LockTimeoutSeconds 1 -WarningVariable lockWarning -WarningAction SilentlyContinue
+                $result | Should -BeFalse
+                ((Get-Date) - $started).TotalSeconds | Should -BeLessThan 10
+                ($lockWarning -join ' ') | Should -Match 'locked'
+            }
+            finally { $holder.Dispose() }
+            [System.IO.File]::ReadAllText($file) | Should -Be $before
+        }
+
+        It 'writes again once the other run has released the lock' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'released-runs.json'
+            New-Entry -Path $file | Out-Null
+            $holder = [System.IO.File]::Open("$file.lock", 'OpenOrCreate', 'ReadWrite', 'None')
+            Add-SPSWeatherRunJournalEntry -Path $file -Started (Get-Date) -Duration ([timespan]::FromSeconds(1)) -Version 'x' -Language 'en-US' `
+                -EmailMode 'PerFarm' -Mail 'none' -Farm @() -LockTimeoutSeconds 0 -WarningAction SilentlyContinue | Should -BeFalse
+            $holder.Dispose()
+            New-Entry -Path $file | Should -BeTrue
+            @((Read-Journal -Path $file).runs).Count | Should -Be 2
+        }
+
+        It 'releases the lock after a failed write too' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'failed-runs.json'
+            $bad = @([PSCustomObject]@{ Name = 'CONTENT'; Outcome = 'exploded' })
+            New-Entry -Path $file -Farm $bad | Should -BeFalse
+            { [System.IO.File]::Open("$file.lock", 'OpenOrCreate', 'ReadWrite', 'None').Dispose() } | Should -Not -Throw
+        }
+    }
+
+    Context 'fields that this version does not know' {
+        It 'keeps the extra top-level fields of the journal' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'meta-runs.json'
+            [System.IO.File]::WriteAllText($file, '{"schemaVersion":1,"owner":"kept","limits":{"a":1},"runs":[]}')
+            New-Entry -Path $file | Should -BeTrue
+
+            $journal = Read-Journal -Path $file
+            $journal.owner | Should -Be 'kept'
+            $journal.limits.a | Should -Be 1
+            $journal.schemaVersion | Should -Be 1
+            @($journal.runs).Count | Should -Be 1
+        }
+
+        It 'writes a new journal with only the schema version and the runs' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'plain-runs.json'
+            New-Entry -Path $file | Out-Null
+            @((Read-Journal -Path $file).PSObject.Properties.Name) | Should -Be @('schemaVersion', 'runs')
         }
     }
 
@@ -206,6 +296,19 @@ Describe 'Add-SPSWeatherRunJournalEntry' {
 
             @((Read-Journal -Path $file).runs).Count | Should -Be 1
             [System.IO.File]::ReadAllText("$file.corrupt") | Should -Be '{ not json'
+        }
+
+        It 'keeps aside a journal whose runs is not a list (<Content>)' -ForEach @(
+            @{ Content = '{"schemaVersion":1,"runs":"bad"}' }
+            @{ Content = '{"schemaVersion":1,"runs":null}' }
+            @{ Content = '{"schemaVersion":1,"runs":{"started":"2026-11-20T08:00:00+01:00"}}' }
+        ) {
+            $file = Join-Path -Path $TestDrive -ChildPath ("shape-{0}-runs.json" -f [guid]::NewGuid().ToString('N'))
+            [System.IO.File]::WriteAllText($file, $Content)
+            New-Entry -Path $file | Should -BeTrue
+
+            [System.IO.File]::ReadAllText("$file.corrupt") | Should -Be $Content
+            @((Read-Journal -Path $file).runs).Count | Should -Be 1
         }
 
         It 'treats a journal written by a newer schema as unreadable and does not overwrite it' {
@@ -263,7 +366,7 @@ Describe 'Read-SPSWeatherRunJournal (private)' {
 
     It 'reports Corrupt for invalid JSON, a missing runs list or an unknown schema' {
         InModuleScope SPSWeather.Common -Parameters @{ Dir = $TestDrive } {
-            foreach ($content in @('{ not json', '{"schemaVersion":1}', '{"runs":[]}', '[]', '{"schemaVersion":0,"runs":[]}', '{"schemaVersion":2,"runs":[]}')) {
+            foreach ($content in @('{ not json', '{"schemaVersion":1}', '{"runs":[]}', '[]', '{"schemaVersion":0,"runs":[]}', '{"schemaVersion":2,"runs":[]}', '{"schemaVersion":1,"runs":"bad"}', '{"schemaVersion":1,"runs":null}', '{"schemaVersion":1,"runs":{}}', '{"schemaVersion":1,"runs":7}')) {
                 $file = Join-Path -Path $Dir -ChildPath 'probe-runs.json'
                 [System.IO.File]::WriteAllText($file, $content)
                 (Read-SPSWeatherRunJournal -Path $file).Status | Should -Be 'Corrupt' -Because $content
