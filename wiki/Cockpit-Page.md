@@ -29,14 +29,18 @@ says that JavaScript is required.
 
 | Tab | Content |
 |---|---|
-| **Executive** | Four cards: **health** (share of OK rows in the latest snapshot of each farm), **days without failure** (among the days that have a snapshot), **open attention items** (and how many are new at the latest snapshot), **collection** (share of days with a snapshot). Then one card for each farm, the daily trend of all the farms, the weather, and the list of items that need attention (the ten oldest failures first, the others behind a fold). |
-| **IT** | The **causes grouped** (same section and same cause across items and farms; `#` stands for a number), the farms by section, a **stability** strip with one square for each day and farm, and the items of each farm with their detail. |
+| **Executive** | Four cards: **health** (share of OK rows in the latest snapshot of each farm), **days without failure** (among the days that have a snapshot; a day with an unreachable run is not one of them), **open attention items** (and how many are new at the latest snapshot), **collection** (share of days with a snapshot). Then one card for each farm, the daily trend of all the farms, the weather, and the list of items that need attention (the ten oldest failures first, the others behind a fold). |
+| **IT** | The **causes grouped** (same section and same cause across items and farms; `#` stands for a number), the farms by section, a **stability** strip with one square for each day and farm (described in words for a screen reader, with the day by day detail in a table under each strip), and the items of each farm with their detail. |
 | **Data quality** | Freshness of the latest snapshots, days with data, history kept, files that could not be read, a table for each farm, and notes: days without a snapshot, "since" dates that are only a lower bound, lists that are capped, checks excluded by the configuration. |
 | **Collection tracking** | The [run journal](Cockpit-Data#run-journal): number of runs, runs that reached every farm, average and last duration, duration chart, the last 50 runs (farms reached, email outcome, version) and the days when a farm was unreachable. |
-| **Settings & method** | The settings in effect at the last run with their origin (configuration or default, and invalid), the configuration file, the excluded checks, the changes between two runs, and the method: how health, severity, weather and "since" are computed. |
+| **Settings & method** | The settings in effect with their origin (configuration or default, and invalid), the configuration file, the excluded checks, the changes between two runs **in the selected period**, and the method: how health, severity, weather and "since" are computed. |
+
+The settings shown are the last ones the run journal recorded. When the latest runs did not record any (a journal written before 3.5.0), the page says which run they come from instead of attributing them to the newest run.
 
 Each card gives its figure, the change against the previous period (when the history covers it), an "as of" label and a button to the
-place where the detail is. The period (7, 14, 30 or 60 days) is limited by `JsonHistoryRetentionDays`: the page never offers more days
+place where the detail is.
+
+The period (7, 14, 30 or 60 days) is limited by `JsonHistoryRetentionDays`: the page never offers more days
 than the history keeps.
 
 ## State in the URL

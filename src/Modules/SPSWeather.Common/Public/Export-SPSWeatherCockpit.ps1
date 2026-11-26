@@ -76,20 +76,27 @@
         $Version
     )
 
-    $data = Get-SPSWeatherCockpitData -ResultsFolder $ResultsFolder -Application $Application -Environment $Environment -FarmName $FarmName -RetentionDays $RetentionDays
-    $html = ConvertTo-SPSWeatherCockpitHtml -Data $data -Language $Language -Version $Version
-
-    $fullPath = [System.IO.Path]::GetFullPath($OutputFile)
-    $folder = [System.IO.Path]::GetDirectoryName($fullPath)
-    if (-not [System.IO.Directory]::Exists($folder)) { [void][System.IO.Directory]::CreateDirectory($folder) }
-
-    $temp = "$fullPath.$([guid]::NewGuid().ToString('N')).tmp"
+    $fullPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputFile)
+    $temp = $null
     try {
+        $data = Get-SPSWeatherCockpitData -ResultsFolder $ResultsFolder -Application $Application -Environment $Environment -FarmName $FarmName -RetentionDays $RetentionDays
+        $html = ConvertTo-SPSWeatherCockpitHtml -Data $data -Language $Language -Version $Version
+
+        $folder = [System.IO.Path]::GetDirectoryName($fullPath)
+        if (-not [System.IO.Directory]::Exists($folder)) { [void][System.IO.Directory]::CreateDirectory($folder) }
+
+        $temp = '{0}.{1}.tmp' -f $fullPath, [guid]::NewGuid().ToString('N')
         [System.IO.File]::WriteAllText($temp, $html, (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false))
-        Move-Item -LiteralPath $temp -Destination $fullPath -Force
+        # Replace is a single step and throws on failure
+        if ([System.IO.File]::Exists($fullPath)) { [System.IO.File]::Replace($temp, $fullPath, [NullString]::Value) }
+        else { [System.IO.File]::Move($temp, $fullPath) }
+        $temp = $null
+    }
+    catch {
+        $PSCmdlet.ThrowTerminatingError($_)
     }
     finally {
-        if ([System.IO.File]::Exists($temp)) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
+        if ($null -ne $temp -and [System.IO.File]::Exists($temp)) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
     }
     return $fullPath
 }

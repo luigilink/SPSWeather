@@ -120,6 +120,29 @@ Describe 'Export-SPSWeatherCockpit' {
             @(Get-ChildItem -Path $TestDrive -Filter '*.tmp' -Recurse).Count | Should -Be 0
         }
 
+        It 'resolves a relative path against the PowerShell location, not the working directory of the process' {
+            $dir = Join-Path -Path $TestDrive -ChildPath 'location'
+            New-Item -Path $dir -ItemType Directory | Out-Null
+            Push-Location -Path $dir
+            try { $returned = Export-SPSWeatherCockpit -OutputFile '.\relative.html' -ResultsFolder $script:results -Application 'zebes' -Environment 'PROD' -FarmName 'CONTENT' }
+            finally { Pop-Location }
+            Test-Path -LiteralPath (Join-Path -Path $dir -ChildPath 'relative.html') | Should -BeTrue
+            Test-Path -LiteralPath (Join-Path -Path ([System.Environment]::CurrentDirectory) -ChildPath 'relative.html') | Should -BeFalse
+            [System.IO.Path]::GetFileName($returned) | Should -Be 'relative.html'
+            [System.IO.Path]::GetFileName([System.IO.Path]::GetDirectoryName($returned)) | Should -Be 'location'
+        }
+
+        It 'raises a terminating error, even without -ErrorAction Stop, when the destination cannot take the page, and leaves nothing behind' {
+            $folder = Join-Path -Path $TestDrive -ChildPath 'a-folder'
+            New-Item -Path $folder -ItemType Directory | Out-Null
+            $threw = $false
+            try { Export-SPSWeatherCockpit -OutputFile $folder -ResultsFolder $script:results -Application 'zebes' -Environment 'PROD' -FarmName 'CONTENT' | Out-Null }
+            catch { $threw = $true }
+            $threw | Should -BeTrue
+            @(Get-ChildItem -Path $folder -Force).Count | Should -Be 0
+            @(Get-ChildItem -Path $TestDrive -Filter '*.tmp').Count | Should -Be 0
+        }
+
         It 'reads Results and never writes to it' {
             $before = @(Get-ChildItem -Path $script:results -Recurse -File | Sort-Object FullName | ForEach-Object { "$($_.FullName)|$($_.Length)|$($_.LastWriteTime.Ticks)" })
             Export-SPSWeatherCockpit -OutputFile (Join-Path -Path $TestDrive -ChildPath 'ro/page.html') -ResultsFolder $script:results -Application 'zebes' -Environment 'PROD' -FarmName 'CONTENT' | Out-Null
@@ -234,6 +257,30 @@ Describe 'Export-SPSWeatherCockpit' {
         }
     }
 
+    Context 'the style' {
+        It 'draws the figure of a card in an ink colour that reads on the card (WCAG 3:1 for large text, 4.5:1 required here), in both themes' {
+            $css = [System.IO.File]::ReadAllText((Join-Path -Path $script:moduleDir -ChildPath 'Assets/Cockpit.css'))
+            foreach ($tone in 'ok', 'warn', 'fail') { $css | Should -Match "\.kpi\.$tone \.v \{ color: var\(--$tone-ink\); \}" }
+
+            function Get-Luminance([string]$hex) {
+                $channels = foreach ($i in 1, 3, 5) { $c = [Convert]::ToInt32($hex.Substring($i, 2), 16) / 255.0; if ($c -le 0.03928) { $c / 12.92 } else { [Math]::Pow(($c + 0.055) / 1.055, 2.4) } }
+                0.2126 * $channels[0] + 0.7152 * $channels[1] + 0.0722 * $channels[2]
+            }
+            function Get-Contrast([string]$a, [string]$b) { $x = Get-Luminance $a; $y = Get-Luminance $b; ([Math]::Max($x, $y) + 0.05) / ([Math]::Min($x, $y) + 0.05) }
+            $light = [regex]::Match($css, ':root \{(.*?)\}', 'Singleline').Groups[1].Value
+            $dark = [regex]::Match($css, 'html\[data-theme="dark"\] \{(.*?)\}', 'Singleline').Groups[1].Value
+            foreach ($theme in @{ Name = 'light'; Text = $light }, @{ Name = 'dark'; Text = $dark }) {
+                $card = [regex]::Match($theme.Text, '--card:\s*(#[0-9a-fA-F]{6})').Groups[1].Value
+                $card | Should -Not -BeNullOrEmpty
+                foreach ($tone in 'ok', 'warn', 'fail') {
+                    $ink = [regex]::Match($theme.Text, "--$tone-ink:\s*(#[0-9a-fA-F]{6})").Groups[1].Value
+                    $ink | Should -Not -BeNullOrEmpty
+                    (Get-Contrast $ink $card) | Should -BeGreaterOrEqual 4.5 -Because "--$tone-ink on the card, $($theme.Name) theme"
+                }
+            }
+        }
+    }
+
     Context 'the script' {
         It 'documents the state kept in the URL and the five tabs' {
             $js = [System.IO.File]::ReadAllText((Join-Path -Path $script:moduleDir -ChildPath 'Assets/Cockpit.js'))
@@ -255,6 +302,81 @@ Describe 'Export-SPSWeatherCockpit' {
             [System.IO.File]::WriteAllText($source, [System.IO.File]::ReadAllText((Join-Path -Path $script:moduleDir -ChildPath 'Assets/Cockpit.js')))
             & $script:nodePath --check $source
             $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'counts the days by their snapshots, lists the unreachable runs next to a snapshot, tells where the settings come from and cuts the changes to the period' -Skip:(-not $node) {
+            $harness = Join-Path -Path $TestDrive -ChildPath 'cockpit-review.js'
+            [System.IO.File]::WriteAllText($harness, @'
+const fs = require('fs');
+const html = fs.readFileSync(process.argv[2], 'utf8');
+const block = id => new RegExp('<script type="application/json" id="' + id + '">([\\s\\S]*?)</script>').exec(html)[1];
+const code = /<script>\n([\s\S]*)\n<\/script>\s*<\/body>/.exec(html)[1];
+const END = Date.UTC(2026, 10, 26);
+const iso = i => new Date(END - i * 86400000).toISOString().slice(0, 10);
+const cell = (ok, warn, fail, down) => ({ ok, warn, fail, weather: 'sunny', snapshots: 1, unreachable: down || 0 });
+const DOWN = { ok: null, warn: null, fail: null, weather: null, snapshots: 0, unreachable: 1 };
+const OK = cell(10, 0, 0);
+const rep = (n, c) => Array.from({ length: n }, () => c);
+const farm = (name, daily) => ({ name, daily, latestSnapshot: '2026-11-26T06:00:00+01:00', snapshotsTruncated: false, attention: [], attentionTotal: 0, attentionTruncated: false });
+const thresholds = { SQLDiskFreeThresholdPercent: { value: 15, source: 'default' }, SQLBackupMaxAgeDays: { value: 8, source: 'config' }, JsonHistoryRetentionDays: { value: 30, source: 'config' }, EmailMaxItemsPerArea: { value: 10, source: 'default' }, LogRetentionDays: { value: 180, source: 'default' } };
+const settings = { configFile: 'A.psd1', thresholds, exclusionRules: [] };
+const runAt = (day, withSettings) => Object.assign({ started: day + 'T06:00:00+01:00', durationSeconds: 60, version: '3.5.0', language: 'en-US', emailMode: 'PerFarm', mail: 'sent', farms: [{ name: 'A', outcome: 'ok', ok: 10, warn: 0, fail: 0 }] }, withSettings ? { settings } : {});
+function render(mutate, hash) {
+  const d = JSON.parse(block('spsw-data'));
+  const n = 14;
+  Object.assign(d, { days: Array.from({ length: n }, (_, i) => iso(n - 1 - i)), weekend: rep(n, false), runs: [], kpi: null, skipped: [], farms: [farm('A', rep(n, OK))], settings: { current: null, changes: [] } });
+  d.period = { retentionDays: 0, offered: [7, 14], maxDays: n, firstDay: d.days[0], lastDay: d.days[n - 1] };
+  mutate(d);
+  const els = { 'spsw-data': { textContent: JSON.stringify(d) }, 'spsw-page': { textContent: block('spsw-page') }, 'spsw-error': { textContent: '', hidden: true }, 'spsw-header': { innerHTML: '' }, 'spsw-main': { innerHTML: '' }, 'spsw-footer': { innerHTML: '' } };
+  const doc = { getElementById: id => els[id], querySelector: () => null, addEventListener() {}, title: '', documentElement: { setAttribute() {}, lang: '' } };
+  const win = { addEventListener() {}, innerWidth: 1320, matchMedia: () => ({ matches: false }), scrollTo() {} };
+  new Function('document', 'window', 'location', 'history', code)(doc, win, { hash: hash + '&lang=en-US' }, { replaceState() {} });
+  return { html: els['spsw-main'].innerHTML, text: els['spsw-main'].innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), error: els['spsw-error'].hidden ? '' : els['spsw-error'].textContent };
+}
+const out = {};
+// 2: the last day has only an unreachable run, so it is not a day with a snapshot
+const onlyDown = render(d => { d.farms[0].daily = [...rep(13, OK), DOWN]; }, '#tab=direction&p=14');
+out.cleanDenominator = /Days without failure\s+13 \/ 13\b/.test(onlyDown.text);
+out.qualityDays = /Days with data\s+13\b/.test(render(d => { d.farms[0].daily = [...rep(13, OK), DOWN]; }, '#tab=quality&p=14').text);
+// 3: a healthy snapshot and an unreachable run the same day is not a day without failure
+out.unreachableRunNotClean = /Days without failure\s+13 \/ 14\b/.test(render(d => { d.farms[0].daily = [...rep(13, OK), cell(10, 0, 0, 1)]; }, '#tab=direction&p=14').text);
+// 5: Data quality counts that day as unreachable, and as a day with a snapshot
+const q = render(d => { d.farms[0].daily = [...rep(13, OK), cell(10, 0, 0, 1)]; }, '#tab=quality&p=14');
+const row = /<tr><td><b>A<\/b><\/td><td class="num">[^<]*<\/td><td class="r num">(\d+)<\/td><td class="r num">(\d+)<\/td>/.exec(q.html);
+out.qualityRow = row ? row[1] + '/' + row[2] : 'no row';
+// 4: the strip is described in words and its days are in a table
+const it = render(d => { d.farms[0].daily = [...rep(10, OK), cell(9, 0, 1), DOWN, null, OK]; }, '#tab=it&p=14');
+out.stripLabel = (/<div class="strip" role="img" aria-label="([^"]*)"/.exec(it.html) || [])[1] || '';
+out.stripRows = (it.html.match(/<details class="fold" style="margin:4px 0 10px">[\s\S]*?<\/details>/) || [''])[0].split('<tr>').length - 2;
+out.stripHasDay = /Wed, Nov 25/.test(it.text) && /Unreachable runs/.test(it.text);
+// 6: the settings come from an older run
+const older = render(d => { d.runs = [runAt('2026-11-24', true), runAt('2026-11-26', false)]; d.settings.current = settings; }, '#tab=method&p=14');
+out.olderHint = /last recorded, by the run of 11\/24 06:00/.test(older.text);
+const same = render(d => { d.runs = [runAt('2026-11-24', false), runAt('2026-11-26', true)]; d.settings.current = settings; }, '#tab=method&p=14');
+out.sameHint = /at the last run/.test(same.text) && !/last recorded/.test(same.text);
+// 7: the changes of the period only
+const change = (day, name) => ({ started: day + 'T06:00:00+01:00', name, from: '3', to: '8', fromSource: 'default', toSource: 'config' });
+const changes = d => { d.runs = [runAt('2026-11-26', true)]; d.settings.current = settings; d.settings.changes = [change('2026-11-14', 'OldSetting'), change('2026-11-25', 'NewSetting')]; };
+const p7 = render(changes, '#tab=method&p=7'), p14 = render(changes, '#tab=method&p=14');
+out.changes7 = p7.text.includes('NewSetting') && !p7.text.includes('OldSetting');
+out.changes14 = p14.text.includes('NewSetting') && p14.text.includes('OldSetting');
+out.errors = [onlyDown, older, same, p7, p14, q, it].map(r => r.error).filter(Boolean);
+console.log(JSON.stringify(out));
+'@)
+            $result = & $script:nodePath $harness $script:file | ConvertFrom-Json
+            $result.errors | Should -BeNullOrEmpty
+            $result.cleanDenominator | Should -BeTrue -Because 'a day with only an unreachable run has no snapshot, so it is not counted among the days with a snapshot'
+            $result.qualityDays | Should -BeTrue
+            $result.unreachableRunNotClean | Should -BeTrue -Because 'the method says: a day without failure has no unreachable farm'
+            $result.qualityRow | Should -Be '14/1' -Because 'a snapshot and an unreachable run on the same day are both counted'
+            $result.stripLabel | Should -Match '^A: \d+ healthy, \d+ warning, \d+ alert, \d+ unreachable, \d+ without snapshot$'
+            $result.stripLabel | Should -Be 'A: 11 healthy, 0 warning, 1 alert, 1 unreachable, 1 without snapshot'
+            $result.stripRows | Should -Be 14
+            $result.stripHasDay | Should -BeTrue
+            $result.olderHint | Should -BeTrue
+            $result.sameHint | Should -BeTrue
+            $result.changes7 | Should -BeTrue
+            $result.changes14 | Should -BeTrue
         }
 
         It 'renders every tab in every language, period and theme without an error, and escapes the hostile names' -Skip:(-not $node) {

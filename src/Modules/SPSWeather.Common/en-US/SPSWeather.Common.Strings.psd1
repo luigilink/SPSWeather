@@ -295,4 +295,13 @@
     CockpitMethodLimitsTitle                   = 'Limits'
     CockpitMethodLimits1                       = 'The page only shows what the runs recorded; it collects nothing from the farms.'
     CockpitMethodLimits2                       = 'The periods offered never exceed the history kept (JsonHistoryRetentionDays).'
+
+    # Cockpit: day by day detail and settings origin
+    CockpitStripSummary      = '{0} healthy, {1} warning, {2} alert, {3} unreachable, {4} without snapshot'
+    CockpitStripShow         = 'Show the day by day detail'
+    CockpitDay               = 'Day'
+    CockpitStatus            = 'Status'
+    CockpitChecks            = 'Checks'
+    CockpitRUnreachableRuns  = 'Unreachable runs'
+    CockpitSettingsHintOlder = 'last recorded, by the run of {0}'
 }

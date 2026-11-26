@@ -68,7 +68,7 @@ html[data-theme="dark"] .seg button[aria-pressed="true"] { background: #e6ebf2; 
 .kpi .v { font-size: 30px; font-weight: 800; line-height: 1.05; }
 .kpi .l { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .kpi .sub { font-size: 12px; color: var(--muted); }
-.kpi.ok .v { color: var(--ok); } .kpi.warn .v { color: var(--warn); } .kpi.fail .v { color: var(--fail); } .kpi.blue .v { color: var(--blue); }
+.kpi.ok .v { color: var(--ok-ink); } .kpi.warn .v { color: var(--warn-ink); } .kpi.fail .v { color: var(--fail-ink); } .kpi.blue .v { color: var(--blue); }
 .delta { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; border-radius: 10px; padding: 1px 8px; }
 .delta.good { background: var(--ok-tint); color: var(--ok-ink); }
 .delta.bad { background: var(--fail-tint); color: var(--fail-ink); }

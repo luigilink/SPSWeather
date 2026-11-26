@@ -115,20 +115,20 @@
   function range() { const p = Math.min(+state.p || N, N); return { from: N - p, to: N, len: p }; }
   function prevRange() { const r = range(); return r.from - r.len < 0 ? null : { from: r.from - r.len, to: r.from, len: r.len }; }
   function averageHealth(r) { return average(GLOBAL.slice(r.from, r.to).map(healthPct)); }
-  function anyCell(i) { return farms.some(function (f) { return !!f.daily[i]; }); }
+  function snapshotDay(i) { return farms.some(function (f) { return hasData(f.daily[i]); }); }
   function cleanDay(i) {
     let any = false;
     for (let k = 0; k < farms.length; k++) {
       const c = farms[k].daily[i];
       if (!c) continue;
-      if (c.ok === null || c.fail > 0) return false;
+      if (c.ok === null || c.fail > 0 || c.unreachable > 0) return false;
       any = true;
     }
     return any;
   }
   function cleanStats(r) {
     let eligible = 0, clean = 0;
-    for (let i = r.from; i < r.to; i++) { if (anyCell(i)) eligible++; if (cleanDay(i)) clean++; }
+    for (let i = r.from; i < r.to; i++) { if (snapshotDay(i)) eligible++; if (cleanDay(i)) clean++; }
     return { eligible: eligible, clean: clean, rate: eligible ? clean / eligible * 100 : null };
   }
   function collection(r) {
@@ -350,14 +350,20 @@
 
     const cw = Math.max(8, Math.min(22, Math.floor(900 / r.len)));
     const strips = farms.map(function (f) {
-      const spans = [];
+      const spans = [], rows = [], tally = { ok: 0, warn: 0, fail: 0, down: 0, none: 0 };
+      for (let i = r.to - 1; i >= r.from; i--) {
+        const c = f.daily[i], st = cellState(c);
+        tally[st]++;
+        rows.push(h`<tr><td class="num">${dlong(days[i])}</td><td>${st === 'none' ? t('CockpitNoSnapshot') : t(STATUS[st])}</td><td class="num">${st === 'ok' || st === 'warn' || st === 'fail' ? counts(c) : '\u2014'}</td><td class="r num">${c && c.unreachable > 0 ? n0(c.unreachable) : ''}</td></tr>`);
+      }
       for (let i = r.from; i < r.to; i++) {
         const c = f.daily[i], st = cellState(c);
         const tip = dlong(days[i]) + ' \u2014 ' + (st === 'none' ? t('CockpitNoSnapshot') : st === 'down' ? t('FarmStatusDown') : counts(c));
         const bg = st === 'none' ? 'var(--line)' : 'var(--' + st + ')';
         spans.push(h`<span title="${tip}" style="width:${cw}px;background:${bg};${st === 'down' ? 'opacity:.55;' : ''}${D.weekend && D.weekend[i] ? 'outline:1px solid var(--weekend);' : ''}"></span>`);
       }
-      return h`<div class="strip-row"><b title="${f.name}">${f.name}</b><div class="strip" role="img" aria-label="${f.name}">${spans}</div></div>`;
+      const summary = f.name + ': ' + t('CockpitStripSummary', tally.ok, tally.warn, tally.fail, tally.down, tally.none);
+      return h`<div class="strip-row"><b title="${f.name}">${f.name}</b><div class="strip" role="img" aria-label="${summary}">${spans}</div></div><details class="fold" style="margin:4px 0 10px"><summary><span>${t('CockpitStripShow')} (${f.name})</span></summary><div class="in">${table([{ label: t('CockpitDay') }, { label: t('CockpitStatus') }, { label: t('CockpitChecks') }, { label: t('CockpitRUnreachableRuns'), r: true }], rows)}</div></details>`;
     });
     const stability = h`<div class="card"><h3>${t('CockpitSecStability')}<small>${t('CockpitStabilityHint')}</small></h3><div style="overflow:auto">${strips}</div>${legend([['ok', t('FarmStatusOk')], ['warn', t('FarmStatusWarn')], ['fail', t('FarmStatusAlert')], ['down', t('FarmStatusDown')]])}</div>`;
 
@@ -376,7 +382,7 @@
     const newestSnap = farms.map(function (f) { return f.latestSnapshot; }).filter(Boolean);
     const stalest = newestSnap.length ? newestSnap.slice().sort()[0] : null;
     const ageDays = stalest ? daysBetween(stalest.slice(0, 10), generated) : null;
-    const withData = days.filter(function (d, i) { return anyCell(i); }).length;
+    const withData = days.filter(function (d, i) { return snapshotDay(i); }).length;
     const all = collection({ from: 0, to: N });
     const skipped = D.skipped || [];
     const tiles = h`<div class="grid g4">${[
@@ -387,7 +393,7 @@
     ]}</div>`;
     const rows = farms.map(function (f) {
       let withSnap = 0, downDays = 0, snaps = 0;
-      f.daily.forEach(function (c) { if (hasData(c)) { withSnap++; snaps += c.snapshots; } else if (c) downDays++; });
+      f.daily.forEach(function (c) { if (hasData(c)) { withSnap++; snaps += c.snapshots; } if (c && c.unreachable > 0) downDays++; });
       return h`<tr><td><b>${f.name}</b></td><td class="num">${f.latestSnapshot ? stamp(f.latestSnapshot) : '\u2014'}</td><td class="r num">${withSnap}</td><td class="r num">${downDays}</td><td class="r num">${snaps}</td><td class="r num">${f.attention.length} / ${f.attentionTotal}</td></tr>`;
     });
     const perFarm = h`<div class="card"><h3>${t('CockpitQPerFarm')}</h3>${table([{ label: t('FarmLabel') }, { label: t('CockpitQLatest') }, { label: t('CockpitQDaysSnap'), r: true }, { label: t('CockpitQDaysDown'), r: true }, { label: t('CockpitQSnapshots'), r: true }, { label: t('CockpitQListed'), r: true }], rows)}</div>`;
@@ -445,6 +451,7 @@
   }
   function viewMethod() {
     const cur = D.settings && D.settings.current, lastRun = (D.runs || []).slice(-1)[0];
+    const supplier = (D.runs || []).filter(function (x) { return x.settings; }).pop();
     let current;
     if (!cur) current = h`<div class="callout info">${t('CockpitNoteNoSettings')}</div>`;
     else {
@@ -459,9 +466,10 @@
         [t('CockpitExclusions'), rules.length ? rules.join(', ') : t('CockpitNone')]
       ];
       if (lastRun) facts.push([t('CockpitRLast'), t('CockpitLastRunText', lastRun.version, lastRun.language, lastRun.emailMode), true]);
-      current = h`<div class="card"><h3>${t('CockpitSecSettings')}<small>${t('CockpitSettingsHint')}</small></h3>${table([{ label: t('CockpitKey') }, { label: t('CockpitValue') }, { label: t('CockpitOrigin') }, { label: t('CockpitMeaning') }], rows)}<ul class="plain" style="margin-top:12px">${facts.map(function (x) { return h`<li><b>${x[0]}</b> : ${x[2] ? x[1] : h`<code>${x[1]}</code>`}</li>`; })}</ul></div>`;
+      current = h`<div class="card"><h3>${t('CockpitSecSettings')}<small>${supplier && supplier !== lastRun ? t('CockpitSettingsHintOlder', stamp(supplier.started)) : t('CockpitSettingsHint')}</small></h3>${table([{ label: t('CockpitKey') }, { label: t('CockpitValue') }, { label: t('CockpitOrigin') }, { label: t('CockpitMeaning') }], rows)}<ul class="plain" style="margin-top:12px">${facts.map(function (x) { return h`<li><b>${x[0]}</b> : ${x[2] ? x[1] : h`<code>${x[1]}</code>`}</li>`; })}</ul></div>`;
     }
-    const changes = D.settings && D.settings.changes ? D.settings.changes : [];
+    const firstDay = days[range().from];
+    const changes = (D.settings && D.settings.changes ? D.settings.changes : []).filter(function (c) { return c.started.slice(0, 10) >= firstDay; });
     const changeRows = changes.slice().reverse().map(function (c) {
       const side = function (v, src) { return h`<code>${v === null || v === undefined || v === '' ? '\u2014' : v}</code>${src ? ' (' + t(src === 'config' ? 'CockpitFromConfig' : 'CockpitFromDefault') + ')' : ''}`; };
       return h`<tr><td class="num">${stamp(c.started)}</td><td><code>${c.name}</code></td><td>${side(c.from, c.fromSource)} \u2192 ${side(c.to, c.toSource)}</td></tr>`;

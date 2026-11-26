@@ -292,4 +292,13 @@
     CockpitMethodLimitsTitle                   = 'Limites'
     CockpitMethodLimits1                       = 'La page montre uniquement ce que les exécutions ont enregistré ; elle ne collecte rien sur les fermes.'
     CockpitMethodLimits2                       = 'Les périodes proposées ne dépassent jamais l''historique conservé (JsonHistoryRetentionDays).'
+
+    # Cockpit: day by day detail and settings origin
+    CockpitStripSummary      = '{0} saine(s), {1} avertissement, {2} alerte, {3} injoignable(s), {4} sans relevé'
+    CockpitStripShow         = 'Afficher le détail jour par jour'
+    CockpitDay               = 'Jour'
+    CockpitStatus            = 'État'
+    CockpitChecks            = 'Contrôles'
+    CockpitRUnreachableRuns  = 'Exécutions injoignables'
+    CockpitSettingsHintOlder = 'derniers enregistrés, par l''exécution du {0}'
 }
