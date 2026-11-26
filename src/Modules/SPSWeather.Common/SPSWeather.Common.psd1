@@ -12,6 +12,7 @@
     FunctionsToExport = @(
         'Add-SPSSheduledTask'
         'Add-SPSWeatherEvent'
+        'Add-SPSWeatherRunJournalEntry'
         'Backup-SPSWeatherJsonFile'
         'Clear-SPSLog'
         'Compare-SPSWeatherSnapshots'
