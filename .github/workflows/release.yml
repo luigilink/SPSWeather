@@ -38,6 +38,7 @@ jobs:
         with:
           draft: false
           prerelease: false
+          make_latest: false
           body_path: RELEASE-NOTES.md
           files: |
             LICENSE
