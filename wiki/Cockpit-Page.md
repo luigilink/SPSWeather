@@ -29,7 +29,7 @@ says that JavaScript is required.
 
 | Tab | Content |
 |---|---|
-| **Executive** | Four cards: **health** (share of OK rows in the latest snapshot of each farm), **days without failure**, **open attention items** (and how many are new at the latest snapshot), **collection** (share of days with a snapshot). Then one card for each farm, the daily trend of all the farms, the weather, and the list of items that need attention (the ten oldest failures first, the others behind a fold). |
+| **Executive** | Four cards: **health** (share of OK rows in the latest snapshot of each farm), **days without failure** (among the days that have a snapshot), **open attention items** (and how many are new at the latest snapshot), **collection** (share of days with a snapshot). Then one card for each farm, the daily trend of all the farms, the weather, and the list of items that need attention (the ten oldest failures first, the others behind a fold). |
 | **IT** | The **causes grouped** (same section and same cause across items and farms; `#` stands for a number), the farms by section, a **stability** strip with one square for each day and farm, and the items of each farm with their detail. |
 | **Data quality** | Freshness of the latest snapshots, days with data, history kept, files that could not be read, a table for each farm, and notes: days without a snapshot, "since" dates that are only a lower bound, lists that are capped, checks excluded by the configuration. |
 | **Collection tracking** | The [run journal](Cockpit-Data#run-journal): number of runs, runs that reached every farm, average and last duration, duration chart, the last 50 runs (farms reached, email outcome, version) and the days when a farm was unreachable. |
@@ -78,4 +78,5 @@ nothing runs and that nothing is left unescaped.
 - "Since" is the first snapshot of the unbroken series in which the item needed attention. At the start of the history it is a lower
   bound: the page says "since ... or before".
 - The lists are capped (300 items and 400 snapshots for each farm): the page says so when a list is cut.
+- The health figure adds up the **latest snapshot of each farm**, even when one farm's is older than the others'; the farm card then says how many days it has been since its last snapshot. A farm with no check in its snapshot shows a dash instead of a percentage.
 - The activity figures (users, sites, storage) are not part of this version.

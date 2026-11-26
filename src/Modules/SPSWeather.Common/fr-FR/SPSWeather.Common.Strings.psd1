@@ -171,7 +171,7 @@
     # Cockpit: executive tab
     CockpitKpiHealth                           = 'Santé'
     CockpitKpiCleanDays                        = 'Jours sans échec'
-    CockpitKpiCleanSub                         = 'sur les {0} derniers jours'
+    CockpitKpiCleanSub                         = 'parmi les jours avec relevé, sur les {0} derniers jours'
     CockpitKpiOpen                             = 'Points d''attention ouverts'
     CockpitKpiOpenSub                          = '{0} en échec, {1} avertissements listés'
     CockpitNewCount                            = '{0} nouveau(x) au dernier relevé'

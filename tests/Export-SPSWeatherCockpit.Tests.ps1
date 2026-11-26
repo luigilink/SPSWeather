@@ -291,5 +291,38 @@ console.log(JSON.stringify(results));
             @($out | Where-Object -FilterScript { $_.rawHostile }) | Should -BeNullOrEmpty
             @($out | Where-Object -FilterScript { $_.hash -like '#tab=it&lang=en-US&p=30*' -and -not $_.escaped }).Count | Should -Be 0
         }
+
+        It 'shows a dash, never NaN or undefined, for a snapshot that holds no check, and for a farm with no data' -Skip:(-not $node) {
+            $harness = Join-Path -Path $TestDrive -ChildPath 'cockpit-empty.js'
+            [System.IO.File]::WriteAllText($harness, @'
+const fs = require('fs');
+const html = fs.readFileSync(process.argv[2], 'utf8');
+const block = id => new RegExp('<script type="application/json" id="' + id + '">([\\s\\S]*?)</script>').exec(html)[1];
+const code = /<script>\n([\s\S]*)\n<\/script>\s*<\/body>/.exec(html)[1];
+const variants = {
+  zeroChecks: d => { d.farms.forEach(f => f.daily.forEach((c, i) => { if (c && c.ok !== null) f.daily[i] = Object.assign(c, { ok: 0, warn: 0, fail: 0, weather: 'sunny' }); })); },
+  noData: d => { d.farms.forEach(f => { f.daily = f.daily.map(() => null); f.latestSnapshot = null; f.attention = []; f.attentionTotal = 0; }); d.runs = []; },
+  noFarm: d => { d.farms = []; d.runs = []; },
+  noSettings: d => { d.settings = { current: null, changes: [] }; }
+};
+const results = [];
+for (const [name, change] of Object.entries(variants)) for (const tab of ['direction', 'it', 'quality', 'runs', 'method']) for (const lang of ['en-US', 'fr-FR']) {
+  const data = JSON.parse(block('spsw-data')); change(data);
+  const els = { 'spsw-data': { textContent: JSON.stringify(data) }, 'spsw-page': { textContent: block('spsw-page') }, 'spsw-error': { textContent: '', hidden: true }, 'spsw-header': { innerHTML: '' }, 'spsw-main': { innerHTML: '' }, 'spsw-footer': { innerHTML: '' } };
+  const doc = { getElementById: id => els[id], querySelector: () => null, addEventListener() {}, title: '', documentElement: { setAttribute() {}, lang: '' } };
+  const win = { addEventListener() {}, innerWidth: 1320, matchMedia: () => ({ matches: false }), scrollTo() {} };
+  let thrown = '';
+  try { new Function('document', 'window', 'location', 'history', code)(doc, win, { hash: '#tab=' + tab + '&lang=' + lang }, { replaceState() {} }); } catch (e) { thrown = String(e); }
+  const all = els['spsw-header'].innerHTML + els['spsw-main'].innerHTML + els['spsw-footer'].innerHTML;
+  results.push({ name, tab, lang, thrown, banner: els['spsw-error'].hidden ? '' : els['spsw-error'].textContent, bad: /NaN|undefined|Infinity|\[object/.test(all), empty: els['spsw-main'].innerHTML.length < 50 });
+}
+console.log(JSON.stringify(results));
+'@)
+            $out = & $script:nodePath $harness $script:file | ConvertFrom-Json
+            @($out).Count | Should -Be 40
+            @($out | Where-Object -FilterScript { $_.thrown -or $_.banner }) | Should -BeNullOrEmpty
+            @($out | Where-Object -FilterScript { $_.bad }) | Should -BeNullOrEmpty
+            @($out | Where-Object -FilterScript { $_.empty }) | Should -BeNullOrEmpty
+        }
     }
 }

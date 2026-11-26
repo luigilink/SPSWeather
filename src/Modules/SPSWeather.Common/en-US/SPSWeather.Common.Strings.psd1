@@ -174,7 +174,7 @@
     # Cockpit: executive tab
     CockpitKpiHealth                           = 'Health'
     CockpitKpiCleanDays                        = 'Days without failure'
-    CockpitKpiCleanSub                         = 'out of the last {0} days'
+    CockpitKpiCleanSub                         = 'among the days with a snapshot, over the last {0} days'
     CockpitKpiOpen                             = 'Open attention items'
     CockpitKpiOpenSub                          = '{0} failing, {1} warnings listed'
     CockpitNewCount                            = '{0} new at the latest snapshot'

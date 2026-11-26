@@ -79,6 +79,7 @@
   function n0(v) { return Number(v).toLocaleString(locale(), { maximumFractionDigits: 0 }); }
   function n1(v) { return Number(v).toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
   function pct(v, d) { return t('Percent', d === 0 ? n0(v) : n1(v)); }
+  function pctOrDash(v, d) { return v === null ? '\u2014' : pct(v, d); }
   function pts(v) { return t('CockpitPoints', n1(v)); }
   function dayCount(v) { return t('CockpitDaysShort', n0(v)); }
   function dayFmt(iso, options) { return new Date(iso + 'T12:00:00Z').toLocaleDateString(locale(), Object.assign({ timeZone: 'UTC' }, options)); }
@@ -198,6 +199,7 @@
       const band = D.weekend && D.weekend[from + i] ? h`<rect x="${(PL + i * bw).toFixed(1)}" y="${PT}" width="${bw.toFixed(1)}" height="${inner}" fill="var(--weekend)"/>` : '';
       if (!r) return h`${band}<rect x="${x0}" y="${PT}" width="${w}" height="${inner}" fill="transparent"><title>${dlong(day) + ' \u2014 ' + t('CockpitNoSnapshot')}</title></rect>`;
       const total = r.ok + r.warn + r.fail;
+      if (!total) return h`${band}<rect x="${x0}" y="${PT}" width="${w}" height="${inner}" fill="transparent"><title>${t('BarTip', dlong(day), 0, 0, 0)}</title></rect>`;
       let yb = hh - PB;
       const segments = [['var(--fail)', r.fail], ['var(--warn)', r.warn], ['var(--ok)', r.ok]].map(function (p) {
         const height = inner * p[1] / total;
@@ -242,7 +244,7 @@
     return h`<svg width="${w}" height="${hh}" viewBox="0 0 ${w} ${hh}" aria-hidden="true"><path d="${path}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   }
   function donut(c, label) {
-    const total = c.ok + c.warn + c.fail || 1, r = 52, circ = 2 * Math.PI * r;
+    const sum = c.ok + c.warn + c.fail, total = sum || 1, r = 52, circ = 2 * Math.PI * r;
     let offset = 0;
     const arcs = [['var(--ok)', c.ok], ['var(--warn)', c.warn], ['var(--fail)', c.fail]].map(function (p) {
       const len = circ * p[1] / total;
@@ -251,7 +253,7 @@
       offset += len;
       return arc;
     });
-    return h`<svg width="150" height="150" viewBox="0 0 140 140" role="img" aria-label="${label}">${arcs}<text x="70" y="76" text-anchor="middle" style="fill:var(--text);font-size:26px;font-weight:800">${pct(c.ok / total * 100, 0)}</text></svg>`;
+    return h`<svg width="150" height="150" viewBox="0 0 140 140" role="img" aria-label="${label}">${arcs}<text x="70" y="76" text-anchor="middle" style="fill:var(--text);font-size:26px;font-weight:800">${sum ? pct(c.ok / total * 100, 0) : '\u2014'}</text></svg>`;
   }
   function hbar(c) {
     const total = c.ok + c.warn + c.fail || 1;
@@ -283,7 +285,7 @@
       if (N - 1 - l.i >= 2) info += ' \u00b7 ' + t('CockpitNoSnapshotDays', N - 1 - l.i);
     }
     const color = st === 'ok' ? 'var(--ok)' : st === 'warn' ? 'var(--warn)' : st === 'fail' ? 'var(--fail)' : 'var(--down)';
-    return h`<div class="card farm s-${st}"><div class="farm-hd"><div><h4>${f.name}</h4><small>${f.latestSnapshot ? stamp(f.latestSnapshot) : ''}</small></div>${badge(st)}</div>${l ? h`<div>${hbar(l.c)}<div class="row" style="margin-top:6px"><b class="num">${t('FarmHealth', pct(healthPct(l.c), 0))}</b><span class="small muted num">${counts(l.c)}</span></div></div>` : ''}<div class="row"><span class="small muted">${info}</span>${spark(series, color)}</div></div>`;
+    return h`<div class="card farm s-${st}"><div class="farm-hd"><div><h4>${f.name}</h4><small>${f.latestSnapshot ? stamp(f.latestSnapshot) : ''}</small></div>${badge(st)}</div>${l ? h`<div>${hbar(l.c)}<div class="row" style="margin-top:6px"><b class="num">${healthPct(l.c) === null ? '\u2014' : t('FarmHealth', pct(healthPct(l.c), 0))}</b><span class="small muted num">${counts(l.c)}</span></div></div>` : ''}<div class="row"><span class="small muted">${info}</span>${spark(series, color)}</div></div>`;
   }
   function viewDirection() {
     if (!farms.length || !GLOBAL.some(function (g) { return g; })) return empty(t('CockpitNoData'));
@@ -302,7 +304,7 @@
     const tone = function (st) { return st === 'ok' ? 'ok' : st === 'warn' ? 'warn' : 'fail'; };
 
     const kpis = h`<div class="grid g4">${[
-      kpi(tone(stateNow), t('CockpitKpiHealth'), pct(nowPct, 1), counts(now), delta(nowPct, prevAvg, { better: 'up', fmt: pts }), h`${snapshotAsOf}${cta(t('CockpitCtaStability'), 'it')}`),
+      kpi(tone(stateNow), t('CockpitKpiHealth'), pctOrDash(nowPct, 1), counts(now), delta(nowPct, prevAvg, { better: 'up', fmt: pts }), h`${snapshotAsOf}${cta(t('CockpitCtaStability'), 'it')}`),
       kpi(clean.rate === null ? 'blue' : clean.rate >= 80 ? 'ok' : clean.rate >= 50 ? 'warn' : 'fail', t('CockpitKpiCleanDays'), h`${clean.clean}<small class="faint" style="font-size:16px"> / ${clean.eligible}</small>`, t('CockpitKpiCleanSub', r.len), cleanPrev ? delta(clean.rate, cleanPrev.rate, { better: 'up', fmt: pts, eps: 0.5 }) : delta(null, null, {}), h`${periodAsOf}${cta(t('CockpitCtaStability'), 'it')}`),
       kpi(crit ? 'fail' : openTotal ? 'warn' : 'ok', t('CockpitKpiOpen'), n0(openTotal), t('CockpitKpiOpenSub', crit, open.length - crit), newCount ? h`<span class="delta bad">${t('CockpitNewCount', newCount)}</span>` : '', h`${snapshotAsOf}<a class="cta" href="#spsw-attention" data-scroll="spsw-attention">${t('CockpitCtaAttention')} \u2193</a>`),
       kpi('blue', t('CockpitKpiCollection'), coll.rate === null ? '\u2014' : pct(coll.rate, 1), t('CockpitKpiCollectionSub', coll.collected, coll.expected), collPrev ? delta(coll.rate, collPrev.rate, { better: 'up', fmt: pts, eps: 0.05 }) : delta(null, null, {}), h`${periodAsOf}${cta(t('CockpitCtaRuns'), 'runs')}`)
