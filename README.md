@@ -12,7 +12,7 @@ Compatible with **SharePoint Server Subscription Edition**.
 
 > SharePoint Server 2016 and 2019 reached end of support on **14 July 2026**.
 > Customers still running SharePoint Server 2016 or 2019 must stay on
-> [SPSWeather v2.4.0](https://github.com/luigilink/SPSWeather/releases/tag/v2.4.0)
+> [SPSWeather v2.4.1](https://github.com/luigilink/SPSWeather/releases/tag/v2.4.1)
 > and are encouraged to migrate their farm to Subscription Edition.
 
 ## Quick links

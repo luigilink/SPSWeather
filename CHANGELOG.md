@@ -98,8 +98,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Get-SPSWeatherHistory` (the bars of the dashboard) now counts with `Get-SPSWeatherSnapshotSummary`, the same
   function as the multi-farm page. The numbers are the same as before (#108).
 - The README and the wiki home page now send the users of SharePoint Server 2016 and 2019 to
-  [v2.4.0](https://github.com/luigilink/SPSWeather/releases/tag/v2.4.0), the release of the `support/2.x` line, instead of
-  v2.3.7. It is built from 3.4.1 with the support for 2016 and 2019 restored, and it is not marked as the latest release (#124).
+  [v2.4.1](https://github.com/luigilink/SPSWeather/releases/tag/v2.4.1), the release of the `support/2.x` line, instead of
+  v2.3.7. It is built from 3.4.1 with the support for 2016 and 2019 restored, it carries the fix of #126 (the Failed timer jobs
+  check reports again), and it is not marked as the latest release (#124, #132).
 
 ### Fixed
 
