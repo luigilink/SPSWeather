@@ -67,7 +67,15 @@
 
         [Parameter()]
         [System.String]
-        $Language = 'en-US'
+        $Language = 'en-US',
+
+        # The settings in effect for the run (the Record property of Get-SPSWeatherRunSetting): when given,
+        # the footer says which configuration file was used and the SQL thresholds applied, with a mark for a
+        # value that is the default. Without it the footer is unchanged.
+        [Parameter()]
+        [AllowNull()]
+        [System.Object]
+        $Setting
     )
 
     if ($PSCmdlet.ParameterSetName -eq 'File') {
@@ -260,6 +268,21 @@
 
     $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
     $envLine = (@($Application, $Environment) | Where-Object { $_ }) -join ' / '
+    $settingsLine = ''
+    if ($null -ne $Setting -and $null -ne $Setting.thresholds) {
+        $settingParts = New-Object -TypeName System.Collections.ArrayList
+        if (-not [string]::IsNullOrWhiteSpace([string]$Setting.configFile)) { [void]$settingParts.Add((_t 'FooterConfigFile' ([string]$Setting.configFile))) }
+        # The parameter must not be named $text: _t reads the resource table of that name from the calling scope.
+        function _withMark($threshold, [string]$label) {
+            if ("$($threshold.source)" -eq 'default') { return "$label $(_t 'FooterDefaultMark')" }
+            return $label
+        }
+        $backupAge = $Setting.thresholds.SQLBackupMaxAgeDays
+        if ($null -ne $backupAge -and $null -ne $backupAge.value) { [void]$settingParts.Add((_withMark $backupAge (_t 'FooterSqlBackupAge' ([string]$backupAge.value)))) }
+        $diskFree = $Setting.thresholds.SQLDiskFreeThresholdPercent
+        if ($null -ne $diskFree -and $null -ne $diskFree.value) { [void]$settingParts.Add((_withMark $diskFree (_t 'FooterSqlDiskFree' ([string]$diskFree.value)))) }
+        if ($settingParts.Count -gt 0) { $settingsLine = '<span style="flex-basis:100%">' + (_enc ($settingParts -join ' · ')) + '</span>' }
+    }
     if ($Farm) { $envLine = "$(_enc (_t 'FarmLabel')) $Farm &middot; $envLine" }
 
     $page = @"
@@ -330,7 +353,7 @@ footer{max-width:1180px;margin:10px auto 36px;padding:0 20px;color:var(--muted);
   <div class="detail-head"><div class="section-title" style="margin:0">$(_enc (_t 'Detail'))</div><div class="exp"><button type="button" onclick="document.querySelectorAll('details.sec').forEach(function(d){d.open=true})">$(_enc (_t 'ExpandAll'))</button> &middot; <button type="button" onclick="document.querySelectorAll('details.sec').forEach(function(d){d.open=false})">$(_enc (_t 'CollapseAll'))</button></div></div>
   <div class="details">$($detailHtml.ToString())</div>
 </div>
-<footer><span>SPSWeather $(_enc $Version) &middot; $envLine</span><span>$(_enc (_t 'ExecutedBy')) $(_enc $ExecutedBy) &middot; $generated</span></footer>
+<footer><span>SPSWeather $(_enc $Version) &middot; $envLine</span><span>$(_enc (_t 'ExecutedBy')) $(_enc $ExecutedBy) &middot; $generated</span>$settingsLine</footer>
 <script>
 // A fragment link only reveals a <details> that contains its target, never the <details> that is the target:
 // open the section of a card link (also on a second click, after the user closed it) and of a #d-... URL.

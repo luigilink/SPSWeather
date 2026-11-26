@@ -56,6 +56,12 @@
         .PARAMETER MaxEntries
         Upper bound on the number of records kept (the oldest are removed first). Default: 1000.
 
+        .PARAMETER Setting
+        The settings in effect for the run, as returned in the Record property of Get-SPSWeatherRunSetting:
+        stored as the 'settings' of the record, so that a page can show which thresholds a run used. Optional:
+        without it the record has no 'settings'. The function stores what it is given, so pass the Record
+        of Get-SPSWeatherRunSetting and never the configuration itself.
+
         .PARAMETER LockTimeoutSeconds
         How long to wait for another run to finish writing the journal. Default: 20.
 
@@ -113,6 +119,11 @@
         $MaxEntries = 1000,
 
         [Parameter()]
+        [AllowNull()]
+        [System.Object]
+        $Setting,
+
+        [Parameter()]
         [ValidateRange(0, 600)]
         [System.Int32]
         $LockTimeoutSeconds = 20
@@ -153,6 +164,7 @@
             mail            = $Mail
             farms           = @($farmRecords)
         }
+        if ($null -ne $Setting) { $record['settings'] = $Setting }
 
         # Exclusive lock for the whole read-modify-write: without it two overlapping runs read the same
         # journal and the last one to replace it silently drops the record of the other.

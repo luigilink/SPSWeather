@@ -265,12 +265,15 @@ else {
             Throw "Credential '$($envCfg.CredentialKey)' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Action Install as the service account, or populate secrets.psd1 manually. See the wiki for details."
         }
         $spFarms = $envCfg.Farms
-        # Optional SQL thresholds (config overrides, with safe defaults)
-        $sqlDiskThreshold = if ($null -ne $envCfg.SQLDiskFreeThresholdPercent) { [int]$envCfg.SQLDiskFreeThresholdPercent } else { 15 }
-        $sqlBackupMaxAge = if ($null -ne $envCfg.SQLBackupMaxAgeDays) { [int]$envCfg.SQLBackupMaxAgeDays } else { 3 }
-        $jsonHistoryRetentionDays = if ($null -ne $envCfg.JsonHistoryRetentionDays) { [int]$envCfg.JsonHistoryRetentionDays } else { 30 }
-        $emailMaxItemsPerArea = if ($null -ne $envCfg.EmailMaxItemsPerArea) { [math]::Max(0, [int]$envCfg.EmailMaxItemsPerArea) } else { 10 }
-        $logRetentionDays = if ($null -ne $envCfg.LogRetentionDays) { [int]$envCfg.LogRetentionDays } else { 180 }
+        # Optional thresholds (config overrides, with safe defaults). One function resolves them, so the
+        # values used here are the values recorded in the run journal (value and config/default source).
+        $runSetting = Get-SPSWeatherRunSetting -Config $envCfg -ConfigFile $ConfigFile
+        foreach ($settingMessage in $runSetting.Messages) { Write-Warning -Message $settingMessage }
+        $sqlDiskThreshold = $runSetting.Value.SQLDiskFreeThresholdPercent
+        $sqlBackupMaxAge = $runSetting.Value.SQLBackupMaxAgeDays
+        $jsonHistoryRetentionDays = $runSetting.Value.JsonHistoryRetentionDays
+        $emailMaxItemsPerArea = $runSetting.Value.EmailMaxItemsPerArea
+        $logRetentionDays = $runSetting.Value.LogRetentionDays
         $pathHistoryFolder = Join-Path -Path $pathResultsFolder -ChildPath 'history'
         # Track only the farms actually reached: an unreachable farm (skipped below)
         # must not be published/emailed as healthy.
@@ -288,6 +291,9 @@ else {
         }
         foreach ($languageMessage in $languageSetting.Messages) {
             Add-SPSWeatherEvent -Message "SPSWeather language configuration: $languageMessage" -EntryType 'Warning' -EventID 2001
+        }
+        foreach ($settingMessage in $runSetting.Messages) {
+            Add-SPSWeatherEvent -Message "SPSWeather configuration: $settingMessage" -EntryType 'Warning' -EventID 2001
         }
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
@@ -571,7 +577,8 @@ else {
                         -ExecutedBy $currentUser `
                         -Duration $runDuration `
                         -History $farmHistory `
-                        -Language $languageSetting.Culture)
+                        -Language $languageSetting.Culture `
+                        -Setting $runSetting.Record)
                 Write-Output " * Dashboard: $dashFile"
 
                 if ($smtpSetting.Mode -eq 'PerFarm') {
@@ -716,6 +723,7 @@ else {
                 -EmailMode $smtpSetting.Mode `
                 -Mail $mailOutcome `
                 -Farm $journalFarms `
+                -Setting $runSetting.Record `
                 -RetentionDays ([uint32][math]::Max(0, $jsonHistoryRetentionDays)))
 
         # Clean the folder of log files (once per run).

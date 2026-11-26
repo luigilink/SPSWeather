@@ -22,12 +22,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a list, newer schema) is kept aside as `<name>.corrupt` and a new one starts; fields of the journal that this
   version does not know are kept when it is rewritten. A journal that cannot be written only produces a warning,
   never a failed run (#107).
+- **Settings in effect, recorded for each run.** The run journal now stores, in the `settings` of each record, the
+  name of the configuration file (no folder), the value of each threshold (`SQLDiskFreeThresholdPercent`,
+  `SQLBackupMaxAgeDays`, `JsonHistoryRetentionDays`, `EmailMaxItemsPerArea`, `LogRetentionDays`) with its source
+  (`config`, or `default` when the file does not set it, plus `invalid` when it held a value that could not be used)
+  and the names listed in `ExclusionRules`. Nothing else of the configuration is recorded (no server, address,
+  credential key, URL or path): the new function `Get-SPSWeatherRunSetting` builds the record from a fixed list of keys,
+  and records the exclusions that the run really applies, asking the value of `ExclusionRules` the same question as the entry script does (`Contains('Name')`), so the record and the run agree whatever the form of the value; a typo, a server name or a path typed there excludes nothing and is not recorded. A journal written before this change is
+  still valid. The multi-farm cockpit planned for 3.5.0 shows these values in its *Settings* tab (#117).
+- The footer of the per-farm dashboard says which configuration file the run used and which SQL thresholds it
+  applied (`SQL backup max age`, `SQL free space minimum`), with `(default)` next to a value that the file does not
+  set, so that an alert that looks wrong can be explained at once. Translated (`en-US`, `fr-FR`) (#117).
 
 ### Changed
 
 - `Resolve-SPSSmtpSetting` also returns `SendRequested`: sending was asked for, even when a missing relay setting
   turned `Send` off. The run journal uses it to record `failed` (an email was expected and none went out) instead of
   `disabled` (#107).
+- The thresholds are now resolved in one place, `Get-SPSWeatherRunSetting`, instead of one inline expression per
+  key in the entry script, so the values a run uses and the values its journal shows cannot drift apart. With a
+  valid configuration nothing changes. A value that is not a whole number of 0 or more (`abc`, a blank, `-1`) used to
+  give an undefined result (an error, or a threshold of 0 that flagged everything): it is now reported (transcript,
+  Event ID 2001) and the default is used. `EmailMaxItemsPerArea` keeps its rule that a negative number counts as 0 (#117).
 
 ## [3.4.1] - 2026-11-26
 

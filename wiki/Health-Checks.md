@@ -94,7 +94,10 @@ SharePoint reaches it through aliases (host names are compared case-insensitivel
 short name; a named instance must match exactly).
 
 SQL alert thresholds are configurable in the environment config: `SQLDiskFreeThresholdPercent`
-(default 15) and `SQLBackupMaxAgeDays` (default 3). Database offline state, a
+(default 15) and `SQLBackupMaxAgeDays` (default 3). Each key sits at the top level of the file and holds a
+whole number of 0 or more; a value that cannot be used is reported (transcript, Event ID 2001) and the default
+is applied. The footer of the dashboard says which configuration file was used and which values were applied,
+with `(default)` next to a value that the file does not set. Database offline state, a
 missing/old full backup, low volume free space, an unhealthy AG replica, a failed
 backup job, or an unreachable instance raise an alert; best-practice deviations
 (MAXDOP, memory, TempDB, AutoShrink/AutoClose) are shown as orange advisories
