@@ -51,6 +51,7 @@
         'ConvertTo-SPSWeatherConsolidatedEmail'
         'ConvertTo-SPSWeatherEmailBody'
         'Remove-SPSSheduledTask'
+        'Resolve-SPSCockpitSetting'
         'Resolve-SPSSmtpSetting'
         'Resolve-SPSSqlAlias'
         'Resolve-SPSWeatherLanguage'
