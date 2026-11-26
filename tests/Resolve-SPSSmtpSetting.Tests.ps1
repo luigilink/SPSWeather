@@ -96,6 +96,23 @@ Describe 'Resolve-SPSSmtpSetting' {
             ($r.Messages -join ' ') | Should -Match 'no email will be sent'
         }
 
+        It 'still reports that sending was requested, so the run can tell that an expected email did not go out' {
+            $r = InModuleScope SPSWeather.Common { Resolve-SPSSmtpSetting -Config @{ SMTPEnabled = $true } }
+            $r.Send | Should -BeFalse
+            $r.SendRequested | Should -BeTrue
+        }
+
+        It 'reports SendRequested = <Requested> for <Name>' -ForEach @(
+            @{ Name = 'sending off'; Config = @{ SMTPEnabled = $false }; Switch = $false; Requested = $false }
+            @{ Name = 'nothing configured'; Config = @{}; Switch = $false; Requested = $false }
+            @{ Name = 'the deprecated switch without SMTPEnabled and no relay'; Config = @{}; Switch = $true; Requested = $true }
+            @{ Name = 'the deprecated switch ignored because SMTPEnabled is false'; Config = @{ SMTPEnabled = $false }; Switch = $true; Requested = $false }
+            @{ Name = 'a complete configuration'; Config = @{ SMTPEnabled = $true; SMTPToAddress = @('a@b.c'); SMTPFromAddress = 'n@b.c'; SMTPServer = 'smtp' }; Switch = $false; Requested = $true }
+        ) {
+            $r = InModuleScope SPSWeather.Common -Parameters @{ Config = $Config; Switch = $Switch } { param($Config, $Switch) Resolve-SPSSmtpSetting -Config $Config -EnableSmtp:$Switch }
+            $r.SendRequested | Should -Be $Requested
+        }
+
         It 'does not require the SMTP settings when sending is off (lab without relay)' {
             $r = InModuleScope SPSWeather.Common { Resolve-SPSSmtpSetting -Config @{ SMTPEnabled = $false; SMTPPreview = $true } }
             $r.Send | Should -BeFalse

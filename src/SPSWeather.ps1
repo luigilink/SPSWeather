@@ -693,7 +693,9 @@ else {
         # Run journal: one record per run. A farm that could not be reached leaves no JSON snapshot,
         # so this record is its only trace for a page that tracks the collections over time.
         $mailExpected = if ($smtpSetting.Mode -eq 'Consolidated') { [int]($consolidatedEntries.Count -gt 0) } else { $probedFarms.Count }
-        $mailOutcome = if (-not ($smtpSetting.Send -or $smtpSetting.Preview)) { 'disabled' }
+        # Sending was asked for but a missing relay setting turned it off: an email was expected and none went out.
+        $mailOutcome = if ($smtpSetting.SendRequested -and -not $smtpSetting.Send) { 'failed' }
+        elseif (-not ($smtpSetting.Send -or $smtpSetting.Preview)) { 'disabled' }
         elseif (-not $smtpSetting.Send) { 'preview' }
         elseif ($mailExpected -eq 0) { 'none' }
         elseif ($mailsSent -ge $mailExpected) { 'sent' }
@@ -706,7 +708,7 @@ else {
                     [PSCustomObject]@{ Name = $_.Name; Outcome = 'unreachable' }
                 }
             })
-        [void](Add-SPSWeatherRunJournalEntry -Path (Join-Path -Path $pathResultsFolder -ChildPath "$($Application)-$($Environment)-runs.json") `
+        [void](Add-SPSWeatherRunJournalEntry -Path (Join-Path -Path $pathResultsFolder -ChildPath "$($Application)-$($Environment).runs.json") `
                 -Started $DateStarted `
                 -Duration ((Get-Date) - $DateStarted) `
                 -Version $spsWeatherVersion `

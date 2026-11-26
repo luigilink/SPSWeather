@@ -192,8 +192,8 @@ Describe 'Entry script run journal' {
         $script:entrySource = Get-Content -Path $entryPath -Raw
     }
 
-    It 'writes one record per run, into Results\<App>-<Env>-runs.json, before the log cleanup' {
-        $call = $entrySource.IndexOf('Add-SPSWeatherRunJournalEntry -Path (Join-Path -Path $pathResultsFolder -ChildPath "$($Application)-$($Environment)-runs.json")')
+    It 'writes one record per run, into Results\<App>-<Env>.runs.json, before the log cleanup' {
+        $call = $entrySource.IndexOf('Add-SPSWeatherRunJournalEntry -Path (Join-Path -Path $pathResultsFolder -ChildPath "$($Application)-$($Environment).runs.json")')
         $cleanup = $entrySource.IndexOf('Clear-SPSLog -path $pathLogsFolder')
         $call | Should -BeGreaterThan 0
         $cleanup | Should -BeGreaterThan $call
@@ -208,6 +208,13 @@ Describe 'Entry script run journal' {
         $entrySource | Should -Match '\$journalFarms = @\(\$spFarms \| ForEach-Object -Process \{ \$consolidatedEntries\["\$\(\$_\.Name\)"\] \}'
         $entrySource | Should -Match "Outcome = 'unreachable'"
         $entrySource | Should -Match "Outcome = 'ok'; Ok = \`$_\.Summary\.Ok; Warn = \`$_\.Summary\.Warn; Fail = \`$_\.Summary\.Fail"
+    }
+
+    It 'names the journal so that no farm snapshot can ever have the same file name' -ForEach @('runs', 'RUNS', 'Runs', 'a.b', 'x y', 'runs.json') {
+        # The snapshot of a farm is <App>-<Env>-<farm with every character outside A-Za-z0-9_- replaced by _>.json
+        $entrySource | Should -Match ([regex]::Escape("`$safeFarm = (`$farmName -replace '[^A-Za-z0-9_-]', '_')"))
+        $safeFarm = $_ -replace '[^A-Za-z0-9_-]', '_'
+        "zebes-PROD-$safeFarm.json".ToLowerInvariant() | Should -Not -Be 'zebes-prod.runs.json'
     }
 
     It 'counts an email as sent only after Send-MailMessage succeeded' {
@@ -241,6 +248,9 @@ Describe 'Entry script run journal' {
             @{ Name = 'one consolidated email, sent (unreachable farms included)'; Setting = @{ Send = $true; Preview = $false; Mode = 'Consolidated' }; Probed = @('A'); Entries = @{ A = 1; B = 1; C = 1 }; Sent = 1; Expected = 'sent' }
             @{ Name = 'one consolidated email, not sent'; Setting = @{ Send = $true; Preview = $false; Mode = 'Consolidated' }; Probed = @('A'); Entries = @{ A = 1; B = 1 }; Sent = 0; Expected = 'failed' }
             @{ Name = 'send and preview together, sent'; Setting = @{ Send = $true; Preview = $true; Mode = 'PerFarm' }; Probed = @('A'); Entries = @{ A = 1 }; Sent = 1; Expected = 'sent' }
+            @{ Name = 'sending requested but a relay setting is missing (Send turned off)'; Setting = @{ Send = $false; SendRequested = $true; Preview = $false; Mode = 'PerFarm' }; Probed = @('A'); Entries = @{ A = 1 }; Sent = 0; Expected = 'failed' }
+            @{ Name = 'sending requested but a relay setting is missing, with a preview'; Setting = @{ Send = $false; SendRequested = $true; Preview = $true; Mode = 'Consolidated' }; Probed = @('A'); Entries = @{ A = 1 }; Sent = 0; Expected = 'failed' }
+            @{ Name = 'sending not requested, preview only'; Setting = @{ Send = $false; SendRequested = $false; Preview = $true; Mode = 'PerFarm' }; Probed = @('A'); Entries = @{ A = 1 }; Sent = 0; Expected = 'preview' }
         ) {
             Get-Outcome -Setting ([PSCustomObject]$Setting) -Probed $Probed -Entries $Entries -Sent $Sent | Should -Be $Expected
         }
