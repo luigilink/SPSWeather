@@ -53,7 +53,11 @@ Dashboard = @{
 The per-farm history (the bar chart) is built from the JSON snapshots under
 `Results\history\<Farm>\`, capped at `JsonHistoryRetentionDays` runs.
 
-Every run also appends a record to the run journal `Results\<App>-<Env>.runs.json` (start, duration, email outcome, and for each farm collected or unreachable). A farm that cannot be reached has no snapshot, so the journal is where it shows up over time.
+Every run also appends a record to the run journal `Results\<App>-<Env>.runs.json` (start, duration, email outcome, and for each farm collected or unreachable, plus the settings in effect: see [Usage](Usage)).
+
+The footer of a dashboard shows the configuration file the run used and the SQL thresholds it applied
+(`SQL backup max age`, `SQL free space minimum`), with `(default)` next to a value that the configuration
+does not set. When an alert looks wrong, this is the first thing to read. A farm that cannot be reached has no snapshot, so the journal is where it shows up over time.
 
 ## Hosting the dashboard on IIS
 

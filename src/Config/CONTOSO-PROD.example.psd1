@@ -58,7 +58,10 @@
 
     # SQL thresholds (optional; defaults shown). A SQL volume below
     # SQLDiskFreeThresholdPercent free, or a database whose last full backup is
-    # older than SQLBackupMaxAgeDays, raises an alert.
+    # older than SQLBackupMaxAgeDays, raises an alert. The key must be at the top level
+    # of this file and hold a whole number of 0 or more: anything else is reported and
+    # the default is used. The footer of the dashboard shows the configuration file and
+    # these two values, with "(default)" when the file does not set them.
     SQLDiskFreeThresholdPercent = 15
     SQLBackupMaxAgeDays         = 3
 
