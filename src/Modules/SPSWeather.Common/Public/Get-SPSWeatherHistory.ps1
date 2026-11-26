@@ -16,13 +16,11 @@
         Folder holding the per-farm *.json snapshots (Backup-SPSWeatherJsonFile output).
 
         .PARAMETER NamePrefix
-        Only the snapshots whose file name starts with this text are read (not case sensitive). The history
-        folder of a farm is shared by the environments of an installation that name a farm the same, and the
-        file name is what tells them apart: pass '<App>-<Env>-<Farm>-' to read the runs of one environment.
-        Without it every *.json of the folder is read, as before.
+        Only the snapshots whose file name starts with this text are read (any case), for example
+        '<App>-<Env>-<Farm>-'. Without it every *.json of the folder is read.
 
         .PARAMETER Max
-        Maximum number of most-recent runs to return, among the snapshots that were read. Defaults to 30.
+        Maximum number of most-recent runs to return. Defaults to 30.
     #>
     [CmdletBinding()]
     [OutputType([System.Object[]])]

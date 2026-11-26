@@ -10,12 +10,9 @@
         snapshot afterwards.
 
         The function does not perform retention itself: pass -RetentionDays to also prune
-        history files older than that many days. The retention only concerns the archives of
-        this file, the files of the history folder whose name starts with the name of -Path
-        followed by '-' (the way this function names them): the history folder of a farm is shared
-        by the environments of an installation that name a farm the same, and the retention of one
-        must not delete the history of another. Returns the full path of the backup that was
-        created, or $null when -Path does not exist (first run).
+        history files older than that many days; only the archives of this file are pruned (names
+        starting with the name of -Path and a dash), as environments can share a history folder.
+        Returns the full path of the backup, or $null when -Path does not exist (first run).
 
         .PARAMETER Path
         The JSON file about to be overwritten.
