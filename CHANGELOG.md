@@ -5,6 +5,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-26
+
+Maintenance release of the **2.x line** for SharePoint Server **2016 and 2019** (end of support on 14 July 2026), still
+compatible with Subscription Edition. It is built on the code of **3.4.1** and keeps the SharePoint 2016/2019 code path that
+3.0.0 removed. Everything else of 3.0.0 to 3.4.1 is included: the entries of those versions are below, for the detail (#124).
+
+### Added
+
+- Since 2.3.7, from 3.1.0 to 3.4.1: a **cards dashboard** and a **short alert email** for each farm (`Dashboard` configuration
+  block, `New-SPSDashboardSite.ps1` to host the dashboards on IIS), `Set-SPSCredSSPClient` (run from a host that is not a
+  SharePoint server, called by `-Action Install`) and an opt-in Negotiate fallback for the remoting, the email settings
+  `SMTPEnabled` and `SMTPPreview` (`-EnableSmtp` is deprecated), the cap `EmailMaxItemsPerArea`, **one consolidated email for all
+  the farms** (`EmailMode = 'Consolidated'`), a check that **every Timer service instance is `Online`**, the **French
+  translation** with the `Language` key and the **Translation Request** issue template (3.1.0 to 3.4.1).
+
+### Changed
+
+- **Visible change from 2.3.7: one dashboard and one short email per farm** instead of one full report and one email for the
+  environment. The subject becomes `[ALERT] <App>/<Env>/<Farm> - SPSWeather` (`[WARN]` and `[OK]` also), or
+  `[ALERT] <App>/<Env> - 3 farms (...) - SPSWeather` with `EmailMode = 'Consolidated'`, instead of
+  `[ALERT]<App>_<Env> - Meteo SharePoint <date>`: **update the inbox rules that filter on the subject**. The files change too:
+  `Results\<App>-<Env>-<Farm>.json` and `Results\history\<Farm>\` per farm, and the dashboards
+  `<App>-<Env>-<Farm>-dashboard.html` in `Dashboard.OutputPath` (`Results\` when it is empty), instead of
+  `Results\<App>-<Env>-<date>.html` and `.json` (3.1.0).
+- Every new configuration key is optional: an existing configuration keeps working (3.1.0 to 3.4.0).
+
+### Fixed
+
+- The fixes of 3.1.0 to 3.4.1, among them the **View detail** link of the dashboard that now opens its section, and the SQL
+  alias mapping, the Event Log errors and the dashboard counters (see the entries below).
+
+### Removed
+
+- `Join-HtmlBodyFromPSo` and the private `Join-HtmlTable` helper: the legacy full-table report is replaced by the dashboard and
+  the short email (3.1.0).
+
+### Not in this release
+
+- The 3.x line is Subscription Edition only (3.0.0): its later work goes to the 3.x versions, not to this line, unless it is
+  asked for.
+- This release was **not run on a real SharePoint 2016 or 2019 farm** (the lab only has Subscription Edition): the code path
+  is the one of 2.3.7, restored unchanged, and the tests of 3.4.1 pass; a report from a 2016/2019 farm is welcome.
+
 ## [3.4.1] - 2026-11-26
 
 ### Added

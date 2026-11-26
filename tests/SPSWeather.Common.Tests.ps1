@@ -35,8 +35,8 @@ Describe 'SPSWeather.Common module' {
         { Test-ModuleManifest -Path $modulePath -ErrorAction Stop } | Should -Not -Throw
     }
 
-    It 'manifest version is 3.1.0 or higher' {
-        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'3.1.0')
+    It 'manifest version is 2.4.0 or higher' {
+        (Test-ModuleManifest -Path $modulePath).Version | Should -BeGreaterOrEqual ([version]'2.4.0')
     }
 
     It 'exports exactly the expected public functions' {
