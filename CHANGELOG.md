@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-11-26
+
 ### Fixed
 
 - **The Failed timer jobs check reports in a real run again, and the collectors keep their default values.** A collector
