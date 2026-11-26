@@ -75,6 +75,7 @@ that the file does not set.
 | `period` | The periods offered, `firstDay`, `lastDay`. |
 | `days`, `weekend` | One entry per calendar day, from the first day with data to today. |
 | `farms[].daily` | For each day, aligned with `days`: `ok`, `warn`, `fail`, `weather`, `snapshots` (files of the day), `unreachable` (runs of the day, from the journal); `null` when nothing is known. |
+| `farms[].failingSince`, `failingSinceIsLowerBound` | The day of the first snapshot of the unbroken series of snapshots, ending at the latest one, that all had failures; `null` when the latest snapshot has none. The series is read from **every** snapshot, not from the last one of each day, so a clean snapshot in between breaks it. True when the series starts at the oldest snapshot read. |
 | `farms[].attention` | What needs attention in the last snapshot: `section`, `id`, `name`, `severity`, `cause`, `detail`, `count`, `since`, `sinceIsLowerBound`. |
 | `runs`, `settings` | The journal records of the period, the settings of the last record that has some, and what changed between two records. |
 | `skipped` | The files that were not used, by name (at most 20). |
@@ -94,6 +95,7 @@ Rules:
   replica (`PRIMARY` / `SECONDARY`) is a state, so a failover does not restart `since`. A section that is not listed uses every column
   except the noise of remoting and the state columns.
 - **Cause.** The detail of an item with its numbers replaced by `#`, so that "last full backup 4.5 d ago" and "last full backup 6 d ago" group together.
+- **Failing since.** Same rule as `since`, applied to the farm: the failures of the farm, not of one item (`failingSince`).
 - **Weather.** No failure and no warning is `sunny`, no failure is `fair`, up to 5 failures is `cloudy`, more is `stormy` (the rule of the
   per-farm dashboard).
 - **Counting.** One function counts a snapshot (OK, warnings, failures) for the bars of the dashboard and for the page, so they cannot disagree.

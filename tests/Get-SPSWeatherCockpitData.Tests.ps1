@@ -359,6 +359,59 @@ Describe 'Get-SPSWeatherCockpitData' {
         }
     }
 
+    Context 'since when a farm has failed at every snapshot' {
+        It 'starts the series at the snapshot after the last clean one, whatever the last snapshot of the other days says' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-1).AddHours(-1) -Snapshot (New-Snap -Fail 2 -Ok 3))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-3) -Snapshot (New-Snap -Ok 5))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Snapshot (New-Snap -Fail 2 -Ok 3) -Current)
+            $farm = Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT'
+            # the last snapshot of yesterday and of today both have failures, the one between them does not
+            $farm.daily[-2].fail | Should -Be 2
+            $farm.daily[-1].fail | Should -Be 2
+            $farm.failingSince | Should -Be '2026-11-26'
+            $farm.failingSinceIsLowerBound | Should -BeFalse
+        }
+
+        It 'follows the unbroken series back to its first snapshot and says when that is only a lower bound' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-3).AddHours(-1) -Snapshot (New-Snap -Ok 5))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-2).AddHours(-1) -Snapshot (New-Snap -Fail 1 -Ok 4))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-1).AddHours(-1) -Snapshot (New-Snap -Fail 3 -Ok 2))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Snapshot (New-Snap -Fail 1 -Ok 4) -Current)
+            $farm = Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT'
+            $farm.failingSince | Should -Be '2026-11-24'
+            $farm.failingSinceIsLowerBound | Should -BeFalse
+
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-2).AddHours(-1) -Snapshot (New-Snap -Fail 1 -Ok 4))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Snapshot (New-Snap -Fail 1 -Ok 4) -Current)
+            $farm = Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT'
+            $farm.failingSince | Should -Be '2026-11-24'
+            $farm.failingSinceIsLowerBound | Should -BeTrue
+        }
+
+        It 'is empty when the latest snapshot has no failure, and when the farm has no snapshot' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-1).AddHours(-1) -Snapshot (New-Snap -Fail 2 -Ok 3))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Snapshot (New-Snap -Ok 5) -Current)
+            $farm = Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT'
+            $farm.failingSince | Should -BeNullOrEmpty
+            $farm.failingSinceIsLowerBound | Should -BeFalse
+
+            $none = Get-Farm (Get-Data -Results (New-Results) -Farm 'CONTENT').Data 'CONTENT'
+            $none.failingSince | Should -BeNullOrEmpty
+        }
+
+        It 'does not let a day without snapshot (farm not reached) break the series' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-3).AddHours(-1) -Snapshot (New-Snap -Fail 1 -Ok 4))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Snapshot (New-Snap -Fail 1 -Ok 4) -Current)
+            $farm = Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT'
+            $farm.failingSince | Should -Be '2026-11-23'
+        }
+    }
+
     Context 'what needs attention' {
         It 'says since when an item needs attention, and that an item that was fixed in between starts again' {
             $res = New-Results

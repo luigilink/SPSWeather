@@ -43,6 +43,27 @@ place where the detail is.
 The period (7, 14, 30 or 60 days) is limited by `JsonHistoryRetentionDays`: the page never offers more days
 than the history keeps.
 
+## Insight sentences
+
+Each card of the Executive tab (health, days without failure, open attention items, collection) and the weather card carry **one
+sentence** that says what the figure means. The sentences follow **fixed rules** on the data of the page: no external service, no
+estimate, and the same data always gives the same text (ties are broken by date, severity, farm name and item name, never by the
+locale of the machine).
+
+| Card | The first rule that applies | Sentence |
+|---|---|---|
+| **Health** | The latest snapshot is compared with the **average** of the previous period of the same length. A change of 1 point or more is "down" or "up", less is "stable". Without a previous period, it counts the failures (or the warnings) of the latest snapshot. | "Down 10.0 pts against the average of the previous period." |
+| | Added when two or more checks fail, the list is complete, and **more than half** of the failing items are in one section. | "Most of the failures are in: SQL - Databases." |
+| **Days without failure** | The latest day with a snapshot has no failure. Otherwise the last day that had none, and how long before. Otherwise none in the period. | "Last day without failure: 11/23, 3 day(s) before the latest snapshot." |
+| **Open attention items** | The list is complete, at least two items share the **same cause** (same section and same text, numbers replaced by `#`) and they are at least half of the items. | "3 of the 4 items share one cause: no full backup found." |
+| | Otherwise the **oldest** item: its name and how long it has been open **up to the latest snapshot of its own farm**, or "since 11/13 or before" when the history starts there. "Every item appeared at the latest snapshot" is said only when that holds for every item. | "The oldest item is itemA, open for 5 day(s), since 11/21." |
+| **Collection** | A farm was unreachable in the period (including a day on which it also has a snapshot): the most recent one and how many farm-days were lost. Otherwise farm-days without a snapshot. Otherwise "every farm was collected on every day". | "FarmB could not be reached on 11/25." |
+| **Weather** | The farm with the most failures at its latest snapshot, and since when **every snapshot** of that farm has had failures: the dataset reads it from all the snapshots, so a clean one in the morning breaks a streak even when the last snapshot of the day has failures (days without a snapshot or unreachable do not break the series). Otherwise the warnings, or "nothing to report". | "A has had failures at every snapshot since 11/23." |
+
+When a list is capped, the page does not claim a share or a common cause (it cannot know them), and says nothing in place of a guess.
+A value that comes from a farm (an item name, a cause) is escaped like everywhere else in the page. The sentences are resource strings,
+`CockpitInsight...` keys, translated like the labels (see [Localization](Localization)).
+
 ## State in the URL
 
 The period, the language, the theme and the tab are kept in the part of the address after `#`, so a link opens the page the way you

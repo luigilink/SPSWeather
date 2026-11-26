@@ -66,6 +66,31 @@ Modules\SPSWeather.Common\
 - **`Percent`** and **`FreePercent`** place the `%` sign. In French a **non-breaking space**
   (U+00A0) goes before it, so the sign never wraps alone onto the next line.
 
+## The cockpit page
+
+The [cockpit page](Cockpit-Page) uses the same resource files. Its labels, the sentences that explain the figures and the text of
+the *Settings & method* tab are the keys that start with `Cockpit`, plus a few shared ones (`Section_...`, `Weather...`,
+`CountsSummary`, `Percent`...):
+
+| Keys | Used for |
+|---|---|
+| `CockpitTab...`, `CockpitSec...` | The tabs and the titles of the sections |
+| `CockpitKpi...`, `CockpitCta...`, `CockpitAsOf...` | The four cards, their buttons and their "as of" labels |
+| `CockpitInsight...` | The sentences that say what a figure means (fixed rules, see [Cockpit page](Cockpit-Page#insight-sentences)) |
+| `CockpitQ...`, `CockpitNote...` | The *Data quality* tab and its notes |
+| `CockpitR...`, `CockpitMail_...` | The *Collection tracking* tab and the outcome of the email |
+| `CockpitSetting_...`, `CockpitFrom...`, `CockpitMethod...` | The *Settings & method* tab |
+
+- The page holds the strings of **every** shipped language, opens in the configured one and switches without a new run. A language you
+  add (a new folder) appears in the page with no change in the code.
+- A key that a translation lacks shows the **English text**, as in the dashboard: a partial translation never leaves a key name on the page.
+- A language whose file the module refuses (a wrong `Culture` key, a placeholder the English text does not have) is **not offered** in the
+  page, and the page opens in English.
+- A language that is not shipped (`Language = 'ja-JP'`) gives the English page, complete.
+- Dates and numbers follow the language of the page, never the setting of the machine that opens the file.
+- Only the red error banner and the "JavaScript is required" notice are in English, because they are shown when the page cannot start.
+- The values that come from the checks (item names, causes, details) stay as collected, as in the dashboard.
+
 ## Asking for a language
 
 Your language is not shipped yet? Open an issue with the

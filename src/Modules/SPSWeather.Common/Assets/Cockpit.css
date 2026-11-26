@@ -130,7 +130,7 @@ code { font-family: Consolas, "Courier New", monospace; font-size: 12px; backgro
 /* insight sentence, freshness label and call-to-action of a card (the anatomy of an admin-centre card: figure, chart, as-of date, one sentence that says what it means, a button to the detail) */
 .insight { font-size: 12.5px; line-height: 1.4; border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; color: var(--text); }
 .insight b { font-weight: 700; }
-.insight.bad b { color: var(--fail-ink); } .insight.good b { color: var(--ok-ink); } .insight.warn b { color: var(--warn-ink); }
+.insight.bad { color: var(--fail-ink); } .insight.good { color: var(--ok-ink); } .insight.warn { color: var(--warn-ink); }
 .asof { font-size: 11px; color: var(--faint); margin-top: 6px; }
 .asof::before { content: "\1F552  "; font-size: 10px; }
 .cta { display: inline-block; margin-top: 10px; background: var(--soft); border: 1px solid var(--line); color: var(--text); text-decoration: none; padding: 5px 12px; border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer; align-self: flex-start; }

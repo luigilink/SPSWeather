@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the farms is HTML-escaped, and the embedded JSON cannot close the script element. A red banner replaces a blank page
   when the script fails. The file is replaced in one step. The run does not produce the page yet (#111). New wiki page
   *Cockpit page* (#109).
+- **Insight sentences on the cockpit page**: the four cards of the Executive tab and the weather card now say what their figure
+  means, with fixed rules on the data (no external service, the same data always gives the same text): the change of health against the
+  average of the previous period and the section where most failures are, the last day without failure, the cause shared by most open
+  items or else the oldest item, the farm that was unreachable, and since when a farm has failed at every snapshot. When a list is capped
+  the page claims no share and no common cause. The sentences are `CockpitInsight...` resource strings in en-US and fr-FR. The dataset gives each farm
+  `failingSince` and `failingSinceIsLowerBound`, read from every snapshot, so a clean snapshot in the morning breaks the streak even when the
+  last snapshot of the day has failures; the age of the oldest item is counted to the latest snapshot of its own farm; and an unreachable run
+  next to a snapshot is told (#110).
 - **Run journal**: every run now appends one record to `Results\<App>-<Env>.runs.json` (new public function
   `Add-SPSWeatherRunJournalEntry`, private reader `Read-SPSWeatherRunJournal`): start time, duration, script version,
   display language, email mode, the outcome of the email (`sent`, `preview`, `disabled`, `failed`, `none`) and, for

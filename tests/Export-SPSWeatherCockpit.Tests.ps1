@@ -448,3 +448,189 @@ console.log(JSON.stringify(results));
         }
     }
 }
+
+Describe 'The insight sentences of the cockpit page' {
+    It 'follow fixed rules: each rule gives its sentence, in both languages, escaped, and the same data gives the same text' -Skip:(-not $node) {
+        $harness = Join-Path -Path $TestDrive -ChildPath 'cockpit-insights.js'
+        [System.IO.File]::WriteAllText($harness, @'
+const fs = require('fs');
+const html = fs.readFileSync(process.argv[2], 'utf8');
+const block = id => new RegExp('<script type="application/json" id="' + id + '">([\\s\\S]*?)</script>').exec(html)[1];
+const code = /<script>\n([\s\S]*)\n<\/script>\s*<\/body>/.exec(html)[1];
+const END = Date.UTC(2026, 10, 26);
+const iso = i => new Date(END - i * 86400000).toISOString().slice(0, 10);
+const cell = (ok, warn, fail, down) => ({ ok, warn, fail, weather: fail > 5 ? 'stormy' : fail > 0 ? 'cloudy' : warn > 0 ? 'fair' : 'sunny', snapshots: 1, unreachable: down || 0 });
+const DOWN = { ok: null, warn: null, fail: null, weather: null, snapshots: 0, unreachable: 1 };
+const OK = cell(10, 0, 0), BAD = cell(9, 0, 1), WARN = cell(9, 2, 0);
+const att = (farm, section, name, cause, since, o) => Object.assign({ farm, section, id: section + '|' + name, name, severity: 'fail', cause, detail: cause, count: 1, since: since, sinceIsLowerBound: false }, o || {});
+const rep = (n, c) => Array.from({ length: n }, () => c);
+function streak(daily) {
+  let first = -1;
+  for (let i = daily.length - 1; i >= 0; i--) { const c = daily[i]; if (!c || c.ok === null) continue; if (c.fail > 0) first = i; else break; }
+  if (first < 0) return { failingSince: null, failingSinceIsLowerBound: false };
+  const firstData = daily.findIndex(c => c && c.ok !== null);
+  return { failingSince: iso(daily.length - 1 - first), failingSinceIsLowerBound: first === firstData };
+}
+function farm(name, daily, attention, o) { return Object.assign({ name, daily, latestSnapshot: '2026-11-26T06:00:00+01:00', snapshotsTruncated: false, attention: attention || [], attentionTotal: (attention || []).length, attentionTruncated: false }, streak(daily), o || {}); }
+function run(data, hash) {
+  const els = { 'spsw-data': { textContent: JSON.stringify(data) }, 'spsw-page': { textContent: block('spsw-page') }, 'spsw-error': { textContent: '', hidden: true }, 'spsw-header': { innerHTML: '' }, 'spsw-main': { innerHTML: '' }, 'spsw-footer': { innerHTML: '' } };
+  const doc = { getElementById: id => els[id], querySelector: () => null, addEventListener() {}, title: '', documentElement: { setAttribute() {}, lang: '' } };
+  const win = { addEventListener() {}, innerWidth: 1320, matchMedia: () => ({ matches: false }), scrollTo() {} };
+  new Function('document', 'window', 'location', 'history', code)(doc, win, { hash }, { replaceState() {} });
+  const main = els['spsw-main'].innerHTML;
+  const sentences = [...main.matchAll(/<div class="insight ([a-z]*)">(.*?)<\/div>/g)].map(m => m[1] + '|' + m[2].replace(/<[^>]+>/g, ''));
+  return { sentences, html: main, error: els['spsw-error'].hidden ? '' : els['spsw-error'].textContent };
+}
+function data(farms, p, n) {
+  const d = JSON.parse(block('spsw-data'));
+  n = n || farms[0].daily.length;
+  Object.assign(d, { days: Array.from({ length: n }, (_, i) => iso(n - 1 - i)), weekend: rep(n, false), farms, runs: [], kpi: null, skipped: [] });
+  d.period = { retentionDays: 0, offered: p === n ? [n] : [p, n], maxDays: n, firstDay: d.days[0], lastDay: d.days[n - 1] };
+  d.settings = { current: null, changes: [] };
+  return d;
+}
+const SQL = 'SQLDatabaseStatus', UP = 'SPUpgradeStatus';
+const sqlItems = (n, cause, since, o) => Array.from({ length: n }, (_, i) => att('A', SQL, 'db' + i, cause, since || '2026-11-20', o));
+const cases = [
+  ['health down', () => data([farm('A', [...rep(14, OK), ...rep(14, BAD)])], 14), /Down 10\.0 pts against the average of the previous period\./],
+  ['health up', () => data([farm('A', [...rep(14, BAD), ...rep(14, OK)])], 14), /Up 10\.0 pts against the average of the previous period\./],
+  ['health stable', () => data([farm('A', rep(28, BAD))], 14), /Stable against the average of the previous period\./],
+  ['a drop of exactly one point is a drop', () => data([farm('A', [...rep(14, cell(1000, 0, 0)), ...rep(14, cell(990, 0, 10))])], 14), /Down 1\.0 pts against the average/],
+  ['a drop of half a point is stable', () => data([farm('A', [...rep(14, cell(1000, 0, 0)), ...rep(14, cell(995, 0, 5))])], 14), /Stable against the average/],
+  ['a rise of exactly one point is a rise', () => data([farm('A', [...rep(14, cell(990, 0, 10)), ...rep(14, cell(1000, 0, 0))])], 14), /Up 1\.0 pts against the average/],
+  ['no previous period, failures', () => data([farm('A', [...rep(13, OK), BAD])], 14), /1 check\(s\) failing at the latest snapshot\./],
+  ['no previous period, warnings', () => data([farm('A', [...rep(13, OK), WARN])], 14), /2 warning\(s\) at the latest snapshot, no failure\./],
+  ['no previous period, clear', () => data([farm('A', rep(14, OK))], 14), /Nothing to report at the latest snapshot\./],
+  ['most failures in one section', () => data([farm('A', [...rep(13, OK), cell(6, 0, 4)], [...sqlItems(3, 'x'), att('A', UP, 'srv', 'y', '2026-11-20')])], 14), /Most of the failures are in: SQL - Databases\./],
+  ['half of the failures is not most', () => data([farm('A', [...rep(13, OK), cell(6, 0, 4)], [...sqlItems(2, 'x'), att('A', UP, 's1', 'y', '2026-11-20'), att('A', UP, 's2', 'z', '2026-11-20')])], 14), null, /Most of the failures/],
+  ['capped list claims nothing about the share', () => data([farm('A', [...rep(13, OK), cell(6, 0, 4)], sqlItems(3, 'x'), { attentionTruncated: true, attentionTotal: 9 })], 14), /The oldest item is/, /Most of the failures|share one cause/],
+  ['one cause shared by most items', () => data([farm('A', [...rep(13, OK), cell(6, 0, 4)], [...sqlItems(3, 'no full backup found'), att('A', UP, 's', 'other', '2026-11-20')])], 14), /3 of the 4 items share one cause: no full backup found\./],
+  ['equal causes: the first in order wins', () => data([farm('A', [...rep(13, OK), cell(6, 0, 4)], [att('A', SQL, 'a1', 'b cause', '2026-11-20'), att('A', SQL, 'a2', 'b cause', '2026-11-20'), att('A', SQL, 'a3', 'a cause', '2026-11-20'), att('A', SQL, 'a4', 'a cause', '2026-11-20')])], 14), /2 of the 4 items share one cause: a cause\./],
+  ['oldest item', () => data([farm('A', [...rep(13, OK), cell(6, 0, 3)], [att('A', SQL, 'itemA', 'c1', '2026-11-21'), att('A', SQL, 'itemB', 'c2', '2026-11-23'), att('A', SQL, 'itemC', 'c3', '2026-11-25')])], 14), /The oldest item is itemA, open for 5 day\(s\), since 11\/21\./],
+  ['every item is new only when each is new in its own farm (a farm that stopped being collected earlier does not hide an older item)', () => {
+    const a = farm('A', [...rep(7, OK), BAD, ...rep(6, null)], [att('A', SQL, 'itemA', 'c1', '2026-11-20')], { latestSnapshot: '2026-11-20T06:00:00+01:00' });
+    const b = farm('B', [...rep(8, OK), ...rep(6, BAD)], [att('B', SQL, 'itemB', 'c2', '2026-11-21')]);
+    return data([a, b], 14);
+  }, /The oldest item is itemB, open for 5 day\(s\), since 11\/21\./, /Every item appeared/],
+  ['every item is new in its own farm, on different days', () => {
+    const a = farm('A', [...rep(7, OK), BAD, ...rep(6, null)], [att('A', SQL, 'itemA', 'c1', '2026-11-20')], { latestSnapshot: '2026-11-20T06:00:00+01:00' });
+    const b = farm('B', [...rep(13, OK), BAD], [att('B', SQL, 'itemB', 'c2', '2026-11-26')]);
+    return data([a, b], 14);
+  }, /Every item appeared at the latest snapshot\./],
+  ['a farm unreachable in the morning and collected later the same day is not collected every day', () => data([farm('A', [...rep(12, OK), cell(10, 0, 0, 1), OK])], 14), /A could not be reached on 11\/25\./, /Every farm was collected/],
+  ['failures since the date of the dataset, not since the walk back through the days', () => data([farm('A', rep(14, BAD), [], { failingSince: '2026-11-26', failingSinceIsLowerBound: false })], 14), /A has had failures at every snapshot since 11\/26\./, /since 11\/13/],
+  ['failures since the dataset says it is only a lower bound', () => data([farm('A', rep(14, BAD), [], { failingSince: '2026-11-13', failingSinceIsLowerBound: true })], 14), /A has had failures at every snapshot since 11\/13 or before\./],
+  ['failures and no streak in the dataset: the sentence does not guess', () => data([farm('A', rep(14, BAD), [], { failingSince: null, failingSinceIsLowerBound: false })], 14), /1 check\(s\) failing at the latest snapshot\./, /every snapshot since/],
+  ['oldest item: equal dates are told apart by name, whatever the input order', () => data([farm('A', [...rep(13, OK), cell(6, 0, 3)], [att('A', SQL, 'itemB', 'c2', '2026-11-21'), att('A', SQL, 'itemA', 'c1', '2026-11-21'), att('A', SQL, 'itemC', 'c3', '2026-11-25')])], 14), /The oldest item is itemA, open for 5 day/],
+  ['oldest item: equal dates, a failure comes before a warning', () => data([farm('A', [...rep(13, OK), cell(6, 0, 3)], [att('A', SQL, 'itemA', 'c1', '2026-11-21', { severity: 'warn' }), att('A', SQL, 'itemB', 'c2', '2026-11-21'), att('A', SQL, 'itemC', 'c3', '2026-11-25')])], 14), /The oldest item is itemB, open for 5 day/],
+  ['oldest item, lower bound', () => data([farm('A', [...rep(13, OK), cell(6, 0, 2)], [att('A', SQL, 'itemA', 'c1', '2026-11-13', { sinceIsLowerBound: true }), att('A', SQL, 'itemB', 'c2', '2026-11-23')])], 14), /The oldest item is itemA, open since 11\/13 or before\./],
+  ['every item is new', () => data([farm('A', [...rep(13, OK), cell(6, 0, 2)], [att('A', SQL, 'i1', 'c1', '2026-11-26'), att('A', SQL, 'i2', 'c2', '2026-11-26')])], 14), /Every item appeared at the latest snapshot\./],
+  ['nothing open', () => data([farm('A', rep(14, OK))], 14), /Nothing needs attention at the latest snapshot\./],
+  ['latest day clean', () => data([farm('A', [...rep(13, BAD), OK])], 14), /No failure on 11\/26, the latest day with a snapshot\./],
+  ['the latest day with a snapshot is not a day with only an unreachable run', () => data([farm('A', [...rep(13, OK), DOWN])], 14), /No failure on 11\/25, the latest day with a snapshot\./],
+  ['last clean day earlier', () => data([farm('A', [...rep(10, BAD), OK, ...rep(3, BAD)])], 14), /Last day without failure: 11\/23, 3 day\(s\) before the latest snapshot\./],
+  ['no clean day', () => data([farm('A', rep(14, BAD))], 14), /No day without failure in this period\./],
+  ['a farm unreachable once', () => data([farm('A', rep(14, OK)), farm('FarmB', [...rep(12, OK), DOWN, OK])], 14), /FarmB could not be reached on 11\/25\./],
+  ['a farm unreachable several times', () => data([farm('A', rep(14, OK)), farm('FarmB', [...rep(11, OK), DOWN, DOWN, OK])], 14), /Last unreachable farm: FarmB, on 11\/25; 2 farm-days unreachable in this period\./],
+  ['days without a snapshot', () => data([farm('A', [...rep(5, OK), null, null, null, ...rep(6, OK)])], 14), /3 of 14 farm-days have no snapshot\./],
+  ['every farm collected', () => data([farm('A', rep(14, OK)), farm('B', rep(14, OK))], 14), /Every farm was collected on every day\./],
+  ['failures at every snapshot since a day', () => data([farm('A', [...rep(10, OK), ...rep(4, BAD)])], 14), /A has had failures at every snapshot since 11\/23\./],
+  ['the series skips days without a snapshot', () => data([farm('A', [...rep(10, OK), BAD, null, DOWN, BAD])], 14), /A has had failures at every snapshot since 11\/23\./],
+  ['failures since the start of the history', () => data([farm('A', rep(14, BAD))], 14), /A has had failures at every snapshot since 11\/13 or before\./],
+  ['warnings only on the weather card', () => data([farm('A', [...rep(13, OK), WARN])], 14), /2 warning\(s\) at the latest snapshot, no failure\./],
+  ['French', () => data([farm('A', [...rep(13, OK), cell(6, 0, 4)], [...sqlItems(3, 'x'), att('A', UP, 'srv', 'y', '2026-11-20')])], 14), /La plupart des .checs sont dans : SQL - Bases de donn.es\./, null, 'fr-FR']
+];
+const results = [];
+for (const [name, build, expect, forbid, lang] of cases) {
+  const hash = '#tab=direction&p=14&lang=' + (lang || 'en-US');
+  const a = run(build(), hash), b = run(build(), hash);
+  const text = a.sentences.join('\n');
+  results.push({ name, error: a.error, text, ok: !a.error && (!expect || expect.test(text)) && (!forbid || !forbid.test(text)) && JSON.stringify(a.sentences) === JSON.stringify(b.sentences) });
+}
+const hostile = '<img src=x onerror=1>';
+const h = run(data([farm('A', [...rep(13, OK), cell(6, 0, 1)], [att('A', SQL, hostile, 'c', '2026-11-20')])], 14), '#tab=direction&p=14&lang=en-US');
+results.push({ name: 'a name from the farm is escaped in a sentence', error: h.error, text: h.sentences.join('\n'), ok: !h.error && h.sentences.join('').includes('&lt;img src=x onerror=1&gt;') && !h.html.includes('<img src=x') });
+console.log(JSON.stringify(results));
+'@)
+        # Windows PowerShell 5.1 hands a JSON array over as one object: assign first, then count
+        $out = & $script:nodePath $harness $script:file | ConvertFrom-Json
+        $out = @($out)
+        $out.Count | Should -BeGreaterOrEqual 39
+        $failed = @($out | Where-Object -FilterScript { -not $_.ok } | ForEach-Object -Process { "$($_.name) => $($_.error) $($_.text -replace "`n", ' / ')" })
+        $failed | Should -BeNullOrEmpty
+    }
+
+    It 'do not depend on the machine: no clock, no random number, no locale-dependent comparison in the script' {
+        $js = [System.IO.File]::ReadAllText((Join-Path -Path $script:moduleDir -ChildPath 'Assets/Cockpit.js'))
+        $js | Should -Not -Match '\bnew Date\(\)|Date\.now|Math\.random|localeCompare|toLocaleLowerCase|toLocaleUpperCase'
+        $js | Should -Match "'CockpitInsight"
+    }
+}
+
+Describe 'The cockpit page with a language that is added, partial or broken' {
+    BeforeAll {
+        $script:source = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'src/Modules/SPSWeather.Common'
+        $copy = Join-Path -Path $TestDrive -ChildPath 'lang/SPSWeather.Common'
+        Copy-Item -Path $script:source -Destination $copy -Recurse
+        $bom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $true
+        $french = [System.IO.File]::ReadAllText((Join-Path -Path $copy -ChildPath 'fr-FR/SPSWeather.Common.Strings.psd1'))
+
+        # A translation that stops halfway: every Cockpit key after the first thirty is removed (the file stays valid)
+        $folder = Join-Path -Path $copy -ChildPath 'de-DE'
+        New-Item -Path $folder -ItemType Directory | Out-Null
+        $lines = @($french -replace "(Culture\s*=\s*)'fr-FR'", "`$1'de-DE'" -replace "(HtmlLang\s*=\s*)'fr'", "`$1'de'" -split "`r?`n")
+        $seen = 0
+        $kept = foreach ($line in $lines) {
+            if ($line -match '^\s*Cockpit\w+\s*=') { $seen++; if ($seen -gt 30) { continue } }
+            $line
+        }
+        [System.IO.File]::WriteAllText((Join-Path -Path $folder -ChildPath 'SPSWeather.Common.Strings.psd1'), ($kept -join "`r`n"), $bom)
+
+        # A file whose Culture key is wrong: the module refuses it and falls back to English
+        $broken = Join-Path -Path $copy -ChildPath 'xx-XX'
+        New-Item -Path $broken -ItemType Directory | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path -Path $broken -ChildPath 'SPSWeather.Common.Strings.psd1'), ($french -replace "(Culture\s*=\s*)'fr-FR'", "`$1'not-this'"), $bom)
+
+        Remove-Module -Name SPSWeather.Common -Force -ErrorAction SilentlyContinue
+        Import-Module -Name (Join-Path -Path $copy -ChildPath 'SPSWeather.Common.psd1') -Force
+        $script:langResults = Join-Path -Path $TestDrive -ChildPath 'langres'
+        New-Item -Path $script:langResults -ItemType Directory | Out-Null
+        $script:langPage = Join-Path -Path $TestDrive -ChildPath 'lang/page.html'
+        $script:langHtml = { param($Language) Export-SPSWeatherCockpit -OutputFile $script:langPage -ResultsFolder $script:langResults -Application a -Environment e -Language $Language | Out-Null; [System.IO.File]::ReadAllText($script:langPage) }
+    }
+    AfterAll {
+        Remove-Module -Name SPSWeather.Common -Force -ErrorAction SilentlyContinue
+        Import-Module -Name (Join-Path -Path $script:source -ChildPath 'SPSWeather.Common.psd1') -Force
+    }
+
+    It 'lists the added language, and opens in it when asked' {
+        $html = & $script:langHtml 'de-DE'
+        $page = Get-Block -Html $html -Id 'spsw-page'
+        @($page.cultures.PSObject.Properties.Name | Sort-Object) | Should -Be @('de-DE', 'en-US', 'fr-FR')
+        $page.language | Should -Be 'de-DE'
+        $html | Should -Match '<html lang="de">'
+    }
+
+    It 'gives a partial translation every key, the missing ones in English, so the page never shows a key name' {
+        $page = Get-Block -Html (& $script:langHtml 'de-DE') -Id 'spsw-page'
+        $german = $page.cultures.'de-DE'.text
+        $english = $page.cultures.'en-US'.text
+        @($english.PSObject.Properties.Name | Where-Object -FilterScript { $german.PSObject.Properties.Name -notcontains $_ }) | Should -BeNullOrEmpty
+        $german.CockpitTabDirection | Should -Be (Get-Block -Html (& $script:langHtml 'fr-FR') -Id 'spsw-page').cultures.'fr-FR'.text.CockpitTabDirection
+        $german.CockpitMethodLimits2 | Should -Be $english.CockpitMethodLimits2
+    }
+
+    It 'leaves out a language whose file the module refuses, instead of offering a button that shows English' {
+        $page = Get-Block -Html (& $script:langHtml 'xx-XX') -Id 'spsw-page'
+        $page.cultures.PSObject.Properties.Name | Should -Not -Contain 'xx-XX'
+        $page.language | Should -Be 'en-US'
+    }
+
+    It 'opens in English for a language that is not shipped, with the page complete' {
+        foreach ($language in 'qaa-QM', 'ja-JP', 'auto-ish') {
+            $page = Get-Block -Html (& $script:langHtml $language) -Id 'spsw-page'
+            $page.language | Should -Be 'en-US'
+            $page.cultures.'en-US'.text.CockpitTabDirection | Should -Be 'Executive'
+        }
+    }
+}

@@ -144,9 +144,10 @@
     });
     return { expected: expected, collected: collected, unreachable: unreachable, rate: expected ? collected / expected * 100 : null };
   }
+  function compare(a, b) { return a < b ? -1 : a > b ? 1 : 0; }
   function attentionList() {
     return [].concat.apply([], farms.map(function (f) { return f.attention; })).sort(function (a, b) {
-      return (a.severity === b.severity ? 0 : a.severity === 'fail' ? -1 : 1) || (a.since < b.since ? -1 : a.since > b.since ? 1 : 0) || a.farm.localeCompare(b.farm) || a.name.localeCompare(b.name);
+      return (a.severity === b.severity ? 0 : a.severity === 'fail' ? -1 : 1) || compare(a.since, b.since) || compare(a.farm, b.farm) || compare(a.name, b.name);
     });
   }
   function farmOf(a) { return farms.filter(function (f) { return f.name === a.farm; })[0]; }
@@ -263,6 +264,74 @@
     return h`<div class="legend">${items.map(function (i) { return h`<span><i style="background:var(--${i[0]})"></i>${i[1]}</span>`; })}</div>`;
   }
 
+
+  /* ---------- insight sentences: fixed rules on the data, nothing else ---------- */
+  function say(tone, key) { return { tone: tone, text: t.apply(null, [key].concat([].slice.call(arguments, 2))) }; }
+  function insightHtml(i) { return i ? h`<div class="insight ${i.tone}">${i.text}</div>` : ''; }
+  function lastDataIndex(r) { for (let i = r.to - 1; i >= r.from; i--) if (snapshotDay(i)) return i; return -1; }
+  function topGroup(items, keyOf, labelOf) {
+    const groups = {};
+    items.forEach(function (a) { const k = keyOf(a); (groups[k] = groups[k] || { key: k, label: labelOf(a), items: 0, count: 0 }); groups[k].items++; groups[k].count += a.count; });
+    return Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return b.items - a.items || compare(a.key, b.key); })[0] || null;
+  }
+  function insightHealth(ctx) {
+    if (ctx.nowPct === null) return null;
+    let head;
+    if (ctx.prevAvg !== null) {
+      const diff = ctx.nowPct - ctx.prevAvg;
+      head = diff <= -1 ? say('bad', 'CockpitInsightHealthDown', pts(Math.abs(diff))) : diff >= 1 ? say('good', 'CockpitInsightHealthUp', pts(diff)) : say('', 'CockpitInsightHealthStable');
+    } else head = ctx.now.fail > 0 ? say('bad', 'CockpitInsightHealthFail', ctx.now.fail) : ctx.now.warn > 0 ? say('warn', 'CockpitInsightHealthWarn', ctx.now.warn) : say('good', 'CockpitInsightClear');
+    const failing = ctx.open.filter(function (a) { return a.severity === 'fail'; });
+    const top = ctx.complete && failing.length >= 2 ? topGroup(failing, function (a) { return a.section; }, function (a) { return sectionLabel(a.section); }) : null;
+    if (top && top.items * 2 > failing.length) return { tone: head.tone, text: head.text + ' ' + t('CockpitInsightTopSection', top.label) };
+    return head;
+  }
+  function insightClean(ctx) {
+    const r = ctx.r, last = lastDataIndex(r);
+    if (last < 0) return null;
+    if (cleanDay(last)) return say('good', 'CockpitInsightCleanLast', dshort(days[last]));
+    for (let i = last - 1; i >= r.from; i--) if (cleanDay(i)) return say('warn', 'CockpitInsightCleanSince', dshort(days[i]), daysBetween(days[i], days[last]));
+    return say('bad', 'CockpitInsightCleanNone');
+  }
+  function insightOpen(ctx) {
+    const open = ctx.open;
+    if (!open.length) return say('good', 'CockpitNothingOpen');
+    const top = ctx.complete ? topGroup(open, function (a) { return a.section + '|' + a.cause; }, function (a) { return a.cause; }) : null;
+    if (top && top.items >= 2 && top.items * 2 >= open.length) return say('warn', 'CockpitInsightOpenCause', top.items, open.length, top.label);
+    const aged = open.map(function (a) { const f = farmOf(a), last = f ? latestDay(f) : null; return { a: a, age: last ? daysBetween(a.since, last) : 0 }; });
+    aged.sort(function (x, y) {
+      return y.age - x.age || (y.a.sinceIsLowerBound ? 1 : 0) - (x.a.sinceIsLowerBound ? 1 : 0) || (x.a.severity === y.a.severity ? 0 : x.a.severity === 'fail' ? -1 : 1) || compare(x.a.since, y.a.since) || compare(x.a.farm, y.a.farm) || compare(x.a.name, y.a.name);
+    });
+    const oldest = aged[0];
+    if (oldest.a.sinceIsLowerBound) return say('warn', 'CockpitInsightOpenOldestLower', oldest.a.name, dshort(oldest.a.since));
+    return oldest.age > 0 ? say('warn', 'CockpitInsightOpenOldest', oldest.a.name, oldest.age, dshort(oldest.a.since)) : say('warn', 'CockpitInsightOpenAllNew');
+  }
+  function insightCollection(ctx) {
+    const r = ctx.r, coll = ctx.coll;
+    if (!coll.expected) return null;
+    let down = null, downDays = 0;
+    farms.forEach(function (f) {
+      for (let i = r.from; i < r.to; i++) {
+        const c = f.daily[i];
+        if (c && (c.ok === null || c.unreachable > 0)) { downDays++; if (!down || i >= down.i) down = { i: i, farm: f.name }; }
+      }
+    });
+    if (down) return downDays === 1 ? say('warn', 'CockpitInsightCollectDown', down.farm, dshort(days[down.i])) : say('warn', 'CockpitInsightCollectDownMany', down.farm, dshort(days[down.i]), downDays);
+    const missing = coll.expected - coll.collected;
+    return missing > 0 ? say('warn', 'CockpitInsightCollectMissing', missing, coll.expected) : say('good', 'CockpitInsightCollectAll');
+  }
+  function insightWeather(ctx) {
+    if (!ctx.latests.length) return null;
+    const rows = farms.map(function (f) { return { f: f, l: latest(f) }; }).filter(function (p) { return p.l; });
+    const worst = rows.slice().sort(function (a, b) { return b.l.c.fail - a.l.c.fail || compare(a.f.name, b.f.name); })[0];
+    if (worst.l.c.fail > 0) {
+      if (!worst.f.failingSince) return say('bad', 'CockpitInsightHealthFail', worst.l.c.fail);
+      return say('bad', worst.f.failingSinceIsLowerBound ? 'CockpitInsightWeatherSinceLower' : 'CockpitInsightWeatherSince', worst.f.name, dshort(worst.f.failingSince));
+    }
+    if (ctx.now.warn > 0) return say('warn', 'CockpitInsightWeatherWarn', ctx.now.warn);
+    return say('good', 'CockpitInsightClear');
+  }
+
   /* ---------- Direction ---------- */
   function attentionRow(a) {
     const f = farmOf(a), age = !a.sinceIsLowerBound && f ? daysBetween(a.since, latestDay(f)) : null;
@@ -302,12 +371,13 @@
     const snapshotAsOf = newest ? asof(t('CockpitAsOfSnapshot', stamp(newest))) : '';
     const periodAsOf = asof(t('CockpitAsOfPeriod', r.len, dshort(days[N - 1])));
     const tone = function (st) { return st === 'ok' ? 'ok' : st === 'warn' ? 'warn' : 'fail'; };
+    const ctx = { r: r, now: now, nowPct: nowPct, prevAvg: prevAvg, open: open, coll: coll, latests: latests, complete: farms.every(function (f) { return !f.attentionTruncated; }) };
 
     const kpis = h`<div class="grid g4">${[
-      kpi(tone(stateNow), t('CockpitKpiHealth'), pctOrDash(nowPct, 1), counts(now), delta(nowPct, prevAvg, { better: 'up', fmt: pts }), h`${snapshotAsOf}${cta(t('CockpitCtaStability'), 'it')}`),
-      kpi(clean.rate === null ? 'blue' : clean.rate >= 80 ? 'ok' : clean.rate >= 50 ? 'warn' : 'fail', t('CockpitKpiCleanDays'), h`${clean.clean}<small class="faint" style="font-size:16px"> / ${clean.eligible}</small>`, t('CockpitKpiCleanSub', r.len), cleanPrev ? delta(clean.rate, cleanPrev.rate, { better: 'up', fmt: pts, eps: 0.5 }) : delta(null, null, {}), h`${periodAsOf}${cta(t('CockpitCtaStability'), 'it')}`),
-      kpi(crit ? 'fail' : openTotal ? 'warn' : 'ok', t('CockpitKpiOpen'), n0(openTotal), t('CockpitKpiOpenSub', crit, open.length - crit), newCount ? h`<span class="delta bad">${t('CockpitNewCount', newCount)}</span>` : '', h`${snapshotAsOf}<a class="cta" href="#spsw-attention" data-scroll="spsw-attention">${t('CockpitCtaAttention')} \u2193</a>`),
-      kpi('blue', t('CockpitKpiCollection'), coll.rate === null ? '\u2014' : pct(coll.rate, 1), t('CockpitKpiCollectionSub', coll.collected, coll.expected), collPrev ? delta(coll.rate, collPrev.rate, { better: 'up', fmt: pts, eps: 0.05 }) : delta(null, null, {}), h`${periodAsOf}${cta(t('CockpitCtaRuns'), 'runs')}`)
+      kpi(tone(stateNow), t('CockpitKpiHealth'), pctOrDash(nowPct, 1), counts(now), delta(nowPct, prevAvg, { better: 'up', fmt: pts }), h`${insightHtml(insightHealth(ctx))}${snapshotAsOf}${cta(t('CockpitCtaStability'), 'it')}`),
+      kpi(clean.rate === null ? 'blue' : clean.rate >= 80 ? 'ok' : clean.rate >= 50 ? 'warn' : 'fail', t('CockpitKpiCleanDays'), h`${clean.clean}<small class="faint" style="font-size:16px"> / ${clean.eligible}</small>`, t('CockpitKpiCleanSub', r.len), cleanPrev ? delta(clean.rate, cleanPrev.rate, { better: 'up', fmt: pts, eps: 0.5 }) : delta(null, null, {}), h`${insightHtml(insightClean(ctx))}${periodAsOf}${cta(t('CockpitCtaStability'), 'it')}`),
+      kpi(crit ? 'fail' : openTotal ? 'warn' : 'ok', t('CockpitKpiOpen'), n0(openTotal), t('CockpitKpiOpenSub', crit, open.length - crit), newCount ? h`<span class="delta bad">${t('CockpitNewCount', newCount)}</span>` : '', h`${insightHtml(insightOpen(ctx))}${snapshotAsOf}<a class="cta" href="#spsw-attention" data-scroll="spsw-attention">${t('CockpitCtaAttention')} \u2193</a>`),
+      kpi('blue', t('CockpitKpiCollection'), coll.rate === null ? '\u2014' : pct(coll.rate, 1), t('CockpitKpiCollectionSub', coll.collected, coll.expected), collPrev ? delta(coll.rate, collPrev.rate, { better: 'up', fmt: pts, eps: 0.05 }) : delta(null, null, {}), h`${insightHtml(insightCollection(ctx))}${periodAsOf}${cta(t('CockpitCtaRuns'), 'runs')}`)
     ]}</div>`;
 
     const cards = farms.map(function (f) { return farmCard(f, r); });
@@ -315,7 +385,7 @@
     const wxKey = weatherOf(latests.map(function (l) { return weatherKey(l.c); })), wx = WEATHER[wxKey];
     const worst = farms.map(function (f) { return { name: f.name, c: (latest(f) || {}).c }; }).filter(function (p) { return p.c; }).sort(function (a, b) { return b.c.fail - a.c.fail; })[0];
     const trend = h`<div class="card"><h3>${t('CockpitAllFarms')}</h3>${stackBars(rows, r.from, t('CockpitTrend'))}${legend([['ok', t('ShortOk')], ['warn', t('LegendWarning')], ['fail', t('LegendFailure')]])}${periodAsOf}</div>`;
-    const overview = h`<div class="card" style="display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center"><h3 style="align-self:flex-start">${t('CockpitKpiHealth')}</h3>${donut(now, t('CockpitKpiHealth'))}<div style="font-size:30px;line-height:1">${wx[0]}</div><b>${t(wx[1])}</b>${worst && worst.c.fail ? h`<span class="small muted">${t('CockpitWeatherWhy', worst.name, worst.c.fail)}</span>` : ''}<div class="small muted num" style="margin-top:4px">${counts(now)}</div>${snapshotAsOf}</div>`;
+    const overview = h`<div class="card" style="display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center"><h3 style="align-self:flex-start">${t('CockpitKpiHealth')}</h3>${donut(now, t('CockpitKpiHealth'))}<div style="font-size:30px;line-height:1">${wx[0]}</div><b>${t(wx[1])}</b>${worst && worst.c.fail ? h`<span class="small muted">${t('CockpitWeatherWhy', worst.name, worst.c.fail)}</span>` : ''}<div class="small muted num" style="margin-top:4px">${counts(now)}</div>${insightHtml(insightWeather(ctx))}${snapshotAsOf}</div>`;
 
     const top = open.slice(0, 10), rest = open.slice(10);
     const attention = open.length ? h`<div class="card"><h3>${t('CockpitListed', open.length, openTotal)}</h3>${table(attentionHead(), top.map(attentionRow))}${rest.length ? h`<details class="fold" style="margin-top:12px"><summary><span>${t('CockpitShowOthers', rest.length)}</span></summary><div class="in">${table(attentionHead(), rest.map(attentionRow))}</div></details>` : ''}</div>` : h`<div class="card"><h3>${t('CockpitSecAttention')}</h3><div class="empty">${t('AllClearTitle')} ${t('CockpitNothingOpen')}</div></div>`;
@@ -341,7 +411,7 @@
 
     const sections = {};
     open.forEach(function (a) { sections[a.section] = (sections[a.section] || 0) + 1; });
-    const ids = Object.keys(sections).sort(function (a, b) { return sections[b] - sections[a] || a.localeCompare(b); });
+    const ids = Object.keys(sections).sort(function (a, b) { return sections[b] - sections[a] || compare(a, b); });
     const cell = function (f, id) {
       const items = f.attention.filter(function (a) { return a.section === id; }), failing = items.filter(function (a) { return a.severity === 'fail'; }).length;
       return !items.length ? h`<span class="cell none">\u2013</span>` : failing ? h`<span class="cell fail">${failing} ${t('ShortFail')}</span>` : h`<span class="cell warn">${items.length} ${t('ShortWarn')}</span>`;
