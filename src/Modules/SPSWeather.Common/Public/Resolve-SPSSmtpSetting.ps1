@@ -18,8 +18,9 @@
         reported and treated as disabled. When sending is on but SMTPToAddress, SMTPFromAddress
         or SMTPServer is missing, sending is turned off with an explicit message.
 
-        Returns Send, Preview, Mode, ConfigDefinesEnabled (so -Action Install knows whether the
-        scheduled task can drop the deprecated switch) and Messages (warnings to display).
+        Returns Send, SendRequested (sending was asked for, even when a missing setting turned Send off),
+        Preview, Mode, ConfigDefinesEnabled (so -Action Install knows whether the scheduled task can
+        drop the deprecated switch) and Messages (warnings to display).
 
         .PARAMETER Config
         The environment configuration (hashtable loaded from the .psd1).
@@ -92,6 +93,7 @@
         }
     }
 
+    $sendRequested = [bool]$send
     if ($send) {
         $missing = @('SMTPToAddress', 'SMTPFromAddress', 'SMTPServer' | Where-Object {
                 -not (($null -ne $Config) -and $Config.Contains($_) -and -not [string]::IsNullOrWhiteSpace((@($Config[$_]) -join '')))
@@ -104,6 +106,7 @@
 
     return [PSCustomObject]@{
         Send                 = [bool]$send
+        SendRequested        = $sendRequested
         Preview              = [bool]$preview.Value
         Mode                 = $mode
         ConfigDefinesEnabled = [bool]$enabled.Defined

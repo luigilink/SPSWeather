@@ -184,3 +184,75 @@ Describe 'Entry script email settings (SMTPEnabled / SMTPPreview)' {
         }
     }
 }
+
+Describe 'Entry script run journal' {
+    BeforeAll {
+        $repoRoot = Split-Path -Path $PSScriptRoot -Parent
+        $entryPath = Join-Path -Path $repoRoot -ChildPath 'src/SPSWeather.ps1'
+        $script:entrySource = Get-Content -Path $entryPath -Raw
+    }
+
+    It 'writes one record per run, into Results\<App>-<Env>.runs.json, before the log cleanup' {
+        $call = $entrySource.IndexOf('Add-SPSWeatherRunJournalEntry -Path (Join-Path -Path $pathResultsFolder -ChildPath "$($Application)-$($Environment).runs.json")')
+        $cleanup = $entrySource.IndexOf('Clear-SPSLog -path $pathLogsFolder')
+        $call | Should -BeGreaterThan 0
+        $cleanup | Should -BeGreaterThan $call
+        ([regex]::Matches($entrySource, 'Add-SPSWeatherRunJournalEntry')).Count | Should -Be 1
+    }
+
+    It 'passes the run facts to the journal and keeps its size in line with the history retention' {
+        $entrySource | Should -Match '(?s)Add-SPSWeatherRunJournalEntry .*?-Started \$DateStarted.*?-Version \$spsWeatherVersion.*?-Language \$languageSetting\.Culture.*?-EmailMode \$smtpSetting\.Mode.*?-Mail \$mailOutcome.*?-Farm \$journalFarms.*?-RetentionDays \(\[uint32\]\[math\]::Max\(0, \$jsonHistoryRetentionDays\)\)'
+    }
+
+    It 'lists every configured farm, the unreachable ones included, in configuration order' {
+        $entrySource | Should -Match '\$journalFarms = @\(\$spFarms \| ForEach-Object -Process \{ \$consolidatedEntries\["\$\(\$_\.Name\)"\] \}'
+        $entrySource | Should -Match "Outcome = 'unreachable'"
+        $entrySource | Should -Match "Outcome = 'ok'; Ok = \`$_\.Summary\.Ok; Warn = \`$_\.Summary\.Warn; Fail = \`$_\.Summary\.Fail"
+    }
+
+    It 'names the journal so that no farm snapshot can ever have the same file name' -ForEach @('runs', 'RUNS', 'Runs', 'a.b', 'x y', 'runs.json') {
+        # The snapshot of a farm is <App>-<Env>-<farm with every character outside A-Za-z0-9_- replaced by _>.json
+        $entrySource | Should -Match ([regex]::Escape("`$safeFarm = (`$farmName -replace '[^A-Za-z0-9_-]', '_')"))
+        $safeFarm = $_ -replace '[^A-Za-z0-9_-]', '_'
+        "zebes-PROD-$safeFarm.json".ToLowerInvariant() | Should -Not -Be 'zebes-prod.runs.json'
+    }
+
+    It 'counts an email as sent only after Send-MailMessage succeeded' {
+        ([regex]::Matches($entrySource, '(?s)-ea stop\s+\$mailsSent\+\+\s+Write-Output "Email sent successfully')).Count | Should -Be 2
+    }
+
+    Context 'mail outcome' {
+        BeforeAll {
+            $match = [regex]::Match($entrySource, '(?s)(\$mailExpected = .*?)\r?\n\s*\$journalFarms')
+            $script:outcomeSnippet = $match.Groups[1].Value
+            function script:Get-Outcome {
+                param ($Setting, $Probed, $Entries, $Sent)
+                & {
+                    param ($smtpSetting, $probedFarms, $consolidatedEntries, $mailsSent, $snippet)
+                    Invoke-Expression -Command $snippet
+                    $mailOutcome
+                } $Setting $Probed $Entries $Sent $outcomeSnippet
+            }
+        }
+
+        It 'finds the outcome logic in the entry script' {
+            $outcomeSnippet | Should -Match '\$mailOutcome = '
+        }
+
+        It 'reports <Expected> for <Name>' -ForEach @(
+            @{ Name = 'email disabled'; Setting = @{ Send = $false; Preview = $false; Mode = 'PerFarm' }; Probed = @('A', 'B'); Entries = @{ A = 1; B = 1 }; Sent = 0; Expected = 'disabled' }
+            @{ Name = 'preview only'; Setting = @{ Send = $false; Preview = $true; Mode = 'PerFarm' }; Probed = @('A'); Entries = @{ A = 1 }; Sent = 0; Expected = 'preview' }
+            @{ Name = 'every farm unreachable in PerFarm (no email to send)'; Setting = @{ Send = $true; Preview = $false; Mode = 'PerFarm' }; Probed = @(); Entries = @{ A = 1 }; Sent = 0; Expected = 'none' }
+            @{ Name = 'one email per farm, all sent'; Setting = @{ Send = $true; Preview = $false; Mode = 'PerFarm' }; Probed = @('A', 'B', 'C'); Entries = @{ A = 1; B = 1; C = 1 }; Sent = 3; Expected = 'sent' }
+            @{ Name = 'one email per farm, one missing'; Setting = @{ Send = $true; Preview = $false; Mode = 'PerFarm' }; Probed = @('A', 'B', 'C'); Entries = @{ A = 1; B = 1; C = 1 }; Sent = 2; Expected = 'failed' }
+            @{ Name = 'one consolidated email, sent (unreachable farms included)'; Setting = @{ Send = $true; Preview = $false; Mode = 'Consolidated' }; Probed = @('A'); Entries = @{ A = 1; B = 1; C = 1 }; Sent = 1; Expected = 'sent' }
+            @{ Name = 'one consolidated email, not sent'; Setting = @{ Send = $true; Preview = $false; Mode = 'Consolidated' }; Probed = @('A'); Entries = @{ A = 1; B = 1 }; Sent = 0; Expected = 'failed' }
+            @{ Name = 'send and preview together, sent'; Setting = @{ Send = $true; Preview = $true; Mode = 'PerFarm' }; Probed = @('A'); Entries = @{ A = 1 }; Sent = 1; Expected = 'sent' }
+            @{ Name = 'sending requested but a relay setting is missing (Send turned off)'; Setting = @{ Send = $false; SendRequested = $true; Preview = $false; Mode = 'PerFarm' }; Probed = @('A'); Entries = @{ A = 1 }; Sent = 0; Expected = 'failed' }
+            @{ Name = 'sending requested but a relay setting is missing, with a preview'; Setting = @{ Send = $false; SendRequested = $true; Preview = $true; Mode = 'Consolidated' }; Probed = @('A'); Entries = @{ A = 1 }; Sent = 0; Expected = 'failed' }
+            @{ Name = 'sending not requested, preview only'; Setting = @{ Send = $false; SendRequested = $false; Preview = $true; Mode = 'PerFarm' }; Probed = @('A'); Entries = @{ A = 1 }; Sent = 0; Expected = 'preview' }
+        ) {
+            Get-Outcome -Setting ([PSCustomObject]$Setting) -Probed $Probed -Entries $Entries -Sent $Sent | Should -Be $Expected
+        }
+    }
+}

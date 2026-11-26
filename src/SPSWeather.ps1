@@ -278,6 +278,8 @@ else {
         # EmailMode = 'Consolidated': one entry per farm, used to build a single email at the end.
         # A farm that cannot be reached still gets one (a grey card), so it is never left out.
         $consolidatedEntries = @{}
+        # Emails actually sent, to tell at the end of the run whether every expected email went out.
+        $mailsSent = 0
         Add-SPSWeatherEvent -Message "SPSWeather $spsWeatherVersion started for $Application/$Environment on $env:COMPUTERNAME." -EntryType 'Information' -EventID 1000
         # An unattended run has nobody watching the console: also record the email configuration
         # warnings in the Event Log, so a mail that stops being sent leaves a trace.
@@ -628,6 +630,7 @@ else {
                         -SmtpServer $SmtpServerAddress `
                         -Priority $farmPriority `
                         -ea stop
+                    $mailsSent++
                     Write-Output "Email sent successfully to $SmtpToAddress"
                 }
             }
@@ -676,6 +679,7 @@ else {
                             -SmtpServer $SmtpServerAddress `
                             -Priority $consolidatedMail.Priority `
                             -ea stop
+                        $mailsSent++
                         Write-Output "Email sent successfully to $SmtpToAddress"
                     }
                 }
@@ -685,6 +689,34 @@ else {
                 Add-SPSWeatherEvent -Message "SPSWeather failed to produce the consolidated email for $Application/$Environment. Exception: $($_.Exception.Message)" -EntryType 'Error' -EventID 3000
             }
         }
+
+        # Run journal: one record per run. A farm that could not be reached leaves no JSON snapshot,
+        # so this record is its only trace for a page that tracks the collections over time.
+        $mailExpected = if ($smtpSetting.Mode -eq 'Consolidated') { [int]($consolidatedEntries.Count -gt 0) } else { $probedFarms.Count }
+        # Sending was asked for but a missing relay setting turned it off: an email was expected and none went out.
+        $mailOutcome = if ($smtpSetting.SendRequested -and -not $smtpSetting.Send) { 'failed' }
+        elseif (-not ($smtpSetting.Send -or $smtpSetting.Preview)) { 'disabled' }
+        elseif (-not $smtpSetting.Send) { 'preview' }
+        elseif ($mailExpected -eq 0) { 'none' }
+        elseif ($mailsSent -ge $mailExpected) { 'sent' }
+        else { 'failed' }
+        $journalFarms = @($spFarms | ForEach-Object -Process { $consolidatedEntries["$($_.Name)"] } | Where-Object -FilterScript { $_ } | ForEach-Object -Process {
+                if ($_.Reachable) {
+                    [PSCustomObject]@{ Name = $_.Name; Outcome = 'ok'; Ok = $_.Summary.Ok; Warn = $_.Summary.Warn; Fail = $_.Summary.Fail }
+                }
+                else {
+                    [PSCustomObject]@{ Name = $_.Name; Outcome = 'unreachable' }
+                }
+            })
+        [void](Add-SPSWeatherRunJournalEntry -Path (Join-Path -Path $pathResultsFolder -ChildPath "$($Application)-$($Environment).runs.json") `
+                -Started $DateStarted `
+                -Duration ((Get-Date) - $DateStarted) `
+                -Version $spsWeatherVersion `
+                -Language $languageSetting.Culture `
+                -EmailMode $smtpSetting.Mode `
+                -Mail $mailOutcome `
+                -Farm $journalFarms `
+                -RetentionDays ([uint32][math]::Max(0, $jsonHistoryRetentionDays)))
 
         # Clean the folder of log files (once per run).
         Clear-SPSLog -path $pathLogsFolder -Retention $logRetentionDays
