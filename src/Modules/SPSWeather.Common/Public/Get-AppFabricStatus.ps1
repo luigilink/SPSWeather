@@ -132,7 +132,7 @@
 
     # SharePoint 2016 / 2019 branch: original AppFabric-based logic, unchanged.
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-        -Arguments $PSBoundParameters `
+        -Arguments @{ Farm = $Farm } `
         -Server $Server `
         -ScriptBlock {
         $params = $args[0]
