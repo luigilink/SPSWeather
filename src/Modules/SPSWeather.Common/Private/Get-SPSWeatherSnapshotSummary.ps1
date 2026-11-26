@@ -1,23 +1,18 @@
 ﻿function Get-SPSWeatherSnapshotSummary {
     <#
         .SYNOPSIS
-        Counts the OK, warning and failure checks of one JSON snapshot, and lists the ones that need attention.
+        Counts the OK, warning and failure checks of one JSON snapshot.
 
         .DESCRIPTION
-        The single place that turns a snapshot (the object read back from Results\<App>-<Env>-<Farm>.json or
-        from the history folder) into counts, with the severity model of Get-SPSWeatherRowSeverity. Only an
-        actual check (a row with IsInfo or severity) counts toward OK, so a run keeps the same OK total
-        once archived as in the donut of the dashboard. Shared by Get-SPSWeatherHistory (the bars of the dashboard)
-        and Get-SPSWeatherCockpitData (the multi-farm page), so that they can never disagree.
-
-        Returns Ok, Warn and Fail, and Items: one object { Section; Row; Severity } for each warning or failure.
-        A $null snapshot has no row and gives zeros.
+        The one way of counting a snapshot, shared by the bars of the dashboard and the multi-farm page. Only an
+        actual check (a row with IsInfo or severity) counts toward OK. Returns Ok, Warn, Fail and Items, one
+        { Section; Row; Severity } for each warning or failure.
 
         .PARAMETER Snapshot
         The snapshot object (sections as properties, rows as the values).
 
         .EXAMPLE
-        $summary = Get-SPSWeatherSnapshotSummary -Snapshot (Get-Content -Path $file -Raw | ConvertFrom-Json)
+        Get-SPSWeatherSnapshotSummary -Snapshot (Get-Content -Path $file -Raw | ConvertFrom-Json)
     #>
     [CmdletBinding()]
     [OutputType([System.Management.Automation.PSCustomObject])]

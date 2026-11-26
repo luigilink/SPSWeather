@@ -1,12 +1,10 @@
 ﻿function Get-SPSWeatherWeatherKey {
     <#
         .SYNOPSIS
-        Gives the weather of a farm for a number of warnings and failures.
+        Gives the weather key of a farm for a number of warnings and failures.
 
         .DESCRIPTION
-        The rule of the per-farm dashboard: no failure and no warning is 'sunny', no failure is 'fair', up to
-        -StormyAbove failures is 'cloudy', more is 'stormy'. Returns the key, never a label: the labels belong to
-        the resource files and are chosen by the display language.
+        The rule of the per-farm dashboard: sunny, fair, cloudy or stormy. Returns the key, never a label.
 
         .PARAMETER Warn
         Number of warnings.

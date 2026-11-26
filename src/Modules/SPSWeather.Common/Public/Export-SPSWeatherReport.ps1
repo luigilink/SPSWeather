@@ -69,9 +69,7 @@
         [System.String]
         $Language = 'en-US',
 
-        # The settings in effect for the run (the Record property of Get-SPSWeatherRunSetting): when given,
-        # the footer says which configuration file was used and the SQL thresholds applied, with a mark for a
-        # value that is the default. Without it the footer is unchanged.
+        # The Record of Get-SPSWeatherRunSetting: adds the configuration file and the SQL thresholds to the footer
         [Parameter()]
         [AllowNull()]
         [System.Object]
@@ -272,7 +270,7 @@
     if ($null -ne $Setting -and $null -ne $Setting.thresholds) {
         $settingParts = New-Object -TypeName System.Collections.ArrayList
         if (-not [string]::IsNullOrWhiteSpace([string]$Setting.configFile)) { [void]$settingParts.Add((_t 'FooterConfigFile' ([string]$Setting.configFile))) }
-        # The parameter must not be named $text: _t reads the resource table of that name from the calling scope.
+        # Not named $text: _t reads that variable from the calling scope
         function _withMark($threshold, [string]$label) {
             if ("$($threshold.source)" -eq 'default') { return "$label $(_t 'FooterDefaultMark')" }
             return $label

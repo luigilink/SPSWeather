@@ -1,5 +1,4 @@
-﻿# The columns that name the thing a row checks, section by section. Built once when the module is loaded:
-# the function below runs for every item of every snapshot that the multi-farm page reads.
+﻿# The columns that name the thing a row checks, by section (built once, the function runs for every item)
 $script:SPSWeatherIdentityColumns = @{
     SPHealthAnalyzer         = @('title')
     SPUpgradeStatus          = @('server')
@@ -34,18 +33,9 @@ function Get-SPSWeatherItemIdentity {
         Gives a stable identity, a name, a detail and a cause to a row of the report.
 
         .DESCRIPTION
-        To say since when an item needs attention, the same item has to be recognised from one run to the next
-        although its status and its figures change. The identity of a row is made of the columns that name
-        the thing that is checked (the server, the database, the application pool, the volume...), never of
-        the columns that describe its state. The columns of each section are listed here; a section that is not
-        listed uses every column except the noise of remoting, IsInfo and the state columns.
-
-        Returns:
-          Id     - section and identity in lower case, stable between runs, used to follow an item;
-          Name   - the identity as shown to a person (for example 'SQL1 / WSS_Content');
-          Detail - the advisory or the state, on one line of 200 characters at most;
-          Cause  - the detail with its numbers replaced by '#', so that 'last full backup 4.5 d ago' and
-                   'last full backup 6 d ago' are the same cause and can be grouped.
+        Recognises an item from one run to the next by the columns that name the thing, never by the ones that
+        describe its state. Returns Id, Name, Detail (200 characters at most, one line) and Cause (the detail
+        with its numbers replaced by '#'). See the wiki page Cockpit-Data.
 
         .PARAMETER Section
         The name of the report section the row comes from.
@@ -54,8 +44,7 @@ function Get-SPSWeatherItemIdentity {
         The row.
 
         .PARAMETER IdOnly
-        Only the identity (Id) is needed: Name, Detail and Cause are left empty. Used for the older snapshots of a
-        series, where only the recognition of an item matters, because the multi-farm page reads many snapshots.
+        Only Id is needed: Name, Detail and Cause are left empty.
 
         .EXAMPLE
         Get-SPSWeatherItemIdentity -Section SQLDatabaseStatus -Row $row
@@ -99,8 +88,7 @@ function Get-SPSWeatherItemIdentity {
                 $value = _prop $Row $column
                 if ($value) {
                     [void]$parts.Add($value)
-                    # The name of an availability group replica ends with its role, 'AG / SQL1 (PRIMARY)': the role is a
-                    # state that changes with a failover, it does not name the replica.
+                    # The role at the end of the name, 'AG / SQL1 (PRIMARY)', changes with a failover
                     if ($Section -eq 'SQLAvailabilityStatus' -and $column -eq 'Name' -and (_prop $Row 'Type') -eq 'AvailabilityGroup') {
                         $value = $value -replace '\s*\([^()]*\)$', ''
                     }

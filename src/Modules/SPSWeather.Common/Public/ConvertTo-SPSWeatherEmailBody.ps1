@@ -81,10 +81,7 @@
     }
     function _sev($row) { Get-SPSWeatherRowSeverity -Row $row }
 
-    # Display strings of the chosen language (English underneath: a missing key shows the English
-    # text). _t formats a string with the arguments that follow its key, using the language's
-    # culture; _th HTML-encodes the template first and inserts its arguments as ready-made HTML;
-    # _count picks the singular or plural form of a counted noun.
+    # Display strings of the language (a missing key falls back to English): _t formats, _th formats HTML, _count picks the plural
     $text = Get-SPSWeatherResource -Language $Language
     $english = Get-SPSWeatherResource -Language 'en-US'
     $ci = try { [System.Globalization.CultureInfo]::GetCultureInfo([string]$text.Culture) } catch { [System.Globalization.CultureInfo]::InvariantCulture }
