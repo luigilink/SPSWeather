@@ -15,12 +15,12 @@
         .PARAMETER HistoryFolder
         Folder holding the per-farm *.json snapshots (Backup-SPSWeatherJsonFile output).
 
+        .PARAMETER Max
+        Maximum number of most-recent runs to return. Defaults to 30.
+
         .PARAMETER NamePrefix
         Only the snapshots whose file name starts with this text are read (any case), for example
         '<App>-<Env>-<Farm>-'. Without it every *.json of the folder is read.
-
-        .PARAMETER Max
-        Maximum number of most-recent runs to return. Defaults to 30.
     #>
     [CmdletBinding()]
     [OutputType([System.Object[]])]
@@ -31,12 +31,12 @@
         $HistoryFolder,
 
         [Parameter()]
-        [System.String]
-        $NamePrefix,
+        [System.Int32]
+        $Max = 30,
 
         [Parameter()]
-        [System.Int32]
-        $Max = 30
+        [System.String]
+        $NamePrefix
     )
 
     if (-not (Test-Path -Path $HistoryFolder)) { return @() }

@@ -97,6 +97,13 @@ Describe 'Get-SPSWeatherHistory' {
             @($bars | ForEach-Object { $_.Fail }) | Should -Be @(2, 3)
         }
 
+        It 'keeps the positional order of the parameters: the folder, then the number of runs' {
+            $folder = New-SharedHistory
+            InModuleScope SPSWeather.Common -Parameters @{ F = $folder } { param($F) @(Get-SPSWeatherHistory $F 2).Count } | Should -Be 2
+            $positions = InModuleScope SPSWeather.Common { (Get-Command Get-SPSWeatherHistory).Parameters.Values | Where-Object { $_.Attributes.Position -ge 0 } | Sort-Object { ($_.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] }).Position } | ForEach-Object { $_.Name } }
+            @($positions)[0..1] | Should -Be @('HistoryFolder', 'Max')
+        }
+
         It 'returns nothing when no file has the prefix' {
             @(Get-Bars -Folder (New-SharedHistory) -Prefix 'nobody-').Count | Should -Be 0
         }
