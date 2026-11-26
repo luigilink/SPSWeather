@@ -531,7 +531,9 @@ const h = run(data([farm('A', [...rep(13, OK), cell(6, 0, 1)], [att('A', SQL, ho
 results.push({ name: 'a name from the farm is escaped in a sentence', error: h.error, text: h.sentences.join('\n'), ok: !h.error && h.sentences.join('').includes('&lt;img src=x onerror=1&gt;') && !h.html.includes('<img src=x') });
 console.log(JSON.stringify(results));
 '@)
-        $out = @(& $script:nodePath $harness $script:file | ConvertFrom-Json)
+        # Windows PowerShell 5.1 hands a JSON array over as one object: assign first, then count
+        $out = & $script:nodePath $harness $script:file | ConvertFrom-Json
+        $out = @($out)
         $out.Count | Should -BeGreaterOrEqual 33
         $failed = @($out | Where-Object -FilterScript { -not $_.ok } | ForEach-Object -Process { "$($_.name) => $($_.error) $($_.text -replace "`n", ' / ')" })
         $failed | Should -BeNullOrEmpty
