@@ -11,6 +11,22 @@ if (-not $IsWindows -and (Get-Command -Name chmod -ErrorAction SilentlyContinue)
     Remove-Item -Path $denyProbe -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+# Whether this host can make a folder that takes a new file but refuses to remove it (an ACL of macOS)
+$canDenyRemoval = $false
+if ($IsMacOS -and (Get-Command -Name chmod -ErrorAction SilentlyContinue)) {
+    $removalProbe = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('remove-probe-' + [guid]::NewGuid().ToString('N'))
+    [void](New-Item -Path $removalProbe -ItemType Directory)
+    & chmod +a 'everyone deny delete_child' $removalProbe 2>$null
+    $removalFile = Join-Path -Path $removalProbe -ChildPath 'x.tmp'
+    try {
+        [System.IO.File]::WriteAllText($removalFile, 'x')
+        try { [System.IO.File]::Delete($removalFile) } catch { $canDenyRemoval = $true }
+    }
+    catch { $null = $_ }
+    & chmod -N $removalProbe 2>$null
+    Remove-Item -Path $removalProbe -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 BeforeAll {
     $repoRoot = Split-Path -Path $PSScriptRoot -Parent
     $scriptPath = Join-Path -Path $repoRoot -ChildPath 'src/Test-SPSWeatherReadiness.ps1'
@@ -190,7 +206,7 @@ Describe 'Readiness script cockpit page (Dashboard.Cockpit)' {
         $script:hostExe = (Get-Process -Id $PID).Path
 
         function Invoke-Readiness {
-            param([string]$Dashboard)
+            param([string]$Dashboard, [string]$WorkingFolder)
             $cfgPath = Join-Path -Path $TestDrive -ChildPath ('cfg-' + [guid]::NewGuid().ToString('N') + '.psd1')
             $block = if ($Dashboard) { "    Dashboard = @{`n$Dashboard`n    }" } else { '' }
             $body = @"
@@ -205,7 +221,14 @@ $block
 }
 "@
             Set-Content -Path $cfgPath -Value $body -Encoding UTF8
-            $out = & $script:hostExe -NoProfile -ExecutionPolicy Bypass -File $scriptPath -ConfigFile $cfgPath -SkipNetwork -SkipSharePoint 2>&1 | Out-String
+            if ($WorkingFolder) {
+                # A relative OutputPath is read from the folder the script runs in: start it from there, in the child process
+                $command = "Set-Location -LiteralPath '$WorkingFolder'; & '$scriptPath' -ConfigFile '$cfgPath' -SkipNetwork -SkipSharePoint"
+                $out = & $script:hostExe -NoProfile -ExecutionPolicy Bypass -Command $command 2>&1 | Out-String
+            }
+            else {
+                $out = & $script:hostExe -NoProfile -ExecutionPolicy Bypass -File $scriptPath -ConfigFile $cfgPath -SkipNetwork -SkipSharePoint 2>&1 | Out-String
+            }
             $out -split "`r?`n"
         }
         function Get-CheckLine {
@@ -235,6 +258,26 @@ $block
         }
         $script:onDenied = Invoke-Readiness -Dashboard "        Cockpit = `$true`n        OutputPath = '$script:readOnly'"
         $script:onDeniedNew = Invoke-Readiness -Dashboard "        Cockpit = `$true`n        OutputPath = '$(Join-Path -Path $script:readOnly -ChildPath 'sub')'"
+        # A relative folder is the one of the run: the folder the script starts from (the name of the working folder is 'dash')
+        $script:onRelative = Invoke-Readiness -Dashboard "        Cockpit = `$true`n        OutputPath = 'rel-new'" -WorkingFolder $script:folder
+        $script:onRelativeDeep = Invoke-Readiness -Dashboard "        Cockpit = `$true`n        OutputPath = 'rel\new\deep'" -WorkingFolder $script:folder
+        # A drive that this host does not have: the path cannot be resolved
+        $script:missingDrive = 'Z', 'Y', 'X', 'W', 'V', 'U' | Where-Object { $_ -notin @(Get-PSDrive -PSProvider FileSystem).Name } | Select-Object -First 1
+        $script:onMissingDrive = Invoke-Readiness -Dashboard "        Cockpit = `$true`n        OutputPath = '$($script:missingDrive):\spsweather\nope'"
+        # A folder that takes a file but refuses to remove it
+        $script:noRemoval = Join-Path -Path $TestDrive -ChildPath 'no-removal'
+        New-Item -Path $script:noRemoval -ItemType Directory | Out-Null
+        $script:removalDenied = $false
+        if ($IsMacOS -and (Get-Command -Name chmod -ErrorAction SilentlyContinue)) {
+            & chmod +a 'everyone deny delete_child' $script:noRemoval 2>$null
+            $probeFile = Join-Path -Path $script:noRemoval -ChildPath 'probe.tmp'
+            try {
+                [System.IO.File]::WriteAllText($probeFile, 'x')
+                try { [System.IO.File]::Delete($probeFile) } catch { $script:removalDenied = $true }
+            }
+            catch { $null = $_ }
+        }
+        $script:onNoRemoval = Invoke-Readiness -Dashboard "        Cockpit = `$true`n        OutputPath = '$script:noRemoval'"
         $script:onResults = Invoke-Readiness -Dashboard "        Cockpit = `$true"
         $script:text = Invoke-Readiness -Dashboard "        Cockpit = 'true'"
         $script:invalidMaybe = Invoke-Readiness -Dashboard "        Cockpit = 'maybe'"
@@ -289,6 +332,42 @@ $block
         }
     }
 
+    It 'reads a relative folder from the folder the script runs in, as the run does, and creates nothing' {
+        foreach ($lines in $onRelative, $onRelativeDeep) {
+            $line = Get-CheckLine -Lines $lines -Pattern 'Cockpit page folder'
+            $line | Should -Match '^\[ OK \].*Writable: .*dash.*will be created by the run'
+            $line | Should -Not -Match 'No existing folder'
+        }
+        Test-Path -LiteralPath (Join-Path -Path $script:folder -ChildPath 'rel-new') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path -Path $script:folder -ChildPath 'rel') | Should -BeFalse
+        @(Get-ChildItem -Path $script:folder -Force).Count | Should -Be 0
+    }
+
+    It 'warns, never fails, when the path cannot be resolved (a drive this host does not have)' {
+        $line = Get-CheckLine -Lines $onMissingDrive -Pattern 'Cockpit page folder'
+        $line | Should -Match '^\[WARN\].*Cannot resolve'
+        ($onMissingDrive -join "`n") | Should -Not -Match '\[FAIL\]\s+Cockpit'
+    }
+
+    It 'warns when a file can be created but not removed, and names the file left behind' -Skip:(-not $canDenyRemoval) {
+        $script:removalDenied | Should -BeTrue
+        $line = Get-CheckLine -Lines $onNoRemoval -Pattern 'Cockpit page folder'
+        $line | Should -Match '^\[WARN\].*but not removed'
+        $line | Should -Match '\.spsweather-write-test-[0-9a-f]{32}\.tmp was left behind'
+        $line | Should -Not -Match '^\[ OK \]'
+        ($onNoRemoval -join "`n") | Should -Not -Match '\[FAIL\]\s+Cockpit'
+    }
+
+    It 'removes the probe file without silencing the error, and checks that it is gone' {
+        $tokens = $null; $errs = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$errs)
+        $removal = $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.TryStatementAst] -and $n.Body.Extent.Text -match 'File\]::Delete' }, $true)
+        $removal.Count | Should -BeGreaterThan 0
+        $removal[0].Body.Extent.Text | Should -Match 'File\]::Exists'
+        $removal[0].CatchClauses[0].Body.Extent.Text | Should -Match '\$removeError'
+        $ast.Extent.Text | Should -Not -Match 'Remove-Item[^\r\n]*\$testFile'
+    }
+
     It 'checks Results when OutputPath is empty' {
         (Get-CheckLine -Lines $onResults -Pattern 'Cockpit page folder') | Should -Match '^\[(\s*OK\s*|WARN)\]'
         (Get-CheckLine -Lines $onResults -Pattern "Key 'Dashboard.Cockpit'") | Should -Match 'Results'
@@ -310,6 +389,8 @@ $block
 
     AfterAll {
         if ($script:denies -and (Test-Path -LiteralPath $script:readOnly)) { & chmod 755 $script:readOnly }
+        # The ACL that refuses the removal also stops the cleanup of the test folder
+        if ($script:removalDenied -and (Test-Path -LiteralPath $script:noRemoval)) { & chmod -N $script:noRemoval }
     }
 
     It 'only writes a temporary probe file, removed at once, and says so in its help' {

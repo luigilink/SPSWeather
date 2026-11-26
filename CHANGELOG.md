@@ -29,7 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reported (transcript, Event ID 2001, readiness `[WARN]`) and the page is not produced; a value is never cast, since the text `'false'` would become
   `$true`. A failure to write the page (a share that is down, a folder that refuses the file) is written in the transcript and recorded in the Event
   Log with the new ID **3002**; the run goes on. `Test-SPSWeatherReadiness.ps1` reports the key, the page it will write, whether the folder accepts a file
-  (a small temporary file written and removed at once; a folder that does not exist yet is judged by its nearest existing parent and is not created, and
+  (a small temporary file written and removed at once, a folder that lets a file be created but not removed is a warning; a relative folder is made
+  absolute the way the run does; a folder that does not exist yet is judged by its nearest existing parent and is not created, and
   a path that goes through a file is reported) and the address of the button. `New-SPSDashboardSite.ps1` documents that the same folder serves the
   page, and prints its address. Example configuration and wiki (*Configuration*, *Dashboard*, *Usage*, *Health Checks*, *Cockpit page*) updated (#111).
 - **Insight sentences on the cockpit page**: the four cards of the Executive tab and the weather card now say what their figure

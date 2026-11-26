@@ -69,7 +69,8 @@ unless the key is set: with the key absent or `$false` a run produces exactly th
 - **A wrong value.** `Cockpit = 'maybe'` (or `$null`, or a number) is reported (transcript, Event ID 2001, readiness `[WARN]`) and the page is not produced; the text `'true'` or
   `'false'` is understood. A value is never cast to a boolean, because the text `'false'` would become `$true`.
 - **Readiness.** `Test-SPSWeatherReadiness.ps1` reports the key, the page it will write, whether the folder accepts a file (it writes and removes a small temporary
-  file; a folder that does not exist yet is judged by its nearest existing parent and is not created) and the address of the button.
+  file, and a folder that lets a file be created but not removed is a warning, because the run replaces the page it wrote the day before; a relative folder is made
+  absolute the way the run does; a folder that does not exist yet is judged by its nearest existing parent and is not created) and the address of the button.
 
 The per-farm history (the bar chart) is built from the JSON snapshots under
 `Results\history\<Farm>\`, capped at `JsonHistoryRetentionDays` runs.

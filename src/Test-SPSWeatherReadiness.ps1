@@ -10,8 +10,8 @@
     each farm server is reachable for CredSSP remoting.
 
     Read-only: it never changes configuration, credentials or the farm. The only thing it writes is a small
-    temporary file, removed at once, to prove that the folder of the cockpit page accepts a file (when
-    Dashboard.Cockpit is on).
+    temporary file, removed at once, to prove that the folder of the cockpit page accepts a file and lets it
+    be removed (when Dashboard.Cockpit is on). A relative folder is made absolute like the run does.
 
     .PARAMETER ConfigFile
     Path to the environment configuration .psd1 file (same one passed to
@@ -195,31 +195,53 @@ if ($null -ne $cfg) {
             }
             else {
                 Add-CheckResult -Section 'Config' -Name "Key 'Dashboard.Cockpit'" -Status 'PASS' -Detail "True: $($cockpitCheck.Path)"
-                # Read-only: a folder that does not exist is judged by its nearest existing parent, nothing is created
+                # Read-only: a folder that does not exist is judged by its nearest existing parent, nothing is created.
+                # The folder is made absolute the way the exporter does, so the check and the probe use the path the run will write to.
                 $probe = $cockpitCheck.Folder
+                $resolveError = $null
+                if (-not [string]::IsNullOrWhiteSpace($probe)) {
+                    try { $probe = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($probe) }
+                    catch { $resolveError = $_.Exception.Message }
+                }
+                $targetFolder = $probe
                 $blockedBy = $null
-                while ($probe -and -not (Test-Path -LiteralPath $probe -PathType Container)) {
+                while (-not $resolveError -and $probe -and -not (Test-Path -LiteralPath $probe -PathType Container)) {
                     # A part of the path that exists but is not a folder can never hold the page
                     if (Test-Path -LiteralPath $probe -PathType Leaf) { $blockedBy = $probe; break }
                     $probe = Split-Path -Path $probe -Parent
                 }
-                if ($null -ne $blockedBy) {
-                    Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'WARN' -Detail "$blockedBy is a file, not a folder: the run will not be able to write the page to $($cockpitCheck.Folder)"
+                if ($null -ne $resolveError) {
+                    Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'WARN' -Detail "Cannot resolve $($cockpitCheck.Folder): $resolveError"
+                }
+                elseif ($null -ne $blockedBy) {
+                    Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'WARN' -Detail "$blockedBy is a file, not a folder: the run will not be able to write the page to $targetFolder"
                 }
                 elseif ([string]::IsNullOrWhiteSpace($probe)) {
                     Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'WARN' -Detail "No existing folder found for $($cockpitCheck.Folder): the run will not be able to write the page"
                 }
                 else {
                     $writeError = $null
+                    $removeError = $null
                     $testFile = Join-Path -Path $probe -ChildPath ('.spsweather-write-test-' + [guid]::NewGuid().ToString('N') + '.tmp')
-                    try { [System.IO.File]::WriteAllText($testFile, 'x'); Remove-Item -LiteralPath $testFile -Force -ErrorAction SilentlyContinue }
+                    try { [System.IO.File]::WriteAllText($testFile, 'x') }
                     catch { $writeError = $_.Exception.Message }
                     if ($null -eq $writeError) {
-                        $note = if ($probe -ne $cockpitCheck.Folder) { " ($($cockpitCheck.Folder) will be created by the run)" } else { '' }
-                        Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'PASS' -Detail "Writable: $probe$note"
+                        # The run replaces the page of the day before: an account that can create a file but not delete one cannot do it
+                        try {
+                            [System.IO.File]::Delete($testFile)
+                            if ([System.IO.File]::Exists($testFile)) { throw 'the file is still there' }
+                        }
+                        catch { $removeError = $_.Exception.Message }
+                    }
+                    if ($null -ne $writeError) {
+                        Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'WARN' -Detail "Not writable by this account ($probe): $writeError"
+                    }
+                    elseif ($null -ne $removeError) {
+                        Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'WARN' -Detail "A file can be created in $probe but not removed ($removeError): the run could not replace the page it wrote before. The test file $testFile was left behind, remove it by hand."
                     }
                     else {
-                        Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'WARN' -Detail "Not writable by this account ($probe): $writeError"
+                        $note = if ($probe -ne $targetFolder) { " ($targetFolder will be created by the run)" } else { '' }
+                        Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'PASS' -Detail "Writable: $probe$note"
                     }
                 }
                 if ([string]::IsNullOrWhiteSpace($cockpitCheck.Url)) {
