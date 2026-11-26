@@ -98,6 +98,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only the runs of its own application and environment. Without the parameter the reader reads every file of the folder, as
   before. Archives of another environment that were already deleted by a retention are gone; nothing else changes (#120).
 
+- **The Failed timer jobs check reports in a real run again, and the collectors keep their default values.** A collector
+  handed its parameters to the remote script block as they were written by the caller, so a parameter that was left out and
+  kept its default (`-LookbackHours 24`, `-FailureThresholdPercent 5`, `-Farm 'SPS'`) reached the block empty. The entry
+  script calls `Get-SPSFailedTimerJob` with only `-Server`, `-InstallAccount` and `-Farm`: the look-back window was zero hours,
+  no run was ever inside it, and the check returned no row, so a timer job that failed was never reported. The collectors
+  that read a farm label now hand the block the value they resolved (`Get-SPSFailedTimerJob` also hands the look-back and the
+  threshold). The farm label of the other eleven collectors was already written by the entry script, so only the Failed timer
+  jobs result changes: a job that failed more often than the threshold over the last 24 hours now appears in the dashboard
+  and in the alerts of the email, which it did not before. `Get-SPSSqlStatus` already read its defaults safely and is
+  unchanged (#126).
+
 ## [3.4.1] - 2026-11-26
 
 ### Added

@@ -26,7 +26,7 @@
         $LookbackHours = 24
     )
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-        -Arguments $PSBoundParameters `
+        -Arguments @{ Farm = $Farm; FailureThresholdPercent = $FailureThresholdPercent; LookbackHours = $LookbackHours } `
         -Server $Server `
         -ScriptBlock {
         $params = $args[0]

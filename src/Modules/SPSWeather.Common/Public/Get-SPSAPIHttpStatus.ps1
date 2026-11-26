@@ -17,7 +17,7 @@
     )
 
     $result = Invoke-SPSCommand -Credential $InstallAccount `
-        -Arguments $PSBoundParameters `
+        -Arguments @{ Farm = $Farm } `
         -Server $Server `
         -ScriptBlock {
         $params = $args[0]
