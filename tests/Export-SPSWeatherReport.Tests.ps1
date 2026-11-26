@@ -60,6 +60,45 @@ Describe 'Dashboard renderer (Export-SPSWeatherReport)' {
         $summary.Ok | Should -Be 1
     }
 
+    Context 'View detail links' {
+        BeforeAll {
+            $script:cardLinks = @([regex]::Matches($dash, '<div class="foot"><a href="#(d-[A-Za-z0-9_-]+)">') | ForEach-Object { $_.Groups[1].Value })
+            $script:sectionIds = @([regex]::Matches($dash, '<details class="sec" id="(d-[A-Za-z0-9_-]+)"') | ForEach-Object { $_.Groups[1].Value })
+            $script:pageScript = [regex]::Match($dash, '(?s)<script>(.*?)</script>').Groups[1].Value
+        }
+
+        It 'gives every area card a link to a section that exists on the page' {
+            $cardLinks.Count | Should -BeGreaterThan 0
+            foreach ($id in $cardLinks) { $sectionIds | Should -Contain $id }
+        }
+
+        It 'opens the targeted <details> when a card link is clicked (a fragment never opens the target itself)' {
+            $pageScript | Should -Match "closest\('a\[href\^=`"#d-`"\]'\)"
+            $pageScript | Should -Match 'el\.tagName === ''DETAILS'''
+            $pageScript | Should -Match 'el\.open = true'
+        }
+
+        It 'also opens the section when the page is loaded or navigated with a #d-... fragment' {
+            $pageScript | Should -Match "addEventListener\('hashchange', fromLocation\)"
+            $pageScript | Should -Match '(?m)^\s*fromLocation\(\);'
+            $pageScript | Should -Match 'scrollIntoView'
+        }
+
+        It 'does not break on a malformed fragment' {
+            $pageScript | Should -Match '(?s)try \{ id = decodeURIComponent.*?catch \(e\) \{ return null; \}'
+        }
+
+        It 'carries no unexpanded PowerShell variable in the script' {
+            $pageScript | Should -Not -Match '\$\('
+            $pageScript.Length | Should -BeGreaterThan 100
+        }
+
+        It 'keeps the Expand all and Collapse all buttons' {
+            $dash | Should -Match "details\.sec'\)\.forEach\(function\(d\)\{d\.open=true\}\)"
+            $dash | Should -Match "details\.sec'\)\.forEach\(function\(d\)\{d\.open=false\}\)"
+        }
+    }
+
     It 'does not draw a fully red history bar for an info-only run' {
         $info = [PSCustomObject]@{}
         $info | Add-Member -MemberType NoteProperty -Name SYSLastRebootStatus -Value @(

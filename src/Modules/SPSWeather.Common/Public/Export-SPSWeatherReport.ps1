@@ -331,6 +331,29 @@ footer{max-width:1180px;margin:10px auto 36px;padding:0 20px;color:var(--muted);
   <div class="details">$($detailHtml.ToString())</div>
 </div>
 <footer><span>SPSWeather $(_enc $Version) &middot; $envLine</span><span>$(_enc (_t 'ExecutedBy')) $(_enc $ExecutedBy) &middot; $generated</span></footer>
+<script>
+// A fragment link only reveals a <details> that contains its target, never the <details> that is the target:
+// open the section of a card link (also on a second click, after the user closed it) and of a #d-... URL.
+(function () {
+  function reveal(hash) {
+    var id = '';
+    try { id = decodeURIComponent(String(hash).replace(/^#/, '')); } catch (e) { return null; }
+    var el = id ? document.getElementById(id) : null;
+    if (el && el.tagName === 'DETAILS') { el.open = true; return el; }
+    return null;
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[href^="#d-"]') : null;
+    if (a) { reveal(a.getAttribute('href')); }
+  });
+  function fromLocation() {
+    var el = reveal(location.hash);
+    if (el && el.scrollIntoView) { el.scrollIntoView(); }
+  }
+  window.addEventListener('hashchange', fromLocation);
+  fromLocation();
+})();
+</script>
 </body></html>
 "@
 
