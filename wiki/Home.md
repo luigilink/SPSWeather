@@ -4,7 +4,7 @@
 
 > SharePoint Server 2016 and 2019 reached end of support on **14 July 2026**.
 > Customers still running SharePoint Server 2016 or 2019 must stay on
-> [SPSWeather v2.4.0](https://github.com/luigilink/SPSWeather/releases/tag/v2.4.0).
+> [SPSWeather v2.4.1](https://github.com/luigilink/SPSWeather/releases/tag/v2.4.1).
 
 SPSWeather connects to each farm server over **CredSSP remoting**, collects SharePoint, Search, system/IIS and SQL signals, renders a single **HTML report optimized for email**, and raises an **ALERT** when something needs attention.
 
