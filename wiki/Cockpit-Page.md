@@ -1,7 +1,7 @@
 # Cockpit page
 
 The multi-farm page of an environment, the *cockpit*: **one self-contained HTML file** that shows every farm of the configuration, for
-management and for the IT team. It describes version **3.5.0** (in preparation). The page is read-only: it is built from the files that
+management and for the IT team. It describes version **3.5.0**. The page is read-only: it is built from the files that
 the runs leave in `Results\` (see [Cockpit data](Cockpit-Data)) and nothing is collected from the farms for it.
 
 ## Producing the page
