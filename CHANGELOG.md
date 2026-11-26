@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`config`, or `default` when the file does not set it, plus `invalid` when it held a value that could not be used)
   and the names listed in `ExclusionRules`. Nothing else of the configuration is recorded (no server, address,
   credential key, URL or path): the new function `Get-SPSWeatherRunSetting` builds the record from a fixed list of keys,
-  and keeps only the exclusion names that really exist (a typo, a server name or a path typed in `ExclusionRules` has no effect on the run and is not recorded). A journal written before this change is
+  and records the exclusions that the run really applies, asking the value of `ExclusionRules` the same question as the entry script does (`Contains('Name')`), so the record and the run agree whatever the form of the value; a typo, a server name or a path typed there excludes nothing and is not recorded. A journal written before this change is
   still valid. The multi-farm cockpit planned for 3.5.0 shows these values in its *Settings* tab (#117).
 - The footer of the per-farm dashboard says which configuration file the run used and which SQL thresholds it
   applied (`SQL backup max age`, `SQL free space minimum`), with `(default)` next to a value that the file does not

@@ -21,9 +21,12 @@
 
         Record holds only what is listed here, never "the configuration": the file name of the configuration
         (no folder), for each threshold its value and its source (config or default, plus invalid = true when
-        the configuration held a value that could not be used), and the names listed in ExclusionRules that are
-        real exclusion values (the fixed list below; a typo, a server name or a path typed there has no effect on
-        the run and is not recorded). No server name, address, credential key, URL or path is ever part of it.
+        the configuration held a value that could not be used), and the exclusions that the run really applies:
+        for each real exclusion value (the fixed list below) it asks the ExclusionRules value of the configuration
+        the same question as the entry script, $ExclusionRules.Contains('Name'), so the record and the run always
+        agree, whatever the form of the value (a list of names, or a single string). A typo, a server name or a
+        path typed there excludes nothing and is not recorded. The names are listed in the order of the fixed list.
+        No server name, address, credential key, URL or path is ever part of it.
 
         .PARAMETER Config
         The environment configuration (hashtable loaded from the .psd1).
@@ -96,15 +99,18 @@
         $thresholds[$name] = $entry
     }
 
+    # The entry script tests `$ExclusionRules.Contains('Name')` on the raw value of the configuration: an exact,
+    # case-sensitive element of a list, or a case-sensitive substring of a single string. Asking the same question
+    # of the same value is what keeps the record equal to what the run did.
+    $rawExclusions = $null
+    if ($null -ne $Config -and $Config.Contains('ExclusionRules')) { $rawExclusions = $Config['ExclusionRules'] }
     $names = New-Object -TypeName System.Collections.ArrayList
-    if ($null -ne $Config -and $Config.Contains('ExclusionRules')) {
-        foreach ($rule in @($Config['ExclusionRules'])) {
-            # -ceq: the entry script tests $ExclusionRules.Contains('Name'), which is case-sensitive on an array,
-            # so only an exact name has an effect, and only an exact name is recorded.
-            if ($rule -is [System.String] -and @($knownExclusions | Where-Object -FilterScript { $_ -ceq $rule }).Count -gt 0 -and $names -notcontains $rule) {
-                [void]$names.Add($rule)
-            }
+    foreach ($known in $knownExclusions) {
+        $excluded = $false
+        if ($null -ne $rawExclusions) {
+            try { $excluded = [bool]$rawExclusions.Contains($known) } catch { $excluded = $false }
         }
+        if ($excluded) { [void]$names.Add($known) }
     }
 
     $leaf = $null

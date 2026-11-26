@@ -122,9 +122,9 @@ Describe 'Get-SPSWeatherRunSetting' {
             (Get-SPSWeatherRunSetting -Config @{} -ConfigFile $File).Record.configFile | Should -BeNullOrEmpty
         }
 
-        It 'records the names of the exclusion rules once each, in order' {
-            $r = Get-SPSWeatherRunSetting -Config @{ ExclusionRules = @('WSPStatus', 'SQLDiskStatus', 'WSPStatus', 'TimerServiceStatus') }
-            @($r.Record.exclusionRules) | Should -Be @('WSPStatus', 'SQLDiskStatus', 'TimerServiceStatus')
+        It 'records the exclusions once each, always in the order of the fixed list (so two runs can be compared)' {
+            $r = Get-SPSWeatherRunSetting -Config @{ ExclusionRules = @('SQLDiskStatus', 'WSPStatus', 'WSPStatus', 'TimerServiceStatus') }
+            @($r.Record.exclusionRules) | Should -Be @('WSPStatus', 'TimerServiceStatus', 'SQLDiskStatus')
         }
 
         It 'accepts a single exclusion given as a string and an empty list' {
@@ -139,18 +139,56 @@ Describe 'Get-SPSWeatherRunSetting' {
             @($r.Record.exclusionRules) | Should -Be @('WSPStatus')
         }
 
-        It 'records an exclusion only with its exact spelling, as the entry script matches it case-sensitively' {
+        It 'records an exclusion only with its exact spelling, as the entry script matches it case-sensitively (list of names)' {
             @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = @('wspstatus', 'WSPSTATUS') }).Record.exclusionRules).Count | Should -Be 0
             @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = @('wspstatus', 'WSPStatus') }).Record.exclusionRules) | Should -Be @('WSPStatus')
         }
 
-        It 'does not let a trailing line break through (<Name>)' -ForEach @(
+        It 'does not count a list element that only contains a name (<Name>), as the entry script does not' -ForEach @(
             @{ Name = 'LF'; Typed = "WSPStatus`n" }
             @{ Name = 'CRLF'; Typed = "WSPStatus`r`n" }
             @{ Name = 'two LF'; Typed = "WSPStatus`n`n" }
             @{ Name = 'a space'; Typed = 'WSPStatus ' }
         ) {
             @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = @($Typed) }).Record.exclusionRules).Count | Should -Be 0
+        }
+
+        It 'agrees with the entry script on a single string: <Name>' -ForEach @(
+            @{ Name = 'a name followed by a space'; Raw = 'WSPStatus '; Expected = @('WSPStatus') }
+            @{ Name = 'a name followed by a line break'; Raw = "WSPStatus`r`n"; Expected = @('WSPStatus') }
+            @{ Name = 'several names in one string'; Raw = 'WSPStatus, SQLDiskStatus'; Expected = @('WSPStatus', 'SQLDiskStatus') }
+            @{ Name = 'one exact name'; Raw = 'WSPStatus'; Expected = @('WSPStatus') }
+            @{ Name = 'a wrong case'; Raw = 'wspstatus'; Expected = @() }
+            @{ Name = 'something unrelated'; Raw = 'SPWFE01'; Expected = @() }
+        ) {
+            @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = $Raw }).Record.exclusionRules) | Should -Be $Expected
+        }
+
+        It 'records exactly the exclusions that the entry script applies, for every shape of the value' -ForEach @(
+            @{ Raw = @('WSPStatus', 'SQLDiskStatus') }
+            @{ Raw = @('WSPStatus ', 'wspstatus') }
+            @{ Raw = 'WSPStatus ' }
+            @{ Raw = 'WSPStatus,SQLDiskStatus,TimerServiceStatus' }
+            @{ Raw = 'None' }
+            @{ Raw = @() }
+            @{ Raw = '' }
+            @{ Raw = 42 }
+        ) {
+            $known = @('None', 'APIHttpStatus', 'SPSiteHttpStatus', 'EvtViewerStatus', 'IISW3WPStatus', 'HealthStatus', 'WSPStatus', 'FailedTimerJob', 'TimerServiceStatus', 'SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus', 'SQLAvailabilityStatus', 'SQLAliasStatus')
+            # What the entry script does with $ExclusionRules = $envCfg.ExclusionRules
+            $ExclusionRules = $Raw
+            $applied = @($known | Where-Object { try { [bool]$ExclusionRules.Contains($_) } catch { $false } })
+            @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = $Raw }).Record.exclusionRules) | Should -Be $applied
+        }
+
+        It 'does not throw on a value of an unexpected type and records no exclusion' -ForEach @(
+            @{ Raw = $null }
+            @{ Raw = $true }
+            @{ Raw = @{ A = 1 } }
+            @{ Raw = [PSCustomObject]@{ A = 1 } }
+        ) {
+            { Get-SPSWeatherRunSetting -Config @{ ExclusionRules = $Raw } } | Should -Not -Throw
+            @((Get-SPSWeatherRunSetting -Config @{ ExclusionRules = $Raw }).Record.exclusionRules).Count | Should -Be 0
         }
 
         It 'knows every exclusion that the entry script tests, and the ones that the example configuration lists' {
