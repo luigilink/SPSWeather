@@ -41,6 +41,8 @@
     }
 
     $content = [System.IO.File]::ReadAllText($fullPath)
+    # ConvertFrom-Json unwraps a list of one object into that object: the root must be an object in the text itself.
+    if (-not $content.TrimStart().StartsWith('{')) { return $corrupt }
     try {
         $journal = ConvertFrom-Json -InputObject $content -ErrorAction Stop
     }

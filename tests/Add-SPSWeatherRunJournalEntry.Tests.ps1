@@ -403,7 +403,7 @@ Describe 'Read-SPSWeatherRunJournal (private)' {
 
     It 'reports Corrupt for invalid JSON, a missing runs list or an unknown schema' {
         InModuleScope SPSWeather.Common -Parameters @{ Dir = $TestDrive } {
-            foreach ($content in @('{ not json', '{"schemaVersion":1}', '{"runs":[]}', '[]', '{"schemaVersion":0,"runs":[]}', '{"schemaVersion":2,"runs":[]}', '{"schemaVersion":1,"runs":"bad"}', '{"schemaVersion":1,"runs":null}', '{"schemaVersion":1,"runs":{}}', '{"schemaVersion":1,"runs":7}')) {
+            foreach ($content in @('{ not json', '{"schemaVersion":1}', '{"runs":[]}', '[]', '{"schemaVersion":0,"runs":[]}', '{"schemaVersion":2,"runs":[]}', '{"schemaVersion":1,"runs":"bad"}', '{"schemaVersion":1,"runs":null}', '{"schemaVersion":1,"runs":{}}', '{"schemaVersion":1,"runs":7}', '[{"schemaVersion":1,"runs":[]}]')) {
                 $file = Join-Path -Path $Dir -ChildPath 'probe-runs.json'
                 [System.IO.File]::WriteAllText($file, $content)
                 (Read-SPSWeatherRunJournal -Path $file).Status | Should -Be 'Corrupt' -Because $content

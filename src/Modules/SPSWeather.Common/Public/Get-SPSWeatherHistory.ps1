@@ -41,27 +41,15 @@
     $series = foreach ($file in $files) {
         try { $obj = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json }
         catch { continue }
-        $ok = 0; $warn = 0; $fail = 0
-        foreach ($prop in $obj.PSObject.Properties) {
-            foreach ($row in @($prop.Value | Where-Object { $null -ne $_ })) {
-                switch (Get-SPSWeatherRowSeverity -Row $row) {
-                    'warn' { $warn++ }
-                    'fail' { $fail++ }
-                    default {
-                        # Only actual checks (IsInfo/severity) count toward OK, matching the
-                        # current-run donut so a run keeps the same OK total once archived.
-                        $n = $row.PSObject.Properties.Name
-                        if (($n -contains 'IsInfo') -or ($n -contains 'severity')) { $ok++ }
-                    }
-                }
-            }
-        }
+        # The same counting as the multi-farm page: only actual checks count toward OK, matching the
+        # current-run donut so a run keeps the same OK total once archived.
+        $summary = Get-SPSWeatherSnapshotSummary -Snapshot $obj
         [PSCustomObject]@{
             Date = $file.LastWriteTime.ToString('MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
             When = $file.LastWriteTime
-            Ok   = $ok
-            Warn = $warn
-            Fail = $fail
+            Ok   = $summary.Ok
+            Warn = $summary.Warn
+            Fail = $summary.Fail
         }
     }
     return @($series)
