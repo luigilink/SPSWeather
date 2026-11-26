@@ -64,6 +64,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Get-SPSWeatherHistory` (the bars of the dashboard) now counts with `Get-SPSWeatherSnapshotSummary`, the same
   function as the multi-farm page. The numbers are the same as before (#108).
 
+### Fixed
+
+- **The history of a farm is no longer shared between environments.** The archive folder of a farm
+  (`Results\history\<Farm>\`) is shared by the environments of an installation that name a farm the same (`CONTENT` in a
+  `PROD` and a `QUAL` configuration), and only the file name carries the application and the environment. The bars of the
+  dashboard showed the runs of every environment as their own, and the retention of one environment (`JsonHistoryRetentionDays`)
+  deleted the archives of the others. The retention now only removes the archives of its own file (the files whose name starts
+  with `<App>-<Env>-<Farm>-`), and `Get-SPSWeatherHistory` has an optional `-NamePrefix` that the entry script uses to read
+  only the runs of its own application and environment. Without the parameter the reader reads every file of the folder, as
+  before. Archives of another environment that were already deleted by a retention are gone; nothing else changes (#120).
+
 ## [3.4.1] - 2026-11-26
 
 ### Added
