@@ -5,19 +5,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [3.4.1] - 2026-11-26
-
 ### Added
 
-- **Run journal**: every run now appends one record to `Results\<App>-<Env>-runs.json` (new public function
+- **Run journal**: every run now appends one record to `Results\<App>-<Env>.runs.json` (new public function
   `Add-SPSWeatherRunJournalEntry`, private reader `Read-SPSWeatherRunJournal`): start time, duration, script version,
   display language, email mode, the outcome of the email (`sent`, `preview`, `disabled`, `failed`, `none`) and, for
   each configured farm, whether it was collected or unreachable with its counts of checks. A farm that cannot be
   reached leaves no JSON snapshot, so this journal is the only trace of it over time; the multi-farm cockpit page
-  planned for 3.5.0 reads it. Nothing new is collected from the farms. The file is written through a temporary file
-  that replaces the journal (a crash never truncates it), is pruned with `JsonHistoryRetentionDays` (0 keeps every
-  record) and never holds more than 1000 records. A journal that cannot be read is kept aside as `<name>.corrupt` and a
-  new one starts; a journal that cannot be written only produces a warning, never a failed run (#107).
+  planned for 3.5.0 reads it. Nothing new is collected from the farms. The name has a dot (`.runs.json`) so that it
+  can never be the name of the snapshot of a farm, which only holds letters, digits, `_` and `-`. The file is written
+  through a temporary file that replaces the journal (a crash never truncates it), is pruned with
+  `JsonHistoryRetentionDays` (0 keeps every record) and never holds more than 1000 records. Two overlapping runs
+  of the same environment (a manual run next to the scheduled task) are serialized with an exclusive lock on
+  `<name>.lock`, a small empty file that stays next to the journal, so neither loses its record; a run that cannot
+  get the lock within 20 seconds gives up with a warning. A journal that cannot be read (not valid JSON, `runs` is not
+  a list, newer schema) is kept aside as `<name>.corrupt` and a new one starts; fields of the journal that this
+  version does not know are kept when it is rewritten. A journal that cannot be written only produces a warning,
+  never a failed run (#107).
+
+### Changed
+
+- `Resolve-SPSSmtpSetting` also returns `SendRequested`: sending was asked for, even when a missing relay setting
+  turned `Send` off. The run journal uses it to record `failed` (an email was expected and none went out) instead of
+  `disabled` (#107).
+
+## [3.4.1] - 2026-11-26
+
+### Added
+
 - Issue template **Translation Request** (`.github/ISSUE_TEMPLATE/5_translation_request.yml`): asks for the
   culture name, how the requester can help (review as a native speaker, translate the file) and the
   SharePoint terminology to align on, with the new `localization` label. The wiki page *Localization* explains how to
