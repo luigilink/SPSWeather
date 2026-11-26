@@ -16,6 +16,7 @@ $script:SPSWeatherIdentityColumns = @{
     IISApplicationPoolStatus = @('Server', 'ApplicationPool')
     IISWorkerProcessStatus   = @('Server', 'ApplicationPool')
     IISWebSiteCertStatus     = @('Server', 'WebSiteName')
+    SYSEventViewerAppErrors  = @('Server', 'ID', 'Name')
     SYSDiskUsageStatus       = @('Server', 'DriveLetter')
     SYSLastRebootStatus      = @('Server')
     SYSDOTNETVersion         = @('Server')

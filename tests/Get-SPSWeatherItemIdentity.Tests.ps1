@@ -24,6 +24,7 @@ Describe 'Get-SPSWeatherItemIdentity' {
             @{ Section = 'SPHealthAnalyzer'; Row = [PSCustomObject]@{ farm = 'F'; title = 'Missing server side dependencies.'; severity = '1 - Error'; category = 'Configuration' }; Expected = 'Missing server side dependencies.' }
             @{ Section = 'SPAPIHttpStatus'; Row = [PSCustomObject]@{ Farm = 'F'; Title = 'Search REST'; Url = 'https://sp/_api/search'; HTTPCode = 500; Status = 'Failed'; IsInfo = $false }; Expected = 'Search REST / https://sp/_api/search' }
             @{ Section = 'SPFailedTimerJobs'; Row = [PSCustomObject]@{ farm = 'F'; server = 'APP1'; JobDefinitionTitle = 'Health Analysis'; FailedExecutions = 3; Status = 'Failed'; IsInfo = $false }; Expected = 'APP1 / Health Analysis' }
+            @{ Section = 'SYSEventViewerAppErrors'; Row = [PSCustomObject]@{ Farm = 'F'; Server = 'APP1'; ID = 1000; Severity = 'Error'; Name = '.NET Runtime'; Count = 7; IsInfo = $false }; Expected = 'APP1 / 1000 / .NET Runtime' }
             @{ Section = 'SPSContentDBStatus'; Row = [PSCustomObject]@{ farm = 'F'; SQLInstance = 'SQL1'; DatabaseName = 'WSS_Content_1'; DiskSize = '1 GB'; IsInfo = $true }; Expected = 'SQL1 / WSS_Content_1' }
         ) {
             (Get-Identity -Section $Section -Row $Row).Name | Should -Be $Expected

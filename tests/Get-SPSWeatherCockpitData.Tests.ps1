@@ -219,6 +219,61 @@ Describe 'Get-SPSWeatherCockpitData' {
         }
     }
 
+    Context 'an installation that runs several environments' {
+        It 'reads only the files of its own application and environment from a farm folder that they share' {
+            $res = New-Results
+            $folder = Join-Path -Path $res -ChildPath 'history/CONTENT'
+            New-Item -Path $folder -ItemType Directory -Force | Out-Null
+            $prod = Join-Path -Path $folder -ChildPath 'zebes-PROD-CONTENT-20261126-0900.json'
+            $test = Join-Path -Path $folder -ChildPath 'zebes-TEST-CONTENT-20261126-1100.json'
+            $other = Join-Path -Path $folder -ChildPath 'other-PROD-CONTENT-20261126-1200.json'
+            [System.IO.File]::WriteAllText($prod, (ConvertTo-Json -InputObject (New-Snap -Ok 5) -Depth 6))
+            [System.IO.File]::WriteAllText($test, (ConvertTo-Json -InputObject (New-Snap -Fail 4) -Depth 6))
+            [System.IO.File]::WriteAllText($other, (ConvertTo-Json -InputObject (New-Snap -Fail 9) -Depth 6))
+            (Get-Item $prod).LastWriteTime = $now.AddHours(-3)
+            (Get-Item $test).LastWriteTime = $now.AddHours(-2)
+            (Get-Item $other).LastWriteTime = $now.AddHours(-1)
+            $farm = Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT'
+            $farm.daily[0].ok | Should -Be 5
+            $farm.daily[0].fail | Should -Be 0
+            $farm.daily[0].snapshots | Should -Be 1
+            $farm.daily[0].weather | Should -Be 'sunny'
+            @($farm.attention).Count | Should -Be 0
+        }
+
+        It 'matches the prefix whatever the case of the file name (Windows file names)' {
+            $res = New-Results
+            $folder = Join-Path -Path $res -ChildPath 'history/CONTENT'
+            New-Item -Path $folder -ItemType Directory -Force | Out-Null
+            $file = Join-Path -Path $folder -ChildPath 'ZEBES-prod-content-20261126-0900.json'
+            [System.IO.File]::WriteAllText($file, (ConvertTo-Json -InputObject (New-Snap -Ok 3) -Depth 6))
+            (Get-Item $file).LastWriteTime = $now.AddHours(-1)
+            (Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT').daily[0].ok | Should -Be 3
+        }
+    }
+
+    Context 'data dated after today' {
+        It 'ignores a snapshot and a run that are dated after today, and still gives a page that ends today' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(2) -Snapshot (New-Snap -Fail 3) -Current)
+            Add-Run -Results $res -Started $now.AddDays(3) -Farm @([PSCustomObject]@{ Name = 'CONTENT'; Outcome = 'unreachable' })
+            $data = (Get-Data -Results $res -Farm 'CONTENT').Data
+            @($data.days) | Should -Be @('2026-11-26')
+            $data.period.firstDay | Should -Be '2026-11-26'
+            $data.period.lastDay | Should -Be '2026-11-26'
+            $farm = Get-Farm $data 'CONTENT'
+            $farm.daily[0] | Should -BeNullOrEmpty
+            @($farm.attention).Count | Should -Be 0
+            @($data.runs).Count | Should -Be 0
+        }
+
+        It 'keeps what happened later today' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(6) -Snapshot (New-Snap -Ok 2) -Current)
+            (Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT').daily[0].ok | Should -Be 2
+        }
+    }
+
     Context 'an unreachable farm' {
         It 'shows the unreachable runs of a farm that left no snapshot' {
             $res = New-Results
@@ -270,6 +325,28 @@ Describe 'Get-SPSWeatherCockpitData' {
             $item = @((Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT').attention)[0]
             $item.since | Should -Be '2026-11-24'
             $item.sinceIsLowerBound | Should -BeTrue
+        }
+
+        It 'flags a series as a lower bound when older snapshots exist outside the period' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-20) -Snapshot (New-Snap -Fail 1))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-3).AddHours(-1) -Snapshot (New-Snap -Fail 1))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Snapshot (New-Snap -Fail 1) -Current)
+            $item = @((Get-Farm (Get-Data -Results $res -Farm 'CONTENT' -Retention 7).Data 'CONTENT').attention)[0]
+            $item.since | Should -Be '2026-11-23'
+            $item.sinceIsLowerBound | Should -BeTrue
+        }
+
+        It 'follows an event viewer error although its count changes from one day to the next (real collector rows)' {
+            $res = New-Results
+            function script:New-EventSnap($count) { [PSCustomObject]@{ SYSEventViewerAppErrors = @([PSCustomObject]@{ Farm = 'CONTENT'; Server = 'APP1'; ID = 1000; Severity = 'Error'; Name = '.NET Runtime'; Count = $count; IsInfo = $false }) } }
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-2).AddHours(-1) -Snapshot (New-EventSnap 3))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-1).AddHours(-1) -Snapshot (New-EventSnap 5))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Snapshot (New-EventSnap 11) -Current)
+            $items = @((Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT').attention)
+            $items.Count | Should -Be 1
+            $items[0].since | Should -Be '2026-11-24'
+            $items[0].name | Should -Be 'APP1 / 1000 / .NET Runtime'
         }
 
         It 'does not let a day without snapshot (farm not reached) break the series' {

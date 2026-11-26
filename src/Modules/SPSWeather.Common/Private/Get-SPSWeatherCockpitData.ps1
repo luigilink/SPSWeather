@@ -7,8 +7,11 @@
         The per-farm dashboard reads the history of one farm. A page for the whole environment needs the history
         of every farm, the run journal and the settings in one structure. This function reads, read-only:
 
-          Results\history\<Farm>\*.json   the archived snapshots of each farm (the date of a snapshot is the
-                                          time the file was written, which the archive keeps)
+          Results\history\<Farm>\<App>-<Env>-<Farm>-*.json
+                                          the archived snapshots of each farm (the date of a snapshot is the
+                                          time the file was written, which the archive keeps). The folder of a
+                                          farm is shared by the environments of an installation that name a farm
+                                          the same: only the files of this application and environment are read
           Results\<App>-<Env>-<Farm>.json the snapshot of the last run of each farm
           Results\<App>-<Env>.runs.json   the run journal (see Add-SPSWeatherRunJournalEntry)
 
@@ -134,7 +137,7 @@
     foreach ($run in $journalRuns) {
         $when = [System.DateTimeOffset]::MinValue
         if (-not [System.DateTimeOffset]::TryParse("$($run.started)", $invariant, [System.Globalization.DateTimeStyles]::None, [ref]$when)) { continue }
-        if ($when.LocalDateTime.Date -lt $windowStart) { continue }
+        if ($when.LocalDateTime.Date -lt $windowStart -or $when.LocalDateTime.Date -gt $today) { continue }
         [void]$runsInPeriod.Add([PSCustomObject]@{ When = $when; Run = $run })
     }
     $runsInPeriod = @($runsInPeriod | Sort-Object -Property When)
@@ -163,15 +166,19 @@
     foreach ($safe in @($farmDisplay.Keys)) {
         $files = New-Object -TypeName System.Collections.ArrayList
         $farmHistory = Join-Path -Path $historyRoot -ChildPath $safe
+        $prefix = "$Application-$Environment-$safe-"
         if (Test-Path -LiteralPath $farmHistory) {
-            foreach ($f in @(Get-ChildItem -LiteralPath $farmHistory -Filter '*.json' -File -ErrorAction SilentlyContinue)) { [void]$files.Add($f) }
+            foreach ($f in @(Get-ChildItem -LiteralPath $farmHistory -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
+                if ($f.Name.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { [void]$files.Add($f) }
+            }
         }
         $current = Join-Path -Path $ResultsFolder -ChildPath "$Application-$Environment-$safe.json"
         if (Test-Path -LiteralPath $current -PathType Leaf) { [void]$files.Add((Get-Item -LiteralPath $current)) }
 
         $byDay = @{}
         foreach ($f in $files) {
-            if ($f.LastWriteTime.Date -lt $windowStart) { continue }
+            # Nothing dated after today (a clock that was ahead, restored files) belongs to a page that ends today.
+            if ($f.LastWriteTime.Date -lt $windowStart -or $f.LastWriteTime.Date -gt $today) { continue }
             $key = _day $f.LastWriteTime
             if (-not $byDay.ContainsKey($key)) { $byDay[$key] = New-Object -TypeName System.Collections.ArrayList }
             [void]$byDay[$key].Add($f)
@@ -191,7 +198,8 @@
                 [void]$skipped.Add($last.Name)
                 continue
             }
-            [void]$series.Add([PSCustomObject]@{ Day = $key; When = $last.LastWriteTime; Count = $byDay[$key].Count; Snapshot = $snapshot })
+            # Only the summary is kept: the parsed snapshot can be freed, whatever its size.
+            [void]$series.Add([PSCustomObject]@{ Day = $key; When = $last.LastWriteTime; Count = $byDay[$key].Count; Summary = (Get-SPSWeatherSnapshotSummary -Snapshot $snapshot) })
             if ($null -eq $earliest -or $last.LastWriteTime.Date -lt $earliest) { $earliest = $last.LastWriteTime.Date }
         }
         $farmSnapshots[$safe] = $series
@@ -227,7 +235,7 @@
     foreach ($safe in @($farmDisplay.Keys)) {
         $series = @($farmSnapshots[$safe])
         $summaries = New-Object -TypeName System.Collections.ArrayList
-        foreach ($point in $series) { [void]$summaries.Add((Get-SPSWeatherSnapshotSummary -Snapshot $point.Snapshot)) }
+        foreach ($point in $series) { [void]$summaries.Add($point.Summary) }
 
         $daily = New-Object -TypeName System.Collections.ArrayList
         foreach ($day in $days) {
