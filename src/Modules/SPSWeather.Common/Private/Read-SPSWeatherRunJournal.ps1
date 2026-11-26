@@ -6,8 +6,10 @@
         .DESCRIPTION
         Returns an object with a Status and the Runs found in the file at -Path:
         Missing (no file yet, first run), Ok, or Corrupt (the file is not valid JSON, has
-        an unexpected shape or comes from a newer schema). A journal that cannot be read is
-        never an error: Runs is then an empty array and the caller decides what to do.
+        an unexpected shape or comes from a newer schema). Runs is then an empty array and the
+        caller decides what to do. A file that exists but cannot be opened (sharing violation,
+        access denied) is NOT reported as Corrupt: the I/O exception is left to the caller, so a
+        healthy journal is never set aside because of a transient lock.
 
         The timestamp of each run ('started') is always returned as an ISO 8601 string, whatever
         the PowerShell version: PowerShell 7 turns date-like JSON strings into [datetime], which
@@ -37,8 +39,8 @@
         return $missing
     }
 
+    $content = [System.IO.File]::ReadAllText($fullPath)
     try {
-        $content = [System.IO.File]::ReadAllText($fullPath)
         $journal = ConvertFrom-Json -InputObject $content -ErrorAction Stop
     }
     catch {

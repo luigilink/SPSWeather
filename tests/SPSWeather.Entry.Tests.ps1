@@ -201,7 +201,7 @@ Describe 'Entry script run journal' {
     }
 
     It 'passes the run facts to the journal and keeps its size in line with the history retention' {
-        $entrySource | Should -Match '(?s)Add-SPSWeatherRunJournalEntry .*?-Started \$DateStarted.*?-Version \$spsWeatherVersion.*?-Language \$languageSetting\.Culture.*?-EmailMode \$smtpSetting\.Mode.*?-Mail \$mailOutcome.*?-Farm \$journalFarms.*?-RetentionDays \$jsonHistoryRetentionDays'
+        $entrySource | Should -Match '(?s)Add-SPSWeatherRunJournalEntry .*?-Started \$DateStarted.*?-Version \$spsWeatherVersion.*?-Language \$languageSetting\.Culture.*?-EmailMode \$smtpSetting\.Mode.*?-Mail \$mailOutcome.*?-Farm \$journalFarms.*?-RetentionDays \(\[uint32\]\[math\]::Max\(0, \$jsonHistoryRetentionDays\)\)'
     }
 
     It 'lists every configured farm, the unreachable ones included, in configuration order' {

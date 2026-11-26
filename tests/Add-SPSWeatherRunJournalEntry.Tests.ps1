@@ -89,8 +89,8 @@ Describe 'Add-SPSWeatherRunJournalEntry' {
             New-Entry -Path $file | Out-Null
             New-Entry -Path $file -Farm @() | Out-Null
             $raw = [System.IO.File]::ReadAllText($file)
-            $raw | Should -Match '"farms": \[\s*\{'
-            $raw | Should -Match '"farms": \[\]'
+            $raw | Should -Match '"farms":\s*\[\s*\{'
+            $raw | Should -Match '"farms":\s*\[\s*\]'
         }
 
         It 'keeps accents and special characters of a farm name' {
@@ -173,6 +173,22 @@ Describe 'Add-SPSWeatherRunJournalEntry' {
             [System.DateTimeOffset]::Parse((Get-StartedText -Path $file)[0]) | Should -Be ([System.DateTimeOffset]::Parse('2026-11-20T08:00:00+01:00'))
         }
 
+        It 'keeps the extra fields of a record even when they are nested deeply' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'deep-runs.json'
+            $json = '{"schemaVersion":1,"runs":[{"started":"2026-11-20T08:00:00+01:00","farms":[{"name":"A","extra":{"l1":{"l2":{"l3":{"l4":"deep value"}}}}}]}]}'
+            [System.IO.File]::WriteAllText($file, $json)
+            New-Entry -Path $file | Out-Null
+
+            [System.IO.File]::ReadAllText($file) | Should -Match 'deep value'
+        }
+
+        It 'accepts a retention far larger than any realistic one (keeps everything)' {
+            $file = Join-Path -Path $TestDrive -ChildPath 'huge-runs.json'
+            New-Entry -Path $file -Started (Get-Date).AddDays(-400) | Out-Null
+            New-Entry -Path $file -RetentionDays 4294967295 | Should -BeTrue
+            @((Read-Journal -Path $file).runs).Count | Should -Be 2
+        }
+
         It 'leaves no temporary file behind' {
             $folder = Join-Path -Path $TestDrive -ChildPath 'clean'
             $file = Join-Path -Path $folder -ChildPath 'x-runs.json'
@@ -197,6 +213,33 @@ Describe 'Add-SPSWeatherRunJournalEntry' {
             [System.IO.File]::WriteAllText($file, '{"schemaVersion":99,"runs":[]}')
             New-Entry -Path $file | Should -BeTrue
             [System.IO.File]::ReadAllText("$file.corrupt") | Should -Match '"schemaVersion":99'
+        }
+
+        It 'does not set a journal aside when it exists but cannot be read (transient I/O error, not corruption)' -Skip:([System.Environment]::OSVersion.Platform -ne 'Unix') {
+            $file = Join-Path -Path $TestDrive -ChildPath 'locked-unix-runs.json'
+            New-Entry -Path $file | Out-Null
+            $before = [System.IO.File]::ReadAllText($file)
+            & chmod 000 $file
+            try {
+                New-Entry -Path $file | Should -BeFalse
+            }
+            finally { & chmod 644 $file }
+            [System.IO.File]::ReadAllText($file) | Should -Be $before
+            Test-Path -Path "$file.corrupt" | Should -BeFalse
+        }
+
+        It 'returns $false, keeps the journal intact and leaves no temporary file while another process holds it open' -Skip:([System.Environment]::OSVersion.Platform -ne 'Win32NT') {
+            $file = Join-Path -Path $TestDrive -ChildPath 'locked-win-runs.json'
+            New-Entry -Path $file | Out-Null
+            $before = [System.IO.File]::ReadAllText($file)
+            $stream = [System.IO.File]::Open($file, 'Open', 'Read', 'None')
+            try {
+                New-Entry -Path $file | Should -BeFalse
+            }
+            finally { $stream.Dispose() }
+            [System.IO.File]::ReadAllText($file) | Should -Be $before
+            Test-Path -Path "$file.corrupt" | Should -BeFalse
+            @(Get-ChildItem -Path $TestDrive -Filter 'locked-win-runs.json.*.tmp').Count | Should -Be 0
         }
 
         It 'returns $false with a warning, and does not throw, when the journal cannot be written' {
@@ -234,7 +277,7 @@ Describe 'Read-SPSWeatherRunJournal (private)' {
             $result = Read-SPSWeatherRunJournal -Path $File
             $result.Status | Should -Be 'Ok'
             @($result.Runs)[0].started | Should -BeOfType [string]
-            @($result.Runs)[0].started | Should -Match '^2026-11-26T08:30:01'
+            [System.DateTimeOffset]::Parse(@($result.Runs)[0].started) | Should -Be ([System.DateTimeOffset]::Parse('2026-11-26T08:30:01+01:00'))
         }
     }
 

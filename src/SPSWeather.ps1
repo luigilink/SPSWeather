@@ -714,7 +714,7 @@ else {
                 -EmailMode $smtpSetting.Mode `
                 -Mail $mailOutcome `
                 -Farm $journalFarms `
-                -RetentionDays $jsonHistoryRetentionDays)
+                -RetentionDays ([uint32][math]::Max(0, $jsonHistoryRetentionDays)))
 
         # Clean the folder of log files (once per run).
         Clear-SPSLog -path $pathLogsFolder -Retention $logRetentionDays

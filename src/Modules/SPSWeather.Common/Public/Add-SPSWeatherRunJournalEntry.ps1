@@ -142,13 +142,14 @@
         $existing = Read-SPSWeatherRunJournal -Path $fullPath
         if ($existing.Status -eq 'Corrupt') {
             $aside = $fullPath + '.corrupt'
-            Move-Item -LiteralPath $fullPath -Destination $aside -Force
+            if ([System.IO.File]::Exists($aside)) { [System.IO.File]::Replace($fullPath, $aside, [NullString]::Value) }
+            else { [System.IO.File]::Move($fullPath, $aside) }
             Write-Warning -Message "SPSWeather run journal '$fullPath' could not be read: kept as '$aside', a new journal starts."
         }
 
         $runs = New-Object -TypeName System.Collections.ArrayList
         $cutoff = $null
-        if ($RetentionDays -gt 0) { $cutoff = [System.DateTimeOffset]::Now.AddDays(-[double]$RetentionDays) }
+        if ($RetentionDays -gt 0) { $cutoff = [System.DateTimeOffset]::Now.AddDays(-[System.Math]::Min([double]$RetentionDays, 36500)) }
         foreach ($run in @($existing.Runs)) {
             $when = [System.DateTimeOffset]::MinValue
             if (-not [System.DateTimeOffset]::TryParse("$($run.started)", $invariant, [System.Globalization.DateTimeStyles]::None, [ref]$when)) { continue }
@@ -158,10 +159,12 @@
         [void]$runs.Add($record)
         if ($runs.Count -gt $MaxEntries) { $runs.RemoveRange(0, $runs.Count - $MaxEntries) }
 
-        $json = ConvertTo-Json -InputObject ([ordered]@{ schemaVersion = 1; runs = $runs.ToArray() }) -Depth 6
+        $json = ConvertTo-Json -InputObject ([ordered]@{ schemaVersion = 1; runs = $runs.ToArray() }) -Depth 20
         $tempFile = '{0}.{1}.tmp' -f $fullPath, [System.Diagnostics.Process]::GetCurrentProcess().Id
         [System.IO.File]::WriteAllText($tempFile, $json, (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false))
-        Move-Item -LiteralPath $tempFile -Destination $fullPath -Force
+        # Replace swaps the content in one step (the journal never disappears) and throws on failure.
+        if ([System.IO.File]::Exists($fullPath)) { [System.IO.File]::Replace($tempFile, $fullPath, [NullString]::Value) }
+        else { [System.IO.File]::Move($tempFile, $fullPath) }
         $tempFile = $null
         return $true
     }
