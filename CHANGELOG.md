@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cockpit page**: new public function `Export-SPSWeatherCockpit` writes the multi-farm page of an environment as **one
+  self-contained HTML file** (style, script, data and strings inside, nothing loaded from outside, nothing collected from
+  the farms), built from the snapshots, the run journal and the settings that the runs leave in `Results`. Tabs:
+  Executive (health, days without failure, open attention items, collection, farms, trend, weather, items that need
+  attention), IT (causes grouped, farms by section, stability, detail per farm), Data quality, Collection tracking (run
+  journal) and Settings & method (settings in effect and their changes, how the figures are computed). The period, the
+  language, the theme and the tab are kept in the URL (`#tab=it&p=14&lang=fr-FR&theme=dark`); the page is responsive
+  from 390 px, keyboard accessible and follows the light or dark system setting. Every label comes from the resource
+  files (new `Cockpit...` keys in en-US and fr-FR) and the page holds every shipped language. Every value that comes from
+  the farms is HTML-escaped, and the embedded JSON cannot close the script element. A red banner replaces a blank page
+  when the script fails. The file is replaced in one step. The run does not produce the page yet (#111). New wiki page
+  *Cockpit page* (#109).
 - **Run journal**: every run now appends one record to `Results\<App>-<Env>.runs.json` (new public function
   `Add-SPSWeatherRunJournalEntry`, private reader `Read-SPSWeatherRunJournal`): start time, duration, script version,
   display language, email mode, the outcome of the email (`sent`, `preview`, `disabled`, `failed`, `none`) and, for

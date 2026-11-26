@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="{{HTMLLANG}}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>{{TITLE}}</title>
+<style>
+{{STYLE}}
+</style>
+</head>
+<body>
+<div id="spsw-error" class="err" role="alert" hidden></div>
+<header class="hdr" id="spsw-header"></header>
+<main class="wrap" id="spsw-main"></main>
+<footer class="foot" id="spsw-footer"></footer>
+<noscript><div class="err" role="alert">SPSWeather cockpit: JavaScript is required to display this page.</div></noscript>
+<script type="application/json" id="spsw-data">{{DATA}}</script>
+<script type="application/json" id="spsw-page">{{PAGE}}</script>
+<script>
+{{SCRIPT}}
+</script>
+</body>
+</html>

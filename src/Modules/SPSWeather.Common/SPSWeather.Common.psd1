@@ -17,6 +17,7 @@
         'Clear-SPSLog'
         'Compare-SPSWeatherSnapshots'
         'ConvertTo-SPSWeatherReport'
+        'Export-SPSWeatherCockpit'
         'Export-SPSWeatherReport'
         'Get-AppFabricStatus'
         'Get-SPSAPIHttpStatus'

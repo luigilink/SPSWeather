@@ -50,6 +50,7 @@ Describe 'SPSWeather.Common module' {
             'ConvertTo-SPSWeatherConsolidatedEmail'
             'ConvertTo-SPSWeatherEmailBody'
             'ConvertTo-SPSWeatherReport'
+            'Export-SPSWeatherCockpit'
             'Export-SPSWeatherReport'
             'Get-AppFabricStatus'
             'Get-SPSAPIHttpStatus'

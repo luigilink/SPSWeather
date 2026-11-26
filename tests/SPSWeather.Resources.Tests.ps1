@@ -103,6 +103,12 @@ Describe 'Resource keys versus the renderers' {
         $script:areaMap = Get-Content -Path (Join-Path -Path $repoRoot -ChildPath 'src/Modules/SPSWeather.Common/Private/Get-SPSWeatherEmailAreaMap.ps1') -Raw
         $script:both = $script:dashboard + "`n" + $script:email + "`n" + $script:consolidated
 
+        # The cockpit page reads its labels in its script: t('Key'), hasKey('Key'), or a key kept in a table of the script
+        $script:cockpitScript = Get-Content -Path (Join-Path -Path $repoRoot -ChildPath 'src/Modules/SPSWeather.Common/Assets/Cockpit.js') -Raw
+        $script:cockpitQuoted = @([regex]::Matches($script:cockpitScript, "'([A-Z]\w*)'") | ForEach-Object -Process { $_.Groups[1].Value } | Sort-Object -Unique)
+        $script:cockpitRequested = @([regex]::Matches($script:cockpitScript, "\b(?:t|hasKey)\('(\w+)'") | ForEach-Object -Process { $_.Groups[1].Value } | Where-Object -FilterScript { -not $_.EndsWith('_') } | Sort-Object -Unique)
+        $script:cockpitFamilies = @([regex]::Matches($script:cockpitScript, "'(\w+_)'\s*\+") | ForEach-Object -Process { $_.Groups[1].Value } | Sort-Object -Unique)
+
         # Keys written literally: _t 'Key' / _th 'Key'.
         $literal = @([regex]::Matches($script:both, "\b_th?\s+'(\w+)'") | ForEach-Object -Process { $_.Groups[1].Value })
         # Counted nouns: _count $n 'Base' uses BaseOne and BaseMany.
@@ -139,9 +145,25 @@ Describe 'Resource keys versus the renderers' {
 
     It 'has no dead key' {
         # 'Culture' is read by the loaders, not by the renderers' templates.
-        $used = @($script:literalKeys + $script:familyKeys + 'Culture')
-        $dead = @($script:reference.Keys | Where-Object -FilterScript { $used -notcontains $_ })
+        $used = @($script:literalKeys + $script:familyKeys + $script:cockpitQuoted + 'Culture')
+        $dead = @($script:reference.Keys | Where-Object -FilterScript {
+                $key = $_
+                ($used -notcontains $key) -and -not @($script:cockpitFamilies | Where-Object -FilterScript { $key.StartsWith($_) })
+            })
         $dead | Should -BeNullOrEmpty -Because 'a key that nothing uses is a translation effort for nothing'
+    }
+
+    It 'defines every key that the cockpit script asks for' {
+        $script:cockpitRequested.Count | Should -BeGreaterThan 100
+        $missing = @($script:cockpitRequested | Where-Object -FilterScript { -not $script:reference.ContainsKey($_) })
+        $missing | Should -BeNullOrEmpty -Because 'a label that is not defined would show its key name in the page'
+    }
+
+    It 'defines the keys of every family that the cockpit script builds' {
+        $script:cockpitFamilies | Should -Contain 'Section_'
+        foreach ($prefix in $script:cockpitFamilies) {
+            @($script:reference.Keys | Where-Object -FilterScript { $_.StartsWith($prefix) }).Count | Should -BeGreaterThan 0 -Because "no key starts with '$prefix'"
+        }
     }
 
     It '<Culture> has a date format that formats a date without throwing' -ForEach $allCultures {
