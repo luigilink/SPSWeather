@@ -9,7 +9,9 @@
     and decrypts under the current account (DPAPI), the session is elevated, and
     each farm server is reachable for CredSSP remoting.
 
-    Read-only: it never changes configuration, credentials or the farm.
+    Read-only: it never changes configuration, credentials or the farm. The only thing it writes is a small
+    temporary file, removed at once, to prove that the folder of the cockpit page accepts a file (when
+    Dashboard.Cockpit is on).
 
     .PARAMETER ConfigFile
     Path to the environment configuration .psd1 file (same one passed to
@@ -177,6 +179,59 @@ if ($null -ne $cfg) {
         }
         else {
             Add-CheckResult -Section 'Config' -Name "Key 'Language'" -Status 'SKIP' -Detail 'SPSWeather.Common is not loaded'
+        }
+    }
+
+    # Dashboard.Cockpit (optional): the multi-farm page. An invalid value is a WARN, never a FAIL: the run does not produce
+    # the page (Event ID 2001). When it is on, the folder that receives it must exist or be creatable and accept a file.
+    if ($cfg.Contains('Dashboard') -and ($cfg['Dashboard'] -is [System.Collections.IDictionary]) -and $cfg['Dashboard'].Contains('Cockpit')) {
+        if (Get-Command -Name Resolve-SPSCockpitSetting -ErrorAction SilentlyContinue) {
+            $cockpitCheck = Resolve-SPSCockpitSetting -Config $cfg -Application "$($cfg['ApplicationName'])" -Environment "$($cfg['ConfigurationName'])" -ResultsFolder (Join-Path -Path $PSScriptRoot -ChildPath 'Results')
+            if ($cockpitCheck.Messages.Count -gt 0) {
+                Add-CheckResult -Section 'Config' -Name "Key 'Dashboard.Cockpit'" -Status 'WARN' -Detail ($cockpitCheck.Messages -join ' ')
+            }
+            elseif (-not $cockpitCheck.Enabled) {
+                Add-CheckResult -Section 'Config' -Name "Key 'Dashboard.Cockpit'" -Status 'PASS' -Detail 'False: no cockpit page'
+            }
+            else {
+                Add-CheckResult -Section 'Config' -Name "Key 'Dashboard.Cockpit'" -Status 'PASS' -Detail "True: $($cockpitCheck.Path)"
+                # Read-only: a folder that does not exist is judged by its nearest existing parent, nothing is created
+                $probe = $cockpitCheck.Folder
+                $blockedBy = $null
+                while ($probe -and -not (Test-Path -LiteralPath $probe -PathType Container)) {
+                    # A part of the path that exists but is not a folder can never hold the page
+                    if (Test-Path -LiteralPath $probe -PathType Leaf) { $blockedBy = $probe; break }
+                    $probe = Split-Path -Path $probe -Parent
+                }
+                if ($null -ne $blockedBy) {
+                    Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'WARN' -Detail "$blockedBy is a file, not a folder: the run will not be able to write the page to $($cockpitCheck.Folder)"
+                }
+                elseif ([string]::IsNullOrWhiteSpace($probe)) {
+                    Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'WARN' -Detail "No existing folder found for $($cockpitCheck.Folder): the run will not be able to write the page"
+                }
+                else {
+                    $writeError = $null
+                    $testFile = Join-Path -Path $probe -ChildPath ('.spsweather-write-test-' + [guid]::NewGuid().ToString('N') + '.tmp')
+                    try { [System.IO.File]::WriteAllText($testFile, 'x'); Remove-Item -LiteralPath $testFile -Force -ErrorAction SilentlyContinue }
+                    catch { $writeError = $_.Exception.Message }
+                    if ($null -eq $writeError) {
+                        $note = if ($probe -ne $cockpitCheck.Folder) { " ($($cockpitCheck.Folder) will be created by the run)" } else { '' }
+                        Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'PASS' -Detail "Writable: $probe$note"
+                    }
+                    else {
+                        Add-CheckResult -Section 'Config' -Name 'Cockpit page folder' -Status 'WARN' -Detail "Not writable by this account ($probe): $writeError"
+                    }
+                }
+                if ([string]::IsNullOrWhiteSpace($cockpitCheck.Url)) {
+                    Add-CheckResult -Section 'Config' -Name 'Cockpit page link' -Status 'PASS' -Detail 'Dashboard.Url is empty: the consolidated email has no cockpit button'
+                }
+                else {
+                    Add-CheckResult -Section 'Config' -Name 'Cockpit page link' -Status 'PASS' -Detail $cockpitCheck.Url
+                }
+            }
+        }
+        else {
+            Add-CheckResult -Section 'Config' -Name "Key 'Dashboard.Cockpit'" -Status 'SKIP' -Detail 'SPSWeather.Common is not loaded'
         }
     }
 
