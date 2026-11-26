@@ -57,6 +57,7 @@
     $cultures = [ordered]@{}
     foreach ($folder in @(Get-ChildItem -Path $script:ModuleRoot -Directory | Where-Object -FilterScript { Test-Path -Path (Join-Path -Path $_.FullName -ChildPath $resourceFile) } | Sort-Object -Property Name)) {
         $table = Get-SPSWeatherResource -Language $folder.Name
+        if ($table.Culture -ne $folder.Name) { continue }
         $text = [ordered]@{}
         foreach ($key in @($table.Keys | Where-Object -FilterScript { $_ -match $embedded } | Sort-Object)) { $text[$key] = $table[$key] }
         $cultures[$folder.Name] = [ordered]@{ htmlLang = "$($table.HtmlLang)"; text = $text }
