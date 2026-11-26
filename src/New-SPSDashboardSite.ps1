@@ -5,7 +5,8 @@
     .DESCRIPTION
     One-time, idempotent helper that provisions the hosting target for the SPSWeather
     dashboard the same way the SPSConfigKit DSC pull-server dashboard is served: a folder
-    shared over SMB (so every farm server can write its *-dashboard.html there) and exposed
+    shared over SMB (so every farm server can write its *-dashboard.html, and the *-cockpit.html page when
+    Dashboard.Cockpit is on, there) and exposed
     through an IIS binding (so operators browse it over HTTP).
 
     It performs, in order (each step is idempotent and honors -WhatIf):
@@ -497,6 +498,8 @@ if (-not [string]::IsNullOrWhiteSpace($browseBase)) {
     Write-Host ''
     Write-Host 'Browse the dashboard (file name is derived per farm as <App>-<Env>-<Farm>-dashboard.html):' -ForegroundColor Gray
     Write-Host "    $browseBase/<App>-<Env>-<Farm>-dashboard.html" -ForegroundColor White
+    Write-Host 'The cockpit page (Dashboard.Cockpit = $true) is served from the same folder, with the same address base:' -ForegroundColor Gray
+    Write-Host "    $browseBase/<App>-<Env>-cockpit.html" -ForegroundColor White
     Write-Host ''
     Write-Host 'Set this base in your SPSWeather config so the email CTA links to the dashboard:' -ForegroundColor Gray
     Write-Host "    Dashboard = @{ Url = '$browseBase' }" -ForegroundColor White

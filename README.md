@@ -6,7 +6,7 @@
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**SPSWeather** is a PowerShell tool that produces a health-check dashboard of a SharePoint Server farm and emails a short alert summary to administrators. It collects SharePoint, Search, system/IIS and SQL signals over CredSSP remoting and renders a modern per-farm HTML dashboard (overall-health donut, 30-run history chart and functional-area cards), hosted on an IIS site, with a short alert-only email that links to it. See the [Dashboard](https://github.com/luigilink/SPSWeather/wiki/Dashboard) wiki page.
+**SPSWeather** is a PowerShell tool that produces a health-check dashboard of a SharePoint Server farm and emails a short alert summary to administrators. It collects SharePoint, Search, system/IIS and SQL signals over CredSSP remoting and renders a modern per-farm HTML dashboard (overall-health donut, 30-run history chart and functional-area cards), hosted on an IIS site, with a short alert-only email that links to it. An optional single-page **cockpit** (`Dashboard.Cockpit = $true`) shows every farm of the environment: health, trend, causes, run journal and the settings in effect. See the [Dashboard](https://github.com/luigilink/SPSWeather/wiki/Dashboard) and [Cockpit page](https://github.com/luigilink/SPSWeather/wiki/Cockpit-Page) wiki pages.
 
 Compatible with **SharePoint Server Subscription Edition**.
 

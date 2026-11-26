@@ -6,6 +6,14 @@ the runs leave in `Results\` (see [Cockpit data](Cockpit-Data)) and nothing is c
 
 ## Producing the page
 
+### From the run
+
+Set `Dashboard.Cockpit = $true` in the environment configuration (see [Dashboard](Dashboard#the-cockpit-page)). The run then writes `<App>-<Env>-cockpit.html` next to the dashboards
+(`Dashboard.OutputPath`, or `Results\`), at the **end of the run**, after the emails and the run journal. The key is optional and `$false` by default: nothing changes unless it is set.
+With `EmailMode = 'Consolidated'` and a `Dashboard.Url`, the consolidated email carries an *Open the cockpit* button. A failure to write the page is recorded (Event ID 3002) and never fails the run.
+
+### From a console
+
 The function `Export-SPSWeatherCockpit` builds the dataset and writes the file:
 
 ```powershell
@@ -14,8 +22,7 @@ Export-SPSWeatherCockpit -OutputFile .\Results\contoso-PROD-cockpit.html -Result
     -Application contoso -Environment PROD -FarmName CONTENT, SEARCH -RetentionDays 30 -Language en-US
 ```
 
-The file is written through a temporary file that replaces the page in one step, so a reader never sees a half-written page. The run
-does not call the function yet: the opt-in key that produces the page after every run comes in the same version.
+The file is written through a temporary file that replaces the page in one step, so a reader never sees a half-written page.
 
 ## One file, nothing loaded
 
