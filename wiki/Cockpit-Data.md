@@ -1,7 +1,7 @@
 # Cockpit data
 
 What a run leaves in `Results\` for the multi-farm page (the *cockpit*), and how it is read. It describes version **3.5.0** (in
-preparation): the page itself comes in a later version, and this page documents the data it is built from. Everything here is
+preparation): this page documents the data that the [Cockpit page](Cockpit-Page) is built from. Everything here is
 **read-only**: nothing is collected from the farms for it.
 
 ## Run journal
