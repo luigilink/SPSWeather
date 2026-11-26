@@ -75,6 +75,7 @@
     KpiWarnings      = 'Warnings'
     KpiChecksOk      = 'Checks OK'
     OpenDashboard    = 'Open full dashboard'
+    OpenCockpit      = 'Open the cockpit'
     FooterExecutedBy = 'executed by'
     FooterRun        = 'run'
     CountsSummary    = '{0} OK / {1} warn / {2} fail'
