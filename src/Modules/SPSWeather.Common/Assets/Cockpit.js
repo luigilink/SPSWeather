@@ -298,10 +298,13 @@
     if (!open.length) return say('good', 'CockpitNothingOpen');
     const top = ctx.complete ? topGroup(open, function (a) { return a.section + '|' + a.cause; }, function (a) { return a.cause; }) : null;
     if (top && top.items >= 2 && top.items * 2 >= open.length) return say('warn', 'CockpitInsightOpenCause', top.items, open.length, top.label);
-    const oldest = open.slice().sort(function (a, b) { return compare(a.since, b.since) || (a.severity === b.severity ? 0 : a.severity === 'fail' ? -1 : 1) || compare(a.farm, b.farm) || compare(a.name, b.name); })[0];
-    if (oldest.sinceIsLowerBound) return say('warn', 'CockpitInsightOpenOldestLower', oldest.name, dshort(oldest.since));
-    const f = farmOf(oldest), age = f && latestDay(f) ? daysBetween(oldest.since, latestDay(f)) : 0;
-    return age > 0 ? say('warn', 'CockpitInsightOpenOldest', oldest.name, age, dshort(oldest.since)) : say('warn', 'CockpitInsightOpenAllNew');
+    const aged = open.map(function (a) { const f = farmOf(a), last = f ? latestDay(f) : null; return { a: a, age: last ? daysBetween(a.since, last) : 0 }; });
+    aged.sort(function (x, y) {
+      return y.age - x.age || (y.a.sinceIsLowerBound ? 1 : 0) - (x.a.sinceIsLowerBound ? 1 : 0) || (x.a.severity === y.a.severity ? 0 : x.a.severity === 'fail' ? -1 : 1) || compare(x.a.since, y.a.since) || compare(x.a.farm, y.a.farm) || compare(x.a.name, y.a.name);
+    });
+    const oldest = aged[0];
+    if (oldest.a.sinceIsLowerBound) return say('warn', 'CockpitInsightOpenOldestLower', oldest.a.name, dshort(oldest.a.since));
+    return oldest.age > 0 ? say('warn', 'CockpitInsightOpenOldest', oldest.a.name, oldest.age, dshort(oldest.a.since)) : say('warn', 'CockpitInsightOpenAllNew');
   }
   function insightCollection(ctx) {
     const r = ctx.r, coll = ctx.coll;
@@ -310,30 +313,20 @@
     farms.forEach(function (f) {
       for (let i = r.from; i < r.to; i++) {
         const c = f.daily[i];
-        if (c && c.ok === null) { downDays++; if (!down || i >= down.i) down = { i: i, farm: f.name }; }
+        if (c && (c.ok === null || c.unreachable > 0)) { downDays++; if (!down || i >= down.i) down = { i: i, farm: f.name }; }
       }
     });
     if (down) return downDays === 1 ? say('warn', 'CockpitInsightCollectDown', down.farm, dshort(days[down.i])) : say('warn', 'CockpitInsightCollectDownMany', down.farm, dshort(days[down.i]), downDays);
     const missing = coll.expected - coll.collected;
     return missing > 0 ? say('warn', 'CockpitInsightCollectMissing', missing, coll.expected) : say('good', 'CockpitInsightCollectAll');
   }
-  function firstDataDay(f) { for (let i = 0; i < N; i++) if (hasData(f.daily[i])) return days[i]; return null; }
-  function failureStreak(f) {
-    let since = null;
-    for (let i = N - 1; i >= 0; i--) {
-      const c = f.daily[i];
-      if (!hasData(c)) continue;
-      if (c.fail > 0) since = days[i]; else break;
-    }
-    return { since: since, reachedStart: since !== null && since === firstDataDay(f) };
-  }
   function insightWeather(ctx) {
     if (!ctx.latests.length) return null;
     const rows = farms.map(function (f) { return { f: f, l: latest(f) }; }).filter(function (p) { return p.l; });
     const worst = rows.slice().sort(function (a, b) { return b.l.c.fail - a.l.c.fail || compare(a.f.name, b.f.name); })[0];
     if (worst.l.c.fail > 0) {
-      const s = failureStreak(worst.f);
-      return say('bad', s.reachedStart ? 'CockpitInsightWeatherSinceLower' : 'CockpitInsightWeatherSince', worst.f.name, dshort(s.since));
+      if (!worst.f.failingSince) return say('bad', 'CockpitInsightHealthFail', worst.l.c.fail);
+      return say('bad', worst.f.failingSinceIsLowerBound ? 'CockpitInsightWeatherSinceLower' : 'CockpitInsightWeatherSince', worst.f.name, dshort(worst.f.failingSince));
     }
     if (ctx.now.warn > 0) return say('warn', 'CockpitInsightWeatherWarn', ctx.now.warn);
     return say('good', 'CockpitInsightClear');

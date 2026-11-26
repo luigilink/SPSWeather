@@ -294,18 +294,29 @@
                     })
             }
         }
+        # Since when every snapshot of the farm has had failures: the unbroken series that ends at the latest snapshot
+        $failingSince = $null
+        $failingSinceIsLowerBound = $false
+        if ($series.Count -gt 0 -and $series[$series.Count - 1].Fail -gt 0) {
+            $first = $series.Count - 1
+            while ($first -gt 0 -and $series[$first - 1].Fail -gt 0) { $first-- }
+            $failingSince = $series[$first].Day
+            $failingSinceIsLowerBound = ($first -eq 0)
+        }
         $sorted = @($attention | Sort-Object -Property @{ Expression = { if ($_.severity -eq 'fail') { 0 } else { 1 } } }, @{ Expression = { $_.since } }, @{ Expression = { $_.id } })
         $total = $sorted.Count
         if ($sorted.Count -gt $MaxItemsPerFarm) { $sorted = @($sorted | Select-Object -First $MaxItemsPerFarm) }
 
         [void]$farms.Add([ordered]@{
-                name               = $farmDisplay[$safe]
-                daily              = $daily.ToArray()
-                latestSnapshot     = $latestSnapshot
-                snapshotsTruncated = $farmTruncated[$safe]
-                attention          = $sorted
-                attentionTotal     = $total
-                attentionTruncated = ($total -gt $sorted.Count)
+                name                     = $farmDisplay[$safe]
+                daily                    = $daily.ToArray()
+                latestSnapshot           = $latestSnapshot
+                snapshotsTruncated       = $farmTruncated[$safe]
+                failingSince             = $failingSince
+                failingSinceIsLowerBound = $failingSinceIsLowerBound
+                attention                = $sorted
+                attentionTotal           = $total
+                attentionTruncated       = ($total -gt $sorted.Count)
             })
     }
 

@@ -459,12 +459,19 @@ const block = id => new RegExp('<script type="application/json" id="' + id + '">
 const code = /<script>\n([\s\S]*)\n<\/script>\s*<\/body>/.exec(html)[1];
 const END = Date.UTC(2026, 10, 26);
 const iso = i => new Date(END - i * 86400000).toISOString().slice(0, 10);
-const cell = (ok, warn, fail) => ({ ok, warn, fail, weather: fail > 5 ? 'stormy' : fail > 0 ? 'cloudy' : warn > 0 ? 'fair' : 'sunny', snapshots: 1, unreachable: 0 });
+const cell = (ok, warn, fail, down) => ({ ok, warn, fail, weather: fail > 5 ? 'stormy' : fail > 0 ? 'cloudy' : warn > 0 ? 'fair' : 'sunny', snapshots: 1, unreachable: down || 0 });
 const DOWN = { ok: null, warn: null, fail: null, weather: null, snapshots: 0, unreachable: 1 };
 const OK = cell(10, 0, 0), BAD = cell(9, 0, 1), WARN = cell(9, 2, 0);
 const att = (farm, section, name, cause, since, o) => Object.assign({ farm, section, id: section + '|' + name, name, severity: 'fail', cause, detail: cause, count: 1, since: since, sinceIsLowerBound: false }, o || {});
 const rep = (n, c) => Array.from({ length: n }, () => c);
-function farm(name, daily, attention, o) { return Object.assign({ name, daily, latestSnapshot: '2026-11-26T06:00:00+01:00', snapshotsTruncated: false, attention: attention || [], attentionTotal: (attention || []).length, attentionTruncated: false }, o || {}); }
+function streak(daily) {
+  let first = -1;
+  for (let i = daily.length - 1; i >= 0; i--) { const c = daily[i]; if (!c || c.ok === null) continue; if (c.fail > 0) first = i; else break; }
+  if (first < 0) return { failingSince: null, failingSinceIsLowerBound: false };
+  const firstData = daily.findIndex(c => c && c.ok !== null);
+  return { failingSince: iso(daily.length - 1 - first), failingSinceIsLowerBound: first === firstData };
+}
+function farm(name, daily, attention, o) { return Object.assign({ name, daily, latestSnapshot: '2026-11-26T06:00:00+01:00', snapshotsTruncated: false, attention: attention || [], attentionTotal: (attention || []).length, attentionTruncated: false }, streak(daily), o || {}); }
 function run(data, hash) {
   const els = { 'spsw-data': { textContent: JSON.stringify(data) }, 'spsw-page': { textContent: block('spsw-page') }, 'spsw-error': { textContent: '', hidden: true }, 'spsw-header': { innerHTML: '' }, 'spsw-main': { innerHTML: '' }, 'spsw-footer': { innerHTML: '' } };
   const doc = { getElementById: id => els[id], querySelector: () => null, addEventListener() {}, title: '', documentElement: { setAttribute() {}, lang: '' } };
@@ -500,6 +507,20 @@ const cases = [
   ['one cause shared by most items', () => data([farm('A', [...rep(13, OK), cell(6, 0, 4)], [...sqlItems(3, 'no full backup found'), att('A', UP, 's', 'other', '2026-11-20')])], 14), /3 of the 4 items share one cause: no full backup found\./],
   ['equal causes: the first in order wins', () => data([farm('A', [...rep(13, OK), cell(6, 0, 4)], [att('A', SQL, 'a1', 'b cause', '2026-11-20'), att('A', SQL, 'a2', 'b cause', '2026-11-20'), att('A', SQL, 'a3', 'a cause', '2026-11-20'), att('A', SQL, 'a4', 'a cause', '2026-11-20')])], 14), /2 of the 4 items share one cause: a cause\./],
   ['oldest item', () => data([farm('A', [...rep(13, OK), cell(6, 0, 3)], [att('A', SQL, 'itemA', 'c1', '2026-11-21'), att('A', SQL, 'itemB', 'c2', '2026-11-23'), att('A', SQL, 'itemC', 'c3', '2026-11-25')])], 14), /The oldest item is itemA, open for 5 day\(s\), since 11\/21\./],
+  ['every item is new only when each is new in its own farm (a farm that stopped being collected earlier does not hide an older item)', () => {
+    const a = farm('A', [...rep(7, OK), BAD, ...rep(6, null)], [att('A', SQL, 'itemA', 'c1', '2026-11-20')], { latestSnapshot: '2026-11-20T06:00:00+01:00' });
+    const b = farm('B', [...rep(8, OK), ...rep(6, BAD)], [att('B', SQL, 'itemB', 'c2', '2026-11-21')]);
+    return data([a, b], 14);
+  }, /The oldest item is itemB, open for 5 day\(s\), since 11\/21\./, /Every item appeared/],
+  ['every item is new in its own farm, on different days', () => {
+    const a = farm('A', [...rep(7, OK), BAD, ...rep(6, null)], [att('A', SQL, 'itemA', 'c1', '2026-11-20')], { latestSnapshot: '2026-11-20T06:00:00+01:00' });
+    const b = farm('B', [...rep(13, OK), BAD], [att('B', SQL, 'itemB', 'c2', '2026-11-26')]);
+    return data([a, b], 14);
+  }, /Every item appeared at the latest snapshot\./],
+  ['a farm unreachable in the morning and collected later the same day is not collected every day', () => data([farm('A', [...rep(12, OK), cell(10, 0, 0, 1), OK])], 14), /A could not be reached on 11\/25\./, /Every farm was collected/],
+  ['failures since the date of the dataset, not since the walk back through the days', () => data([farm('A', rep(14, BAD), [], { failingSince: '2026-11-26', failingSinceIsLowerBound: false })], 14), /A has had failures at every snapshot since 11\/26\./, /since 11\/13/],
+  ['failures since the dataset says it is only a lower bound', () => data([farm('A', rep(14, BAD), [], { failingSince: '2026-11-13', failingSinceIsLowerBound: true })], 14), /A has had failures at every snapshot since 11\/13 or before\./],
+  ['failures and no streak in the dataset: the sentence does not guess', () => data([farm('A', rep(14, BAD), [], { failingSince: null, failingSinceIsLowerBound: false })], 14), /1 check\(s\) failing at the latest snapshot\./, /every snapshot since/],
   ['oldest item: equal dates are told apart by name, whatever the input order', () => data([farm('A', [...rep(13, OK), cell(6, 0, 3)], [att('A', SQL, 'itemB', 'c2', '2026-11-21'), att('A', SQL, 'itemA', 'c1', '2026-11-21'), att('A', SQL, 'itemC', 'c3', '2026-11-25')])], 14), /The oldest item is itemA, open for 5 day/],
   ['oldest item: equal dates, a failure comes before a warning', () => data([farm('A', [...rep(13, OK), cell(6, 0, 3)], [att('A', SQL, 'itemA', 'c1', '2026-11-21', { severity: 'warn' }), att('A', SQL, 'itemB', 'c2', '2026-11-21'), att('A', SQL, 'itemC', 'c3', '2026-11-25')])], 14), /The oldest item is itemB, open for 5 day/],
   ['oldest item, lower bound', () => data([farm('A', [...rep(13, OK), cell(6, 0, 2)], [att('A', SQL, 'itemA', 'c1', '2026-11-13', { sinceIsLowerBound: true }), att('A', SQL, 'itemB', 'c2', '2026-11-23')])], 14), /The oldest item is itemA, open since 11\/13 or before\./],
@@ -534,7 +555,7 @@ console.log(JSON.stringify(results));
         # Windows PowerShell 5.1 hands a JSON array over as one object: assign first, then count
         $out = & $script:nodePath $harness $script:file | ConvertFrom-Json
         $out = @($out)
-        $out.Count | Should -BeGreaterOrEqual 33
+        $out.Count | Should -BeGreaterOrEqual 39
         $failed = @($out | Where-Object -FilterScript { -not $_.ok } | ForEach-Object -Process { "$($_.name) => $($_.error) $($_.text -replace "`n", ' / ')" })
         $failed | Should -BeNullOrEmpty
     }
