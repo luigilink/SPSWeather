@@ -8,6 +8,7 @@
 - [🩺 Health Checks](Health-Checks)
 - [📊 Dashboard](Dashboard)
 - [🗂 Cockpit data](Cockpit-Data)
+- [🧭 Cockpit page](Cockpit-Page)
 - [🌐 Localization](Localization)
 - [📦 Release Process](Release-Process)
 
