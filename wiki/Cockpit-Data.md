@@ -1,7 +1,8 @@
 # Cockpit data
 
-What a run leaves in `Results\` for the multi-farm page (the *cockpit*), and how it is read. The page itself comes in a later
-version; this page documents the data it is built from. Everything here is **read-only**: nothing is collected from the farms for it.
+What a run leaves in `Results\` for the multi-farm page (the *cockpit*), and how it is read. It describes version **3.5.0** (in
+preparation): the page itself comes in a later version, and this page documents the data it is built from. Everything here is
+**read-only**: nothing is collected from the farms for it.
 
 ## Run journal
 
@@ -12,9 +13,19 @@ snapshot of a farm (`<App>-<Env>-<Farm>.json`, where a farm name only keeps lett
 |---|---|
 | `started`, `durationSeconds` | When the run started (ISO 8601 with the offset) and how long it took. |
 | `version`, `language`, `emailMode` | Version of SPSWeather, display language, `PerFarm` or `Consolidated`. |
-| `mail` | `sent`, `preview`, `disabled`, `failed` (an email was expected and none went out, including a missing relay setting) or `none` (nothing to send, for example every farm unreachable). |
+| `mail` | The outcome of the email, see below. |
 | `farms` | For each configured farm: `name`, `outcome` (`ok` or `unreachable`) and, when it was reached, `ok`, `warn` and `fail`. A farm that cannot be reached leaves no JSON snapshot, so this is its only trace over time. |
 | `settings` | The settings in effect, see below. Absent in a journal written before 3.5.0. |
+
+The `mail` outcome:
+
+| Value | Meaning |
+|---|---|
+| `sent` | Every email that was expected went out: one per reached farm in `PerFarm` mode, the single email in `Consolidated` mode. |
+| `preview` | Sending is off and the preview file was written. |
+| `disabled` | Neither sending nor the preview is on. |
+| `failed` | At least one expected email did not go out: a send error (in `PerFarm` mode, one farm whose email fails makes the run `failed` even if the others went out), or sending was requested and a relay setting (server, sender or recipient) is missing. |
+| `none` | Sending is on and there was nothing to send. In `PerFarm` mode an unreachable farm gets no email, so `none` means that every farm was unreachable. In `Consolidated` mode the email is still sent, with a card for each unreachable farm: `none` only happens when no farm is configured. |
 
 How it is written:
 
@@ -42,8 +53,14 @@ Each record of the journal says which thresholds the run really used, so that "w
 Nothing else of the configuration is recorded: no server, address, credential key, URL or path. The list of keys is fixed in
 `Get-SPSWeatherRunSetting`, which is also the only place that resolves these thresholds.
 
-A threshold must be a whole number of 0 or more. Anything else (`abc`, a blank, `-1`) is reported (transcript, Event ID 2001) and the
-default is used. `EmailMaxItemsPerArea` keeps its rule that a negative number counts as 0.
+A threshold is converted to a whole number first, then it must be 0 or more:
+
+- `8.4` counts as `8`, `8.5` as `8` and `9.5` as `10` (rounding to the nearest even number, as .NET does), and the text `'8'` as `8`,
+  without any message.
+- A key that is missing, or set to `$null`, takes its default silently (source `default`).
+- A value that cannot be converted (`abc`), a blank string or a negative number is reported (transcript, Event ID 2001) and the default is
+  used (`invalid: true` in the record).
+- `EmailMaxItemsPerArea` is the exception for a negative number: it counts as 0, which lists everything, without any message.
 
 The footer of the per-farm dashboard shows the configuration file and the SQL thresholds applied, with `(default)` next to a value
 that the file does not set.
@@ -80,8 +97,10 @@ Rules:
 - **Weather.** No failure and no warning is `sunny`, no failure is `fair`, up to 5 failures is `cloudy`, more is `stormy` (the rule of the
   per-farm dashboard).
 - **Counting.** One function counts a snapshot (OK, warnings, failures) for the bars of the dashboard and for the page, so they cannot disagree.
-- **Several environments.** The archive folder of a farm is shared by the environments of an installation that name a farm the same;
-  only the files named `<App>-<Env>-<Farm>-*.json` are read, and the retention of one environment only removes its own archives.
+- **Several environments.** The archive folder of a farm is shared by the environments of an installation that name a farm the same.
+  The dataset only reads the files named `<App>-<Env>-<Farm>-*.json`. Since 3.5.0 the retention of an environment also only removes its
+  own archives (#120); in 3.4.1 and before it removed every `.json` of the folder that was older than its own retention, so environments
+  that share a farm folder lose each other's history unless they use the same retention.
 - **Limits.** At most 400 snapshots are read for a farm (the most recent ones, flagged with `snapshotsTruncated`) and 300 items are listed
   for a farm (`attentionTruncated`).
 - **Files that cannot be used** (missing, empty, not valid JSON, the root is not an object, a list of one object) are skipped with a warning
