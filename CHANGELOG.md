@@ -19,6 +19,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the farms is HTML-escaped, and the embedded JSON cannot close the script element. A red banner replaces a blank page
   when the script fails. The file is replaced in one step. The run does not produce the page yet (#111). New wiki page
   *Cockpit page* (#109).
+- **Cockpit page, produced by the run (opt-in)**: new optional key `Dashboard.Cockpit` (a boolean, `$false` by default). When it is `$true` the run writes
+  `<App>-<Env>-cockpit.html` into `Dashboard.OutputPath` (`Results` when it is empty), at the end of the run: after the emails, so it never delays an
+  alert, and after the run journal, so it shows the run that has just finished. With the key absent or `$false` a run writes exactly what it wrote
+  before, and the consolidated email is byte for byte the one of 3.4.1 (the tests compare it with the body that 3.4.1 produces). With
+  `EmailMode = 'Consolidated'` and a `Dashboard.Url`, the consolidated email gets an *Open the cockpit* button (new `OpenCockpit` string in en-US and
+  fr-FR, `-CockpitUrl` parameter of `ConvertTo-SPSWeatherConsolidatedEmail`); without `Url` there is no button. The key is read in one place, the new
+  public function `Resolve-SPSCockpitSetting`: only `$true`, `$false` and their text forms are accepted, any other value (`'maybe'`, a number, `$null`) is
+  reported (transcript, Event ID 2001, readiness `[WARN]`) and the page is not produced; a value is never cast, since the text `'false'` would become
+  `$true`. A failure to write the page (a share that is down, a folder that refuses the file) is written in the transcript and recorded in the Event
+  Log with the new ID **3002**; the run goes on. `Test-SPSWeatherReadiness.ps1` reports the key, the page it will write, whether the folder accepts a file
+  (a small temporary file written and removed at once, a folder that lets a file be created but not removed is a warning; a relative folder is made
+  absolute the way the run does; a folder that does not exist yet is judged by its nearest existing parent and is not created, and
+  a path that goes through a file is reported) and the address of the button. `New-SPSDashboardSite.ps1` documents that the same folder serves the
+  page, and prints its address. Example configuration and wiki (*Configuration*, *Dashboard*, *Usage*, *Health Checks*, *Cockpit page*) updated (#111).
 - **Insight sentences on the cockpit page**: the four cards of the Executive tab and the weather card now say what their figure
   means, with fixed rules on the data (no external service, the same data always gives the same text): the change of health against the
   average of the previous period and the section where most failures are, the last day without failure, the cause shared by most open

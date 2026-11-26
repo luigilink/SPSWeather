@@ -32,6 +32,10 @@
         Display language: a culture name such as 'fr-FR', 'auto' (UI culture of the process) or
         nothing for en-US. An unknown language falls back to en-US.
 
+        .PARAMETER CockpitUrl
+        Address of the cockpit page of the environment. When it is not empty, a button to it is shown under the totals;
+        empty (the default) leaves the email exactly as it was.
+
         .EXAMPLE
         $mail = ConvertTo-SPSWeatherConsolidatedEmail -FarmResult $farmResults `
             -Application 'zebes' -Environment 'PROD' -Language 'fr-FR'
@@ -73,7 +77,11 @@
 
         [Parameter()]
         [System.String]
-        $Language = 'en-US'
+        $Language = 'en-US',
+
+        [Parameter()]
+        [System.String]
+        $CockpitUrl = ''
     )
 
     function _enc([object]$v) {
@@ -282,6 +290,11 @@
     elseif ($nAttention -eq 1) { _th 'IntroFarmsOne' $ofTotal "<b>$envText</b>" }
     else { _th 'IntroClear' "<b>$envText</b>" }
 
+    $cockpitHtml = ''
+    if (-not [string]::IsNullOrWhiteSpace($CockpitUrl)) {
+        $cockpitHtml = "<tr><td style=`"padding:4px 26px 8px;`"><table role=`"presentation`" cellpadding=`"0`" cellspacing=`"0`"><tr><td style=`"border:1px solid #2b5797;border-radius:8px;`"><a href=`"$(_enc $CockpitUrl.Trim())`" style=`"display:inline-block;padding:8px 16px;color:#2b5797;font-size:12px;font-weight:700;text-decoration:none;`">$(_enc (_t 'OpenCockpit')) &rarr;</a></td></tr></table></td></tr>"
+    }
+
     $body = @"
 <!DOCTYPE html>
 <html lang="$(_enc (_t 'HtmlLang'))" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -311,7 +324,7 @@
       <td width="33%" align="center" style="padding:10px;background:#e6f7ee;border-radius:10px;"><div style="font-size:26px;font-weight:800;color:#2fae66;line-height:1;">$totalOk</div><div style="font-size:11px;color:#2c6b48;text-transform:uppercase;letter-spacing:.05em;">$(_enc (_t 'KpiChecksOk'))</div></td>
     </tr></table>
   </td></tr>
-  <tr><td style="padding:14px 26px 8px;font-size:14px;color:#1b2733;">$intro</td></tr>
+  <tr><td style="padding:14px 26px 8px;font-size:14px;color:#1b2733;">$intro</td></tr>$cockpitHtml
   <tr><td style="padding:6px 26px 10px;">$($cardsHtml.ToString())</td></tr>
   <tr><td style="background:#f6f8fb;border-top:1px solid #e3e8ef;padding:14px 26px;font-size:11px;color:#9aa4b2;">SPSWeather $(_enc $Version) &middot; $(_enc (_t 'FooterExecutedBy')) $(_enc $ExecutedBy) &middot; $(_enc (_t 'FooterRun')) $(_enc $Duration) &middot; $(_enc (_t 'FooterFarmsQueried' $nQueried $nFarms)).</td></tr>
 </table>

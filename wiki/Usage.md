@@ -59,6 +59,7 @@ Each run writes, next to `SPSWeather.ps1`:
 
 - `Results\<app>-<env>-<date>.html` — the HTML report (also used as the email body).
 - `Results\<app>-<env>-<date>.json` — a JSON snapshot of the collected data.
+- `Results\<app>-<env>-cockpit.html` (or `Dashboard.OutputPath`) — only with `Dashboard.Cockpit = $true`: the [Cockpit page](Cockpit-Page), written at the end of the run.
 - `Results\<app>-<env>.runs.json` — the run journal: one small record per run (start, duration, version, email outcome, and for each farm collected or unreachable with its counts). It is the only trace of a farm that could not be reached, and is pruned with `JsonHistoryRetentionDays`. The empty `.runs.json.lock` file next to it serializes two runs that overlap; keep it. Each record also holds the settings the run used: the name of the configuration file (no folder), the value of each threshold with its source (`config`, or `default` when the file does not set it) and the exclusions that the run really applied (`ExclusionRules`, real exclusion values only). Nothing else from the configuration is recorded.
 - `Logs\<app>-<env>-<date>.log` — the PowerShell transcript. Logs older than the retention window are pruned automatically.
 
@@ -90,9 +91,10 @@ SPSWeather writes lifecycle entries to a dedicated **`SPSWeather`** Windows Even
 | 1000 | Information | A health-check run started. |
 | 1001 | Information | The run completed with no alert. |
 | 2000 | Warning | The run completed with **ALERT** conditions. |
-| 2001 | Warning | A configuration setting needs attention: the email settings (invalid `SMTPEnabled`/`SMTPPreview`, missing relay setting so no email is sent, deprecated `-EnableSmtp`) an `EmailMode` other than `PerFarm` or `Consolidated` (one email per farm is used) or a `Language` that is not available (English is used). |
+| 2001 | Warning | A configuration setting needs attention: the email settings (invalid `SMTPEnabled`/`SMTPPreview`, missing relay setting so no email is sent, deprecated `-EnableSmtp`) an `EmailMode` other than `PerFarm` or `Consolidated` (one email per farm is used) or a `Language` that is not available (English is used), or a `Dashboard.Cockpit` that is not a boolean (the cockpit page is not produced). |
 | 3000 | Error | The report email (or the consolidated email) could not be built or sent. |
 | 3001 | Error | A farm server was unreachable over CredSSP and was skipped. |
+| 3002 | Error | The cockpit page (`Dashboard.Cockpit = $true`) could not be written. The run goes on; the dashboards and the emails are not affected. |
 
 Each event header records the SPSWeather version, the user and the computer name:
 

@@ -91,9 +91,16 @@
     #                <App>-<Env>-<Farm>-dashboard.html. Empty = Results\ (local only).
     #   Url        : public base URL serving that folder over IIS. The email button
     #                points to <Url>/<App>-<Env>-<Farm>-dashboard.html. Empty = no button.
+    #   Cockpit    : $true also writes <App>-<Env>-cockpit.html, the page that shows every
+    #                farm of the environment (health, trend, causes, run journal, settings),
+    #                in OutputPath (Results\ when empty). Written at the end of the run, after
+    #                the emails; a failure to write it never fails the run. With
+    #                EmailMode = 'Consolidated' and a Url, the email gets a button to it.
+    #                Optional, $false by default: nothing changes unless it is set.
     Dashboard                   = @{
         OutputPath = ''
         Url        = ''
+        Cockpit    = $false
     }
 
     # Farms : one entry per trusted farm to check. Server is the short name; the

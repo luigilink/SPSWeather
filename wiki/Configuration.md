@@ -54,7 +54,7 @@ Copy `Config\CONTOSO-PROD.example.psd1` and edit it:
 | `Language` | Optional. Display language of the dashboard and the alert email: `en-US` (default) or `fr-FR`, or `auto` for the UI culture of the account that runs the script. Only the labels are translated; the values of the checks stay as collected. An unknown value falls back to English with a warning. See [Localization](Localization). |
 | `CredentialKey` | Name of the entry in `secrets.psd1` that holds the service credential. |
 | `ExclusionRules` | Checks to skip (see below). |
-| `Dashboard` | `@{ OutputPath; Url }` — where the per-farm dashboard HTML is written and the public IIS base used for the email CTA (see [Dashboard](Dashboard)). |
+| `Dashboard` | `@{ OutputPath; Url; Cockpit }` — where the per-farm dashboard HTML is written, the public IIS base used for the email CTA, and `Cockpit`, an optional boolean (default `$false`): `$true` also writes the multi-farm [Cockpit page](Cockpit-Page) `<App>-<Env>-cockpit.html` next to the dashboards (see [Dashboard](Dashboard)). A value that is not a boolean is reported (transcript, Event ID 2001, readiness `[WARN]`) and the page is not produced. |
 | `Farms` | One entry per trusted farm: `Name`, the short `Server` name, and an optional `SqlServers` array (the cliconfg alias(es) or SQL server name(s) the farm uses, for alias resolution and declared-vs-discovered validation). |
 
 ### ExclusionRules

@@ -42,6 +42,7 @@ Add a `Dashboard` block to your environment config:
 Dashboard = @{
     OutputPath = '\\pull01\SPSWeather$'              # folder/share the farm servers write to
     Url        = 'https://pull.contoso.com/spsweather' # public IIS base serving that folder
+    Cockpit    = $true                               # optional: also write the multi-farm cockpit page
 }
 ```
 
@@ -49,6 +50,27 @@ Dashboard = @{
 |---|---|
 | `OutputPath` | Folder (local or UNC share) that receives `<App>-<Env>-<Farm>-dashboard.html`. Empty = `Results\` (local only). |
 | `Url` | Public base URL serving that folder over IIS. The email button links to `<Url>/<App>-<Env>-<Farm>-dashboard.html`. Empty = no button. |
+| `Cockpit` | Optional boolean, `$false` by default. `$true` also writes `<App>-<Env>-cockpit.html` into `OutputPath` (`Results\` when it is empty). See below. |
+
+### The cockpit page
+
+With `Cockpit = $true` the run also writes the [Cockpit page](Cockpit-Page), the single page that shows every farm of the environment. Nothing changes
+unless the key is set: with the key absent or `$false` a run produces exactly the files, dashboards and emails of the previous version.
+
+- **Where and when.** `<App>-<Env>-cockpit.html`, in `OutputPath` (created when it does not exist; `Results\` when `OutputPath` is empty), at the **end of the run**: after
+  the emails, so it never delays an alert, and after the run journal, so it shows the run that has just finished. It is replaced in one step; a reader never sees
+  a half-written page.
+- **Where it is built.** The page is built by the run, from `Results\` (snapshots, history, run journal), on the machine that runs `SPSWeather.ps1`, and written to the same
+  `OutputPath` as the dashboards, so the same share and the same IIS site serve it. The page loads nothing from outside, so it needs no other file on the site.
+- **The email.** With `EmailMode = 'Consolidated'` and a `Url`, the consolidated email gets an *Open the cockpit* button under its introduction, pointing to
+  `<Url>/<App>-<Env>-cockpit.html`. Without `Url` there is no button, like the farm buttons. As for the farm buttons, the address is built from `Url`: it must serve the folder that `OutputPath` writes to (with `OutputPath` empty the page stays in `Results\`, which no web server serves, so leave `Url` empty then). The per-farm email is unchanged.
+- **A failure never fails the run.** If the page cannot be written (a share that is down, a folder that refuses the file), the run goes on, writes the error in
+  the transcript and records it in the Event Log (ID **3002**); the dashboards and the emails are already done.
+- **A wrong value.** `Cockpit = 'maybe'` (or `$null`, or a number) is reported (transcript, Event ID 2001, readiness `[WARN]`) and the page is not produced; the text `'true'` or
+  `'false'` is understood. A value is never cast to a boolean, because the text `'false'` would become `$true`.
+- **Readiness.** `Test-SPSWeatherReadiness.ps1` reports the key, the page it will write, whether the folder accepts a file (it writes and removes a small temporary
+  file, and a folder that lets a file be created but not removed is a warning, because the run replaces the page it wrote the day before; a relative folder is made
+  absolute the way the run does; a folder that does not exist yet is judged by its nearest existing parent and is not created) and the address of the button.
 
 The per-farm history (the bar chart) is built from the JSON snapshots under
 `Results\history\<Farm>\`, capped at `JsonHistoryRetentionDays` runs.

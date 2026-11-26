@@ -121,6 +121,12 @@ Add the corresponding key to `ExclusionRules` in your config to skip a check. Au
 
 Checks marked _(always)_ above are not individually excludable.
 
+## The checks and the cockpit page
+
+The [Cockpit page](Cockpit-Page) (`Dashboard.Cockpit = $true`) collects **nothing** from the farms: it counts what the runs have already recorded. It follows the rules of this page:
+a check that is excluded with `ExclusionRules` is not collected, so it is absent from the counts, and the page lists the excluded checks (*Data quality* and *Settings & method* tabs) so that a
+missing check is never mistaken for a healthy one.
+
 ## See also
 
 - [Configuration](Configuration) — the `config.psd1` reference

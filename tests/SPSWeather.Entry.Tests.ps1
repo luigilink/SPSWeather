@@ -290,3 +290,152 @@ Describe 'Entry script run journal' {
         }
     }
 }
+
+Describe 'Entry script cockpit page (Dashboard.Cockpit)' {
+    BeforeAll {
+        $repoRoot = Split-Path -Path $PSScriptRoot -Parent
+        $entryPath = Join-Path -Path $repoRoot -ChildPath 'src/SPSWeather.ps1'
+        $script:entrySource = Get-Content -Path $entryPath -Raw
+        $script:call = $entrySource.IndexOf('Export-SPSWeatherCockpit -OutputFile')
+    }
+
+    It 'resolves the setting once, through Resolve-SPSCockpitSetting, with the other settings and shows its messages in the transcript' {
+        ([regex]::Matches($entrySource, 'Resolve-SPSCockpitSetting')).Count | Should -Be 1
+        $entrySource | Should -Match '\$cockpitSetting = Resolve-SPSCockpitSetting -Config \$envCfg -Application \$Application -Environment \$Environment -ResultsFolder \$pathResultsFolder'
+        $entrySource | Should -Match 'foreach \(\$cockpitMessage in \$cockpitSetting\.Messages\) \{ Write-Warning -Message \$cockpitMessage \}'
+        $entrySource.IndexOf('Resolve-SPSCockpitSetting') | Should -BeGreaterThan $entrySource.IndexOf('Get-SPSWeatherRunSetting -Config')
+    }
+
+    It 'records an invalid value in the Event Log (ID 2001), like the other configuration warnings' {
+        $entrySource | Should -Match '(?s)foreach \(\$cockpitMessage in \$cockpitSetting\.Messages\) \{\s*Add-SPSWeatherEvent -Message "SPSWeather cockpit configuration: \$cockpitMessage" -EntryType ''Warning'' -EventID 2001'
+    }
+
+    It 'produces the page once, and only when the key is on' {
+        ([regex]::Matches($entrySource, 'Export-SPSWeatherCockpit')).Count | Should -Be 1
+        $entrySource | Should -Match '(?s)if \(\$cockpitSetting\.Enabled\) \{\s*try \{\s*\$cockpitFile = Export-SPSWeatherCockpit'
+    }
+
+    It 'produces the page after the emails and after the run journal (so that it shows this run and never delays an alert), before the log cleanup' {
+        $mails = $entrySource.IndexOf('Sending the consolidated Email')
+        $perFarmMail = $entrySource.IndexOf('Send-MailMessage')
+        $journal = $entrySource.IndexOf('Add-SPSWeatherRunJournalEntry -Path')
+        $cleanup = $entrySource.IndexOf('Clear-SPSLog -path $pathLogsFolder')
+        $mails | Should -BeGreaterThan 0
+        $call | Should -BeGreaterThan $perFarmMail
+        $call | Should -BeGreaterThan $mails
+        $call | Should -BeGreaterThan $journal
+        $cleanup | Should -BeGreaterThan $call
+    }
+
+    It 'gives the function the facts of the run: the page path, Results, the names, the configured farms, the retention, the language and the version' {
+        $block = $entrySource.Substring($call, 700)
+        $block | Should -Match '-OutputFile \$cockpitSetting\.Path'
+        $block | Should -Match '-ResultsFolder \$pathResultsFolder'
+        $block | Should -Match '-Application \$Application'
+        $block | Should -Match '-Environment \$Environment'
+        $block | Should -Match '-FarmName @\(\$spFarms \| ForEach-Object -Process \{ "\$\(\$_\.Name\)" \}\)'
+        $block | Should -Match '-RetentionDays \(\[uint32\]\[math\]::Max\(0, \$jsonHistoryRetentionDays\)\)'
+        $block | Should -Match '-Language \$languageSetting\.Culture'
+        $block | Should -Match '-Version \$spsWeatherVersion'
+    }
+
+    It 'never fails the run: an error is written and recorded in the Event Log (ID 3002) and the run goes on' {
+        $entrySource | Should -Match '(?s)catch \{\s*Write-Output \$_\s*Add-SPSWeatherEvent -Message "SPSWeather failed to produce the cockpit page for \$Application/\$Environment\. Exception: \$\(\$_\.Exception\.Message\)" -EntryType ''Error'' -EventID 3002'
+        $afterCatch = $entrySource.Substring($entrySource.IndexOf('-EventID 3002'), 200)
+        $afterCatch | Should -Match 'Clear-SPSLog'
+    }
+
+    It 'gives the consolidated email the address of the page only when the page is produced' {
+        $entrySource | Should -Match '-CockpitUrl \$\(if \(\$cockpitSetting\.Enabled\) \{ \$cockpitSetting\.Url \} else \{ '''' \}\)'
+    }
+
+    It 'leaves the per-farm email and the per-farm dashboards without any mention of the cockpit' {
+        $perFarm = $entrySource.Substring($entrySource.IndexOf('# --- Per-farm reporting'), $entrySource.IndexOf('# EmailMode = ''Consolidated'': one email for all the farms of the environment, built from the') - $entrySource.IndexOf('# --- Per-farm reporting'))
+        $perFarm | Should -Not -Match '(?i)cockpit'
+    }
+
+    It 'produces nothing for the default configuration: the page call sits under the opt-in test only' {
+        $before = $entrySource.Substring(0, $call)
+        $lastIf = $before.LastIndexOf('if (')
+        $before.Substring($lastIf) | Should -Match '^if \(\$cockpitSetting\.Enabled\)'
+    }
+
+    Context 'the run does what the entry script says' {
+        BeforeAll {
+            # The real block of the entry script, run against a Results folder: it must write the page, name it, and survive a failure
+            $match = [regex]::Match($entrySource, '(?s)(if \(\$cockpitSetting\.Enabled\) \{\s*try \{\s*\$cockpitFile = Export-SPSWeatherCockpit.*?-EventID 3002\r?\n\s*\}\r?\n\s*\})')
+            $script:pageBlock = $match.Groups[1].Value
+            Import-Module -Name (Join-Path -Path $repoRoot -ChildPath 'src/Modules/SPSWeather.Common/SPSWeather.Common.psd1') -Force
+            function script:Invoke-PageBlock {
+                param($Setting, $Results, $Farms = @(@{ Name = 'CONTENT' }), [scriptblock]$OnEvent)
+                $events = New-Object -TypeName System.Collections.ArrayList
+                & {
+                    param($cockpitSetting, $pathResultsFolder, $spFarms, $block, $events)
+                    $Application = 'zebes'; $Environment = 'PROD'; $jsonHistoryRetentionDays = 30; $spsWeatherVersion = '3.5.0'
+                    $languageSetting = [PSCustomObject]@{ Culture = 'en-US' }
+                    function Add-SPSWeatherEvent { param($Message, $EntryType, $EventID) [void]$events.Add([PSCustomObject]@{ Message = $Message; EntryType = $EntryType; EventID = $EventID }) }
+                    $output = & ([scriptblock]::Create($block)) 6>&1
+                    $output
+                } $Setting $Results $Farms $pageBlock $events | Out-Null
+                @($events)
+            }
+        }
+        AfterAll { Remove-Module -Name SPSWeather.Common -Force -ErrorAction SilentlyContinue }
+
+        It 'finds the block' {
+            $pageBlock | Should -Match 'Export-SPSWeatherCockpit'
+            $pageBlock | Should -Match '-EventID 3002'
+        }
+
+        It 'writes nothing when the key is off' {
+            $results = Join-Path -Path $TestDrive -ChildPath 'off'
+            New-Item -Path $results -ItemType Directory | Out-Null
+            $setting = Resolve-SPSCockpitSetting -Config @{ Dashboard = @{ OutputPath = $results } } -Application 'zebes' -Environment 'PROD' -ResultsFolder $results
+            @(Invoke-PageBlock -Setting $setting -Results $results).Count | Should -Be 0
+            @(Get-ChildItem -Path $results).Count | Should -Be 0
+        }
+
+        It 'writes <App>-<Env>-cockpit.html into Results when the key is on and OutputPath is empty' {
+            $results = Join-Path -Path $TestDrive -ChildPath 'on-results'
+            New-Item -Path $results -ItemType Directory | Out-Null
+            $setting = Resolve-SPSCockpitSetting -Config @{ Dashboard = @{ Cockpit = $true } } -Application 'zebes' -Environment 'PROD' -ResultsFolder $results
+            @(Invoke-PageBlock -Setting $setting -Results $results).Count | Should -Be 0
+            $page = Join-Path -Path $results -ChildPath 'zebes-PROD-cockpit.html'
+            Test-Path -LiteralPath $page | Should -BeTrue
+            [System.IO.File]::ReadAllText($page) | Should -Match '^<!DOCTYPE html>'
+        }
+
+        It 'writes the page next to the dashboards when OutputPath is set, and creates that folder' {
+            $results = Join-Path -Path $TestDrive -ChildPath 'on-results2'
+            $dashboards = Join-Path -Path $TestDrive -ChildPath 'shared/dashboards'
+            New-Item -Path $results -ItemType Directory | Out-Null
+            $setting = Resolve-SPSCockpitSetting -Config @{ Dashboard = @{ Cockpit = 'true'; OutputPath = $dashboards } } -Application 'zebes' -Environment 'PROD' -ResultsFolder $results
+            [void](Invoke-PageBlock -Setting $setting -Results $results)
+            Test-Path -LiteralPath (Join-Path -Path $dashboards -ChildPath 'zebes-PROD-cockpit.html') | Should -BeTrue
+            Test-Path -LiteralPath (Join-Path -Path $results -ChildPath 'zebes-PROD-cockpit.html') | Should -BeFalse
+        }
+
+        It 'does not stop the run and records ID 3002 when the page cannot be written' {
+            $results = Join-Path -Path $TestDrive -ChildPath 'fail-results'
+            New-Item -Path $results -ItemType Directory | Out-Null
+            $blocker = Join-Path -Path $TestDrive -ChildPath 'a-file'
+            Set-Content -Path $blocker -Value 'not a folder'
+            $setting = Resolve-SPSCockpitSetting -Config @{ Dashboard = @{ Cockpit = $true; OutputPath = (Join-Path -Path $blocker -ChildPath 'sub') } } -Application 'zebes' -Environment 'PROD' -ResultsFolder $results
+            $recorded = @(Invoke-PageBlock -Setting $setting -Results $results)
+            $recorded.Count | Should -Be 1
+            $recorded[0].EventID | Should -Be 3002
+            $recorded[0].EntryType | Should -Be 'Error'
+            $recorded[0].Message | Should -Match 'failed to produce the cockpit page for zebes/PROD'
+        }
+
+        It 'does not stop the run when the Results folder holds a damaged journal and a farm that left nothing' {
+            $results = Join-Path -Path $TestDrive -ChildPath 'damaged'
+            New-Item -Path $results -ItemType Directory | Out-Null
+            Set-Content -Path (Join-Path -Path $results -ChildPath 'zebes-PROD.runs.json') -Value '{ not json'
+            $setting = Resolve-SPSCockpitSetting -Config @{ Dashboard = @{ Cockpit = $true } } -Application 'zebes' -Environment 'PROD' -ResultsFolder $results
+            $recorded = @(Invoke-PageBlock -Setting $setting -Results $results -Farms @(@{ Name = 'CONTENT' }, @{ Name = 'SEARCH' }))
+            $recorded.Count | Should -Be 0
+            Test-Path -LiteralPath (Join-Path -Path $results -ChildPath 'zebes-PROD-cockpit.html') | Should -BeTrue
+        }
+    }
+}

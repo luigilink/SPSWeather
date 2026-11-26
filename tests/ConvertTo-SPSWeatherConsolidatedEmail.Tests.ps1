@@ -601,3 +601,78 @@ if (`$Language -eq 'broken') {
         $t | Should -Match 'need your attention on contoso / PROD'
     }
 }
+
+Describe 'Consolidated email: the button to the cockpit page' {
+    BeforeAll {
+        # The fixed set of farms behind the reference hashes below: one farm with warnings, one with failures, one unreachable
+        $script:referenceFarms = @(
+            (New-FarmEntry -Name 'SEARCH' -Report (New-FarmReport -Farm 'SEARCH' -SearchWarn 2 -Ok 61) -Url 'https://dash/SPSWeather/a-PROD-SEARCH-dashboard.html')
+            (New-FarmEntry -Name 'CONTENT' -Report (New-FarmReport -Farm 'CONTENT' -SqlFail 3 -Ok 40))
+            (New-DownEntry -Name 'SERVICES')
+        )
+        function script:Get-Reference {
+            param([string]$Language, [hashtable]$Extra = @{})
+            $arguments = @{ FarmResult = $script:referenceFarms; Application = 'contoso'; Environment = 'PROD'; Version = '3.5.0'; ExecutedBy = 'DOM\jc'; Duration = '00:11:42'; Language = $Language }
+            ConvertTo-SPSWeatherConsolidatedEmail @arguments @Extra
+        }
+        function script:Get-BodyHash {
+            param($Mail)
+            # The clock of the header is the only thing that changes from one run to the next
+            $body = ($Mail.Body -replace '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', '<TIME>') -replace "`r`n", "`n"
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            (($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($body)) | ForEach-Object -Process { $_.ToString('x2') }) -join '')
+        }
+        $script:url = 'https://dash/SPSWeather/contoso-PROD-cockpit.html'
+    }
+
+    It 'is exactly the email of 3.4.1 when no address is given (hash of the body produced by 3.4.1 for the same farms, <Language>)' -ForEach @(
+        @{ Language = 'en-US'; Hash = '1e58a37b54d353d65b21da394924e1c094606c378a8fa2d32505bc8b3f327cd2' }
+        @{ Language = 'fr-FR'; Hash = '267e93754bb01855cfec256ad80a95229fbe8a60e8b7dfaaca2bfd766f3df73c' }
+    ) {
+        Get-BodyHash (Get-Reference -Language $Language) | Should -Be $Hash
+    }
+
+    It 'is exactly the same email when the address is empty, blank or $null' -ForEach @(
+        @{ Value = '' }
+        @{ Value = '   ' }
+        @{ Value = $null }
+    ) {
+        $without = Get-Reference -Language 'en-US'
+        $with = Get-Reference -Language 'en-US' -Extra @{ CockpitUrl = $Value }
+        Get-BodyHash $with | Should -Be (Get-BodyHash $without)
+        $with.Subject | Should -Be $without.Subject
+    }
+
+    It 'adds one button to the address, under the introduction and before the cards, in each language' -ForEach @(
+        @{ Language = 'en-US'; Label = 'Open the cockpit' }
+        @{ Language = 'fr-FR'; Label = 'Ouvrir le cockpit' }
+    ) {
+        $mail = Get-Reference -Language $Language -Extra @{ CockpitUrl = $script:url }
+        ([regex]::Matches($mail.Body, [regex]::Escape($script:url))).Count | Should -Be 1
+        (Get-Text $mail) | Should -Match ([regex]::Escape($Label))
+        $mail.Body.IndexOf($script:url) | Should -BeGreaterThan $mail.Body.IndexOf('contoso / PROD')
+        $mail.Body.IndexOf($script:url) | Should -BeLessThan (Get-Position $mail 'SEARCH')
+    }
+
+    It 'changes nothing else when the button is there: same subject, priority and alert, and the farm buttons stay' {
+        $without = Get-Reference -Language 'en-US'
+        $with = Get-Reference -Language 'en-US' -Extra @{ CockpitUrl = $script:url }
+        $with.Subject | Should -Be $without.Subject
+        $with.Priority | Should -Be $without.Priority
+        $with.Alert | Should -Be $without.Alert
+        $with.Body.Replace(($with.Body -replace '(?s)^.*?(<tr><td style="padding:4px 26px 8px;">.*?</td></tr></table></td></tr>).*$', '$1'), '') | Should -Be $without.Body
+        ([regex]::Matches($with.Body, 'a-PROD-SEARCH-dashboard\.html')).Count | Should -Be 1
+    }
+
+    It 'encodes the address so that it cannot close the attribute or add markup' {
+        $hostile = 'https://h/p"><script>alert(1)</script>&x=1'
+        $mail = Get-Reference -Language 'en-US' -Extra @{ CockpitUrl = $hostile }
+        $mail.Body | Should -Not -Match '<script>'
+        $mail.Body | Should -Match ([regex]::Escape('href="https://h/p&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;x=1"'))
+    }
+
+    It 'trims the address' {
+        $mail = Get-Reference -Language 'en-US' -Extra @{ CockpitUrl = "  $($script:url)  " }
+        $mail.Body | Should -Match ([regex]::Escape('href="' + $script:url + '"'))
+    }
+}

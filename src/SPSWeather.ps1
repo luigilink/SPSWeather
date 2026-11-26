@@ -265,6 +265,8 @@ else {
         # Thresholds: the values used here are the ones recorded in the run journal
         $runSetting = Get-SPSWeatherRunSetting -Config $envCfg -ConfigFile $ConfigFile
         foreach ($settingMessage in $runSetting.Messages) { Write-Warning -Message $settingMessage }
+        $cockpitSetting = Resolve-SPSCockpitSetting -Config $envCfg -Application $Application -Environment $Environment -ResultsFolder $pathResultsFolder
+        foreach ($cockpitMessage in $cockpitSetting.Messages) { Write-Warning -Message $cockpitMessage }
         $sqlDiskThreshold = $runSetting.Value.SQLDiskFreeThresholdPercent
         $sqlBackupMaxAge = $runSetting.Value.SQLBackupMaxAgeDays
         $jsonHistoryRetentionDays = $runSetting.Value.JsonHistoryRetentionDays
@@ -290,6 +292,9 @@ else {
         }
         foreach ($settingMessage in $runSetting.Messages) {
             Add-SPSWeatherEvent -Message "SPSWeather configuration: $settingMessage" -EntryType 'Warning' -EventID 2001
+        }
+        foreach ($cockpitMessage in $cockpitSetting.Messages) {
+            Add-SPSWeatherEvent -Message "SPSWeather cockpit configuration: $cockpitMessage" -EntryType 'Warning' -EventID 2001
         }
         foreach ($spFarm in $spFarms) {
             $spTargetServer = "$($spFarm.Server).$($scriptFQDN)"
@@ -656,7 +661,8 @@ else {
                         -Version $spsWeatherVersion `
                         -ExecutedBy $currentUser `
                         -Duration $consolidatedDuration `
-                        -Language $languageSetting.Culture
+                        -Language $languageSetting.Culture `
+                        -CockpitUrl $(if ($cockpitSetting.Enabled) { $cockpitSetting.Url } else { '' })
 
                     if ($smtpSetting.Preview) {
                         $mailPreviewFile = Join-Path -Path $pathResultsFolder -ChildPath ("$($Application)-$($Environment)-mail.html")
@@ -720,6 +726,25 @@ else {
                 -Farm $journalFarms `
                 -Setting $runSetting.Record `
                 -RetentionDays ([uint32][math]::Max(0, $jsonHistoryRetentionDays)))
+
+        # Cockpit page (opt-in): after the emails and the journal, so it never delays an alert and shows this run.
+        if ($cockpitSetting.Enabled) {
+            try {
+                $cockpitFile = Export-SPSWeatherCockpit -OutputFile $cockpitSetting.Path `
+                    -ResultsFolder $pathResultsFolder `
+                    -Application $Application `
+                    -Environment $Environment `
+                    -FarmName @($spFarms | ForEach-Object -Process { "$($_.Name)" }) `
+                    -RetentionDays ([uint32][math]::Max(0, $jsonHistoryRetentionDays)) `
+                    -Language $languageSetting.Culture `
+                    -Version $spsWeatherVersion
+                Write-Output " * Cockpit: $cockpitFile"
+            }
+            catch {
+                Write-Output $_
+                Add-SPSWeatherEvent -Message "SPSWeather failed to produce the cockpit page for $Application/$Environment. Exception: $($_.Exception.Message)" -EntryType 'Error' -EventID 3002
+            }
+        }
 
         # Clean the folder of log files (once per run).
         Clear-SPSLog -path $pathLogsFolder -Retention $logRetentionDays
