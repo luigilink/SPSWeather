@@ -30,6 +30,28 @@ Describe 'Get-SPSWeatherItemIdentity' {
             (Get-Identity -Section $Section -Row $Row).Name | Should -Be $Expected
         }
 
+        It 'does not let the role of an availability group replica, which changes with a failover, change its identity' {
+            $primary = Get-Identity -Section 'SQLAvailabilityStatus' -Row ([PSCustomObject]@{ Farm = 'F'; SqlServer = 'SQL1'; Type = 'AvailabilityGroup'; Name = 'AG1 / SQL2 (PRIMARY)'; Detail = 'NOT_HEALTHY'; IsInfo = $false })
+            $secondary = Get-Identity -Section 'SQLAvailabilityStatus' -Row ([PSCustomObject]@{ Farm = 'F'; SqlServer = 'SQL1'; Type = 'AvailabilityGroup'; Name = 'AG1 / SQL2 (SECONDARY)'; Detail = 'NOT_HEALTHY'; IsInfo = $false })
+            $primary.Id | Should -Be $secondary.Id
+            $primary.Id | Should -Be 'SQLAvailabilityStatus|sql1|availabilitygroup|ag1 / sql2'
+            $primary.Name | Should -Be 'SQL1 / AvailabilityGroup / AG1 / SQL2 (PRIMARY)'
+        }
+
+        It 'still tells two replicas of a group apart, and two groups apart' {
+            $a = Get-Identity -Section 'SQLAvailabilityStatus' -Row ([PSCustomObject]@{ SqlServer = 'SQL1'; Type = 'AvailabilityGroup'; Name = 'AG1 / SQL2 (SECONDARY)' })
+            $b = Get-Identity -Section 'SQLAvailabilityStatus' -Row ([PSCustomObject]@{ SqlServer = 'SQL1'; Type = 'AvailabilityGroup'; Name = 'AG1 / SQL3 (SECONDARY)' })
+            $c = Get-Identity -Section 'SQLAvailabilityStatus' -Row ([PSCustomObject]@{ SqlServer = 'SQL1'; Type = 'AvailabilityGroup'; Name = 'AG2 / SQL2 (SECONDARY)' })
+            $a.Id | Should -Not -Be $b.Id
+            $a.Id | Should -Not -Be $c.Id
+        }
+
+        It 'leaves the name of a failed SQL Agent job as it is, parentheses included' {
+            $job = Get-Identity -Section 'SQLAvailabilityStatus' -Row ([PSCustomObject]@{ SqlServer = 'SQL1'; Type = 'FailedAgentJob'; Name = 'Backup (full)'; Detail = 'failed run on 20261126'; IsInfo = $false })
+            $job.Id | Should -Be 'SQLAvailabilityStatus|sql1|failedagentjob|backup (full)'
+            $job.Cause | Should -Be 'failed run on #'
+        }
+
         It 'does not change when the state or the figures of a row change' {
             $a = Get-Identity -Section 'SYSDiskUsageStatus' -Row ([PSCustomObject]@{ Farm = 'F'; Server = 'APP1'; DriveLetter = 'C'; Size = 100; FreeSpace = 4; Status = 'Low'; IsInfo = $false })
             $b = Get-Identity -Section 'SYSDiskUsageStatus' -Row ([PSCustomObject]@{ Farm = 'F'; Server = 'APP1'; DriveLetter = 'C'; Size = 100; FreeSpace = 9; Status = 'Critical'; IsInfo = $false })

@@ -38,12 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the last run and the run journal, and builds one structure (`schemaVersion` 1) with: the days (one per calendar
   day, with the weekends), for each farm and day the OK / warning / failure counts of the last snapshot of that
   day, the weather and the number of runs and of unreachable runs, what needs attention in the last snapshot of each
-  farm with **since when** (the first day of the unbroken series of snapshots, and whether that is only a lower
+  farm with **since when** (the day of the first snapshot of the unbroken series of snapshots, every usable
+  snapshot counting, so an item that was fixed and came back the same day starts again; and whether that is only a lower
   bound), the run journal and the **settings in effect** with what changed between two records, and a reserved empty
   `kpi` section for the nightly activity run planned for 3.6.0. The periods offered (7, 14, 30 and 60 days) are
   limited by `JsonHistoryRetentionDays`, which is not changed and deletes nothing. A snapshot that is missing, empty
   or not valid JSON is skipped with a warning (and listed), a journal that cannot be read is ignored: the dataset can
-  never make a run fail (#108).
+  never make a run fail; at most 400 snapshots are read for a farm (the most recent ones, flagged and reported), and
+  only the files of the application and the environment are read from a farm folder that environments share (#108).
 - Three private helpers shared by the dashboard and the page, so that they cannot disagree:
   `Get-SPSWeatherSnapshotSummary` (the counting of a snapshot, with the list of items that need attention),
   `Get-SPSWeatherWeatherKey` (the weather rule) and `Get-SPSWeatherItemIdentity` (how an item is recognised from one

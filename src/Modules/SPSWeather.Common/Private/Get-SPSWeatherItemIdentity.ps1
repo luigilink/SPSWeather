@@ -91,25 +91,35 @@ function Get-SPSWeatherItemIdentity {
     }
 
     $parts = New-Object -TypeName System.Collections.ArrayList
+    $idParts = New-Object -TypeName System.Collections.ArrayList
     if ($null -ne $Row) {
         $columns = $script:SPSWeatherIdentityColumns[$Section]
         if ($null -ne $columns) {
             foreach ($column in $columns) {
                 $value = _prop $Row $column
-                if ($value) { [void]$parts.Add($value) }
+                if ($value) {
+                    [void]$parts.Add($value)
+                    # The name of an availability group replica ends with its role, 'AG / SQL1 (PRIMARY)': the role is a
+                    # state that changes with a failover, it does not name the replica.
+                    if ($Section -eq 'SQLAvailabilityStatus' -and $column -eq 'Name' -and (_prop $Row 'Type') -eq 'AvailabilityGroup') {
+                        $value = $value -replace '\s*\([^()]*\)$', ''
+                    }
+                    [void]$idParts.Add($value)
+                }
             }
         }
         if ($parts.Count -eq 0) {
             foreach ($p in $Row.PSObject.Properties) {
                 if ($noise -contains $p.Name -or $state -contains $p.Name) { continue }
                 $value = _text $p.Value
-                if ($value) { [void]$parts.Add($value) }
+                if ($value) { [void]$parts.Add($value); [void]$idParts.Add($value) }
             }
         }
     }
 
+    $id = $Section + '|' + (($idParts -join '|').ToLowerInvariant())
     if ($IdOnly) {
-        return [PSCustomObject]@{ Id = ($Section + '|' + (($parts -join '|').ToLowerInvariant())); Name = ''; Detail = ''; Cause = '' }
+        return [PSCustomObject]@{ Id = $id; Name = ''; Detail = ''; Cause = '' }
     }
 
     $detailParts = New-Object -TypeName System.Collections.ArrayList
@@ -140,7 +150,7 @@ function Get-SPSWeatherItemIdentity {
     if ($cause.Length -gt 80) { $cause = $cause.Substring(0, 80) }
 
     return [PSCustomObject]@{
-        Id     = ($Section + '|' + (($parts -join '|').ToLowerInvariant()))
+        Id     = $id
         Name   = ($parts -join ' / ')
         Detail = $detail
         Cause  = $cause

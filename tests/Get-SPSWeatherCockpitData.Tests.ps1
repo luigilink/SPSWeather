@@ -52,11 +52,11 @@ BeforeAll {
     }
 
     function script:Get-Data {
-        param($Results, [string[]]$Farm, [uint32]$Retention = 30, [datetime]$Now = $script:now, [int]$MaxItems = 300)
-        InModuleScope SPSWeather.Common -Parameters @{ R = $Results; F = $Farm; Ret = $Retention; N = $Now; M = $MaxItems } {
-            param($R, $F, $Ret, $N, $M)
+        param($Results, [string[]]$Farm, [uint32]$Retention = 30, [datetime]$Now = $script:now, [int]$MaxItems = 300, [int]$MaxSnapshots = 400)
+        InModuleScope SPSWeather.Common -Parameters @{ R = $Results; F = $Farm; Ret = $Retention; N = $Now; M = $MaxItems; S = $MaxSnapshots } {
+            param($R, $F, $Ret, $N, $M, $S)
             $w = @()
-            $data = Get-SPSWeatherCockpitData -ResultsFolder $R -Application 'zebes' -Environment 'PROD' -FarmName $F -RetentionDays $Ret -Now $N -MaxItemsPerFarm $M -WarningVariable w -WarningAction SilentlyContinue
+            $data = Get-SPSWeatherCockpitData -ResultsFolder $R -Application 'zebes' -Environment 'PROD' -FarmName $F -RetentionDays $Ret -Now $N -MaxItemsPerFarm $M -MaxSnapshotsPerFarm $S -WarningVariable w -WarningAction SilentlyContinue
             [PSCustomObject]@{ Data = $data; Warnings = @($w) }
         }
     }
@@ -181,6 +181,46 @@ Describe 'Get-SPSWeatherCockpitData' {
         }
     }
 
+    Context 'several runs in a day' {
+        It 'does not hide an item that was fixed and came back the same day: it starts again that day' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-2).AddHours(-1) -Snapshot (New-Snap -Fail 1))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddDays(-1).AddHours(-1) -Snapshot (New-Snap -Fail 1))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-3) -Snapshot (New-Snap -Ok 4))
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Snapshot (New-Snap -Fail 1) -Current)
+            $farm = Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT'
+            $item = @($farm.attention)[0]
+            $item.since | Should -Be '2026-11-26'
+            $item.sinceIsLowerBound | Should -BeFalse
+            # the day itself is described by its last snapshot
+            $farm.daily[-1].fail | Should -Be 1
+            $farm.daily[-1].snapshots | Should -Be 2
+        }
+
+        It 'still describes a day with its last usable snapshot when the newest one is corrupt, and reports the corrupt one' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-3) -Snapshot (New-Snap -Fail 2))
+            $bad = Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Raw '{ not json' -Current
+            $r = Get-Data -Results $res -Farm 'CONTENT'
+            $entry = (Get-Farm $r.Data 'CONTENT').daily[0]
+            $entry.fail | Should -Be 2
+            $entry.snapshots | Should -Be 2
+            @($r.Data.skipped) | Should -Contain (Split-Path -Path $bad -Leaf)
+            @((Get-Farm $r.Data 'CONTENT').attention).Count | Should -Be 2
+        }
+
+        It 'caps the snapshots read for a farm, keeps the most recent ones, flags it and says so' {
+            $res = New-Results
+            foreach ($i in 1..10) { [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-$i) -Snapshot (New-Snap -Fail $i)) }
+            $r = Get-Data -Results $res -Farm 'CONTENT' -MaxSnapshots 3
+            $farm = Get-Farm $r.Data 'CONTENT'
+            $farm.snapshotsTruncated | Should -BeTrue
+            $farm.daily[0].fail | Should -Be 1
+            ($r.Warnings -join ' ') | Should -Match 'only the last 3'
+            (Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT').snapshotsTruncated | Should -BeFalse
+        }
+    }
+
     Context 'a day with several runs' {
         It 'uses the last snapshot of the day and says how many there were' {
             $res = New-Results
@@ -239,6 +279,23 @@ Describe 'Get-SPSWeatherCockpitData' {
             $farm.daily[0].snapshots | Should -Be 1
             $farm.daily[0].weather | Should -Be 'sunny'
             @($farm.attention).Count | Should -Be 0
+        }
+
+        It 'does not list as a farm a history folder that only holds the files of another environment' {
+            $res = New-Results
+            $folder = Join-Path -Path $res -ChildPath 'history/ONLYTEST'
+            New-Item -Path $folder -ItemType Directory -Force | Out-Null
+            $file = Join-Path -Path $folder -ChildPath 'zebes-TEST-ONLYTEST-20261126-0900.json'
+            [System.IO.File]::WriteAllText($file, (ConvertTo-Json -InputObject (New-Snap -Fail 2) -Depth 6))
+            (Get-Item $file).LastWriteTime = $now.AddHours(-1)
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Snapshot (New-Snap -Ok 1))
+            @((Get-Data -Results $res).Data.farms | ForEach-Object { $_.name }) | Should -Be @('CONTENT')
+        }
+
+        It 'lists a history folder that holds a file of this environment, even for a farm that is no longer configured' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'OLDFARM' -When $now.AddHours(-1) -Snapshot (New-Snap -Ok 1))
+            @((Get-Data -Results $res -Farm 'CONTENT').Data.farms | ForEach-Object { $_.name }) | Should -Be @('CONTENT', 'OLDFARM')
         }
 
         It 'matches the prefix whatever the case of the file name (Windows file names)' {
@@ -456,6 +513,29 @@ Describe 'Get-SPSWeatherCockpitData' {
             $r.Warnings.Count | Should -BeGreaterThan 0
         }
 
+        It 'skips a snapshot that is a list holding one object, which ConvertFrom-Json would unwrap and accept' {
+            $res = New-Results
+            $file = Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Raw '[{"SQLDatabaseStatus":[{"Name":"DB1","IsInfo":false}]}]'
+            $r = Get-Data -Results $res -Farm 'CONTENT'
+            (Get-Farm $r.Data 'CONTENT').daily[0] | Should -BeNullOrEmpty
+            @((Get-Farm $r.Data 'CONTENT').attention).Count | Should -Be 0
+            @($r.Data.skipped) | Should -Contain (Split-Path -Path $file -Leaf)
+        }
+
+        It 'accepts a snapshot that starts with a byte order mark or blank lines' {
+            $res = New-Results
+            [void](Add-Snap -Results $res -Farm 'CONTENT' -When $now.AddHours(-1) -Raw ([string][char]0xFEFF + "`r`n  " + (ConvertTo-Json -InputObject (New-Snap -Ok 2) -Depth 6)))
+            (Get-Farm (Get-Data -Results $res -Farm 'CONTENT').Data 'CONTENT').daily[0].ok | Should -Be 2
+        }
+
+        It 'ignores a run journal that is a list holding one object' {
+            $res = New-Results
+            [System.IO.File]::WriteAllText((Join-Path -Path $res -ChildPath 'zebes-PROD.runs.json'), '[{"schemaVersion":1,"runs":[{"started":"2026-11-26T08:00:00+01:00","farms":[]}]}]')
+            $r = Get-Data -Results $res
+            @($r.Data.runs).Count | Should -Be 0
+            @($r.Data.skipped) | Should -Contain 'zebes-PROD.runs.json'
+        }
+
         It 'ignores a run journal that cannot be read, says so, and still builds the dataset' {
             $res = New-Results
             [System.IO.File]::WriteAllText((Join-Path -Path $res -ChildPath 'zebes-PROD.runs.json'), '{ not json')
@@ -538,6 +618,17 @@ Describe 'Get-SPSWeatherCockpitData' {
             Add-Run -Results $res -Started $now.AddDays(-1)
             Add-Run -Results $res -Started $now.AddHours(-1) -Setting $setting2
             @((Get-Data -Results $res).Data.settings.changes).Count | Should -Be 0
+        }
+
+        It 'does not compare across a record whose settings are unknown, and keeps the last known settings as the current ones' {
+            $res = New-Results
+            Add-Run -Results $res -Started $now.AddDays(-3) -Setting $setting1
+            Add-Run -Results $res -Started $now.AddDays(-2)
+            Add-Run -Results $res -Started $now.AddDays(-1) -Setting $setting2
+            Add-Run -Results $res -Started $now.AddHours(-1)
+            $s = (Get-Data -Results $res).Data.settings
+            @($s.changes).Count | Should -Be 0
+            $s.current.thresholds.SQLBackupMaxAgeDays.value | Should -Be 8
         }
 
         It 'has no current settings and no change for a journal without settings' {

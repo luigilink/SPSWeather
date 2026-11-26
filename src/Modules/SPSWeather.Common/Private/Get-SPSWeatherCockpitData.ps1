@@ -24,10 +24,10 @@
           days      the days of the page, one per calendar day from the first day with data to today, and weekend
           farms     for each farm, in the order of the configuration: name, daily (one entry per day, aligned with
                     days, or $null when nothing is known: ok, warn, fail, weather, snapshots, unreachable),
-                    latestSnapshot, attention (what needs attention in the last snapshot: farm, section, id, name,
-                    severity, cause, detail, since - the first day of the unbroken series of snapshots in which
-                    the item needed attention - and sinceIsLowerBound when that series starts at the oldest
-                    snapshot read), attentionTotal and attentionTruncated
+                    latestSnapshot, snapshotsTruncated, attention (what needs attention in the last snapshot:
+                    farm, section, id, name, severity, cause, detail, since - the day of the first snapshot of the
+                    unbroken series of snapshots in which the item needed attention - and sinceIsLowerBound when
+                    that series starts at the oldest snapshot read), attentionTotal and attentionTruncated
           runs      the records of the run journal inside the period
           settings  current (the settings of the last record that has some) and changes (the thresholds, the
                     exclusions and the configuration file that changed between two records, oldest first)
@@ -35,7 +35,8 @@
           kpi       $null: reserved for the nightly activity run, so that a later release can fill it without
                     changing this contract
 
-        A day is described by the last snapshot of that day. A snapshot that cannot be used is skipped with a
+        A day is described by the last usable snapshot of that day, and every usable snapshot counts to say since
+        when an item needs attention. A snapshot that cannot be used is skipped with a
         warning: the dataset is never a reason for a run to fail. Nothing is written and nothing is collected
         from the farms. The counts follow the same rule as the dashboard (Get-SPSWeatherSnapshotSummary).
 
@@ -61,6 +62,10 @@
 
         .PARAMETER MaxItemsPerFarm
         Upper bound on the items listed in attention for each farm (failures first, then the oldest).
+
+        .PARAMETER MaxSnapshotsPerFarm
+        Upper bound on the snapshots read for each farm (the most recent ones): about 60 days of several runs a
+        day. A farm that has more is flagged with snapshotsTruncated, and a warning says so.
 
         .EXAMPLE
         Get-SPSWeatherCockpitData -ResultsFolder $pathResultsFolder -Application $Application -Environment $Environment -FarmName 'CONTENT', 'SEARCH' -RetentionDays 30
@@ -96,7 +101,12 @@
         [Parameter()]
         [ValidateRange(1, 5000)]
         [System.Int32]
-        $MaxItemsPerFarm = 300
+        $MaxItemsPerFarm = 300,
+
+        [Parameter()]
+        [ValidateRange(1, 5000)]
+        [System.Int32]
+        $MaxSnapshotsPerFarm = 400
     )
 
     $invariant = [System.Globalization.CultureInfo]::InvariantCulture
@@ -142,6 +152,24 @@
     }
     $runsInPeriod = @($runsInPeriod | Sort-Object -Property When)
 
+    # The files that belong to a farm for this application and environment: its archived snapshots and the
+    # snapshot of the last run. The archive folder of a farm is shared by the environments of an installation
+    # that name a farm the same, so the name of the file is what tells them apart.
+    $historyRoot = Join-Path -Path $ResultsFolder -ChildPath 'history'
+    function _farmFiles([string]$safe) {
+        $found = New-Object -TypeName System.Collections.ArrayList
+        $prefix = "$Application-$Environment-$safe-"
+        $folder = Join-Path -Path $historyRoot -ChildPath $safe
+        if (Test-Path -LiteralPath $folder) {
+            foreach ($f in @(Get-ChildItem -LiteralPath $folder -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
+                if ($f.Name.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { [void]$found.Add($f) }
+            }
+        }
+        $current = Join-Path -Path $ResultsFolder -ChildPath "$Application-$Environment-$safe.json"
+        if (Test-Path -LiteralPath $current -PathType Leaf) { [void]$found.Add((Get-Item -LiteralPath $current)) }
+        return , $found
+    }
+
     # --- the farms: the configuration first, then what only the journal or the history knows ---
     $farmDisplay = [ordered]@{}
     foreach ($name in @($FarmName)) {
@@ -153,56 +181,71 @@
             if (-not [string]::IsNullOrWhiteSpace($name) -and -not $farmDisplay.Contains((_safe $name))) { $farmDisplay[(_safe $name)] = $name }
         }
     }
-    $historyRoot = Join-Path -Path $ResultsFolder -ChildPath 'history'
     if (Test-Path -LiteralPath $historyRoot) {
         foreach ($folder in @(Get-ChildItem -LiteralPath $historyRoot -Directory -ErrorAction SilentlyContinue | Sort-Object -Property Name)) {
-            if (-not $farmDisplay.Contains($folder.Name)) { $farmDisplay[$folder.Name] = $folder.Name }
+            # A folder that only holds the files of another application or environment is not a farm of this page.
+            if (-not $farmDisplay.Contains($folder.Name) -and (_farmFiles $folder.Name).Count -gt 0) { $farmDisplay[$folder.Name] = $folder.Name }
         }
     }
 
-    # --- the snapshots: the last one of each day, for each farm ---
-    $farmSnapshots = [ordered]@{}
+    # A snapshot is the JSON object that a run writes. ConvertFrom-Json unwraps a list of one object into that
+    # object, so the root is checked in the text, before it is read.
+    function _readSnapshot([string]$path) {
+        $text = Get-Content -LiteralPath $path -Raw -ErrorAction Stop
+        if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+        if (-not $text.TrimStart([char[]]@([char]0xFEFF, [char]32, [char]9, [char]13, [char]10)).StartsWith('{')) { return $null }
+        $object = ConvertFrom-Json -InputObject $text -ErrorAction Stop
+        if ($object -is [System.Management.Automation.PSCustomObject]) { return $object }
+        return $null
+    }
+
+    # --- the snapshots of each farm, in the order they were written ---
+    # Every usable snapshot is read, not only the last of each day: an item that was fixed and came back the
+    # same day must start again, and a corrupt last snapshot must not hide the valid one before it. For each one
+    # only what the page needs is kept (the counts and the identities of the items that need attention), so the
+    # parsed snapshot can be freed, whatever its size.
+    $farmSeries = [ordered]@{}
+    $farmFilesPerDay = @{}
+    $farmTruncated = @{}
     $earliest = $null
     foreach ($safe in @($farmDisplay.Keys)) {
-        $files = New-Object -TypeName System.Collections.ArrayList
-        $farmHistory = Join-Path -Path $historyRoot -ChildPath $safe
-        $prefix = "$Application-$Environment-$safe-"
-        if (Test-Path -LiteralPath $farmHistory) {
-            foreach ($f in @(Get-ChildItem -LiteralPath $farmHistory -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
-                if ($f.Name.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { [void]$files.Add($f) }
-            }
-        }
-        $current = Join-Path -Path $ResultsFolder -ChildPath "$Application-$Environment-$safe.json"
-        if (Test-Path -LiteralPath $current -PathType Leaf) { [void]$files.Add((Get-Item -LiteralPath $current)) }
-
-        $byDay = @{}
-        foreach ($f in $files) {
+        $inPeriod = New-Object -TypeName System.Collections.ArrayList
+        $perDay = @{}
+        foreach ($f in (_farmFiles $safe)) {
             # Nothing dated after today (a clock that was ahead, restored files) belongs to a page that ends today.
             if ($f.LastWriteTime.Date -lt $windowStart -or $f.LastWriteTime.Date -gt $today) { continue }
+            [void]$inPeriod.Add($f)
             $key = _day $f.LastWriteTime
-            if (-not $byDay.ContainsKey($key)) { $byDay[$key] = New-Object -TypeName System.Collections.ArrayList }
-            [void]$byDay[$key].Add($f)
+            if ($perDay.ContainsKey($key)) { $perDay[$key]++ } else { $perDay[$key] = 1 }
+        }
+        $ordered = @($inPeriod | Sort-Object -Property LastWriteTime)
+        $truncated = $false
+        if ($ordered.Count -gt $MaxSnapshotsPerFarm) {
+            $truncated = $true
+            Write-Warning -Message "SPSWeather cockpit: farm '$($farmDisplay[$safe])' has $($ordered.Count) snapshots in the period: only the last $MaxSnapshotsPerFarm are read."
+            $ordered = @($ordered | Select-Object -Last $MaxSnapshotsPerFarm)
         }
 
         $series = New-Object -TypeName System.Collections.ArrayList
-        foreach ($key in @($byDay.Keys | Sort-Object)) {
-            $last = @($byDay[$key] | Sort-Object -Property LastWriteTime)[-1]
+        foreach ($file in $ordered) {
             $snapshot = $null
-            try {
-                $text = Get-Content -LiteralPath $last.FullName -Raw -ErrorAction Stop
-                if (-not [string]::IsNullOrWhiteSpace($text)) { $snapshot = ConvertFrom-Json -InputObject $text -ErrorAction Stop }
-            }
-            catch { $snapshot = $null }
-            if ($snapshot -isnot [System.Management.Automation.PSCustomObject]) {
-                Write-Warning -Message "SPSWeather cockpit: the snapshot '$($last.Name)' is empty or is not valid JSON and is skipped."
-                [void]$skipped.Add($last.Name)
+            try { $snapshot = _readSnapshot $file.FullName } catch { $snapshot = $null }
+            if ($null -eq $snapshot) {
+                Write-Warning -Message "SPSWeather cockpit: the snapshot '$($file.Name)' is empty or is not valid JSON and is skipped."
+                [void]$skipped.Add($file.Name)
                 continue
             }
-            # Only the summary is kept: the parsed snapshot can be freed, whatever its size.
-            [void]$series.Add([PSCustomObject]@{ Day = $key; When = $last.LastWriteTime; Count = $byDay[$key].Count; Summary = (Get-SPSWeatherSnapshotSummary -Snapshot $snapshot) })
-            if ($null -eq $earliest -or $last.LastWriteTime.Date -lt $earliest) { $earliest = $last.LastWriteTime.Date }
+            $summary = Get-SPSWeatherSnapshotSummary -Snapshot $snapshot
+            $idSet = @{}
+            foreach ($item in $summary.Items) { $idSet[(Get-SPSWeatherItemIdentity -Section $item.Section -Row $item.Row -IdOnly).Id] = $true }
+            # Only the last snapshot is described item by item: let go of the items of the one before.
+            if ($series.Count -gt 0) { $series[$series.Count - 1].Items = $null }
+            [void]$series.Add([PSCustomObject]@{ Day = (_day $file.LastWriteTime); When = $file.LastWriteTime; Ok = $summary.Ok; Warn = $summary.Warn; Fail = $summary.Fail; IdSet = $idSet; Items = $summary.Items })
+            if ($null -eq $earliest -or $file.LastWriteTime.Date -lt $earliest) { $earliest = $file.LastWriteTime.Date }
         }
-        $farmSnapshots[$safe] = $series
+        $farmSeries[$safe] = $series.ToArray()
+        $farmFilesPerDay[$safe] = $perDay
+        $farmTruncated[$safe] = $truncated
     }
     foreach ($entry in $runsInPeriod) {
         if ($null -eq $earliest -or $entry.When.LocalDateTime.Date -lt $earliest) { $earliest = $entry.When.LocalDateTime.Date }
@@ -233,24 +276,24 @@
     # --- each farm: the daily counts and what needs attention now ---
     $farms = New-Object -TypeName System.Collections.ArrayList
     foreach ($safe in @($farmDisplay.Keys)) {
-        $series = @($farmSnapshots[$safe])
-        $summaries = New-Object -TypeName System.Collections.ArrayList
-        foreach ($point in $series) { [void]$summaries.Add($point.Summary) }
+        $series = @($farmSeries[$safe])
+        $perDay = $farmFilesPerDay[$safe]
 
+        # A day is described by the last usable snapshot of that day.
         $daily = New-Object -TypeName System.Collections.ArrayList
         foreach ($day in $days) {
             $index = -1
-            for ($i = 0; $i -lt $series.Count; $i++) { if ($series[$i].Day -eq $day) { $index = $i; break } }
+            for ($i = $series.Count - 1; $i -ge 0; $i--) { if ($series[$i].Day -eq $day) { $index = $i; break } }
             $down = 0
             if ($unreachable.ContainsKey("$safe|$day")) { $down = [int]$unreachable["$safe|$day"] }
             if ($index -ge 0) {
-                $s = $summaries[$index]
+                $s = $series[$index]
                 [void]$daily.Add([ordered]@{
                         ok          = $s.Ok
                         warn        = $s.Warn
                         fail        = $s.Fail
                         weather     = (Get-SPSWeatherWeatherKey -Warn $s.Warn -Fail $s.Fail -StormyAbove $stormyAbove)
-                        snapshots   = $series[$index].Count
+                        snapshots   = [int]$perDay[$day]
                         unreachable = $down
                     })
             }
@@ -260,60 +303,55 @@
             else { [void]$daily.Add($null) }
         }
 
-        # What needs attention in the last snapshot, and since when: the first day of the unbroken series of
-        # snapshots (a day without snapshot, because the farm was not reached, does not break it).
+        # What needs attention in the last snapshot, and since when: the first snapshot of the unbroken series of
+        # snapshots in which the item also needed attention (a day without snapshot, because the farm was not
+        # reached, does not break it).
         $attention = New-Object -TypeName System.Collections.ArrayList
         $latestSnapshot = $null
         if ($series.Count -gt 0) {
-            $latestSnapshot = $series[-1].When.ToString('o', $invariant)
-            $sets = New-Object -TypeName System.Collections.ArrayList
-            for ($n = 0; $n -lt $summaries.Count; $n++) {
-                $s = $summaries[$n]
-                $set = @{}
-                # Only the last snapshot is shown: for the older ones the identity of an item is all that matters.
-                $idOnly = ($n -lt ($summaries.Count - 1))
-                foreach ($item in $s.Items) {
-                    $identity = Get-SPSWeatherItemIdentity -Section $item.Section -Row $item.Row -IdOnly:$idOnly
-                    if ($set.ContainsKey($identity.Id)) {
-                        $set[$identity.Id].count++
-                        if ($item.Severity -eq 'fail') { $set[$identity.Id].severity = 'fail' }
-                    }
-                    else {
-                        $set[$identity.Id] = [ordered]@{ section = $item.Section; id = $identity.Id; name = $identity.Name; severity = $item.Severity; cause = $identity.Cause; detail = $identity.Detail; count = 1 }
-                    }
+            $last = $series.Count - 1
+            $latestSnapshot = $series[$last].When.ToString('o', $invariant)
+            $latestItems = [ordered]@{}
+            foreach ($item in $series[$last].Items) {
+                $identity = Get-SPSWeatherItemIdentity -Section $item.Section -Row $item.Row
+                if ($latestItems.Contains($identity.Id)) {
+                    $latestItems[$identity.Id].count++
+                    if ($item.Severity -eq 'fail') { $latestItems[$identity.Id].severity = 'fail' }
                 }
-                [void]$sets.Add($set)
+                else {
+                    $latestItems[$identity.Id] = [ordered]@{ section = $item.Section; id = $identity.Id; name = $identity.Name; severity = $item.Severity; cause = $identity.Cause; detail = $identity.Detail; count = 1 }
+                }
             }
-            $last = $sets.Count - 1
-            foreach ($id in @($sets[$last].Keys)) {
+            foreach ($id in @($latestItems.Keys)) {
                 $first = $last
-                while ($first -gt 0 -and $sets[$first - 1].ContainsKey($id)) { $first-- }
-                $item = $sets[$last][$id]
+                while ($first -gt 0 -and $series[$first - 1].IdSet.ContainsKey($id)) { $first-- }
+                $item = $latestItems[$id]
                 [void]$attention.Add([ordered]@{
-                        farm                = $farmDisplay[$safe]
-                        section             = $item.section
-                        id                  = $item.id
-                        name                = $item.name
-                        severity            = $item.severity
-                        cause               = $item.cause
-                        detail              = $item.detail
-                        count               = $item.count
-                        since               = $series[$first].Day
-                        sinceIsLowerBound   = ($first -eq 0)
+                        farm              = $farmDisplay[$safe]
+                        section           = $item.section
+                        id                = $item.id
+                        name              = $item.name
+                        severity          = $item.severity
+                        cause             = $item.cause
+                        detail            = $item.detail
+                        count             = $item.count
+                        since             = $series[$first].Day
+                        sinceIsLowerBound = ($first -eq 0)
                     })
             }
         }
-        $ordered = @($attention | Sort-Object -Property @{ Expression = { if ($_.severity -eq 'fail') { 0 } else { 1 } } }, @{ Expression = { $_.since } }, @{ Expression = { $_.id } })
-        $total = $ordered.Count
-        if ($ordered.Count -gt $MaxItemsPerFarm) { $ordered = @($ordered | Select-Object -First $MaxItemsPerFarm) }
+        $sorted = @($attention | Sort-Object -Property @{ Expression = { if ($_.severity -eq 'fail') { 0 } else { 1 } } }, @{ Expression = { $_.since } }, @{ Expression = { $_.id } })
+        $total = $sorted.Count
+        if ($sorted.Count -gt $MaxItemsPerFarm) { $sorted = @($sorted | Select-Object -First $MaxItemsPerFarm) }
 
         [void]$farms.Add([ordered]@{
                 name               = $farmDisplay[$safe]
                 daily              = $daily.ToArray()
                 latestSnapshot     = $latestSnapshot
-                attention          = $ordered
+                snapshotsTruncated = $farmTruncated[$safe]
+                attention          = $sorted
                 attentionTotal     = $total
-                attentionTruncated = ($total -gt $ordered.Count)
+                attentionTruncated = ($total -gt $sorted.Count)
             })
     }
 
@@ -323,7 +361,12 @@
     $previous = $null
     foreach ($entry in $runsInPeriod) {
         $setting = $entry.Run.PSObject.Properties['settings']
-        if ($null -eq $setting -or $null -eq $setting.Value) { continue }
+        if ($null -eq $setting -or $null -eq $setting.Value) {
+            # The settings of this run are not known (an older journal, an older version): nothing is compared across
+            # it, and the last known settings stay the current ones.
+            $previous = $null
+            continue
+        }
         $current = $setting.Value
         if ($null -ne $previous) {
             $record = {
