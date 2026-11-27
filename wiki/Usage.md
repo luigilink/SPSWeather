@@ -67,7 +67,7 @@ The email subject is prefixed with the overall status, e.g. `[ALERT]contoso_PROD
 
 ## Scheduling
 
-`-Install` registers a scheduled task named `SPSWeather-<app>-<env>` that runs the script as the service account. The task no longer needs `-EnableSMTP` once `SMTPEnabled` is defined in the configuration; when it is not, `-Install` keeps the switch in the task (so existing mails keep flowing) and warns you to add `SMTPEnabled = $true` and run `-Install` again. A typical setup:
+`-Install` registers a scheduled task named `SPSWeather-<app>-<env>` that runs the script as the service account. The task no longer needs `-EnableSMTP` once `SMTPEnabled` is defined in the configuration; when it is not, `-Install` keeps the switch in the task (so existing mails keep flowing) and warns you to add `SMTPEnabled = $true` and run `-Install` again. A task that still carries `-EnableSMTP` has to be registered again before **4.0.0**, which removes the switch: the script would then refuse to start and the morning run would not happen. `Test-SPSWeatherReadiness.ps1` has a *Scheduled task* section that reads the task of the configuration (read-only) and shows a `[WARN]` with what to do when it still carries the switch; the line is `[SKIP]`, information only, when the task does not exist on that host, when the host is not Windows, or when the task cannot be read (run the check as an administrator). A typical setup:
 
 | Field | Value |
 |---|---|

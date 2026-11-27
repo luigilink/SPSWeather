@@ -6,8 +6,9 @@
     Validates, before running SPSWeather.ps1, that the environment is ready:
     the SPSWeather.Common module imports, the environment configuration parses
     and exposes the required keys, the service credential exists in secrets.psd1
-    and decrypts under the current account (DPAPI), the session is elevated, and
-    each farm server is reachable for CredSSP remoting.
+    and decrypts under the current account (DPAPI), the scheduled task does not use
+    the -EnableSMTP switch that 4.0.0 removes, the session is elevated, and each farm
+    server is reachable for CredSSP remoting.
 
     Read-only: it never changes configuration, credentials or the farm. The only thing it writes is a small
     temporary file, removed at once, to prove that the folder of the cockpit page accepts a file and lets it
@@ -318,7 +319,19 @@ else {
     Add-CheckResult -Section 'Secrets' -Name 'CredentialKey' -Status 'SKIP' -Detail 'No CredentialKey in config'
 }
 
-# 4. Privileges
+# 4. Scheduled task: the deprecated -EnableSMTP switch is removed in 4.0.0. Information only, never a failure, and nothing is
+# changed: the task is only read.
+Write-Section -Title 'Scheduled task'
+if ($null -ne $cfg -and (Get-Command -Name Get-SPSScheduledTaskSmtpCheck -ErrorAction SilentlyContinue)) {
+    $taskSmtp = Resolve-SPSSmtpSetting -Config $cfg
+    $taskCheck = Get-SPSScheduledTaskSmtpCheck -Application "$($cfg['ApplicationName'])" -Environment "$($cfg['ConfigurationName'])" -ConfigDefinesEnabled:$taskSmtp.ConfigDefinesEnabled
+    Add-CheckResult -Section 'Scheduled task' -Name "Task '$($taskCheck.TaskName)'" -Status $taskCheck.Status -Detail $taskCheck.Detail
+}
+else {
+    Add-CheckResult -Section 'Scheduled task' -Name 'Scheduled task' -Status 'SKIP' -Detail 'No readable configuration or SPSWeather.Common is not loaded'
+}
+
+# 5. Privileges
 Write-Section -Title 'Privileges'
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')
 if ($isAdmin) {
@@ -328,7 +341,7 @@ else {
     Add-CheckResult -Section 'Privileges' -Name 'Administrator rights' -Status 'FAIL' -Detail 'Run elevated (needed for the Event Log and SharePoint cmdlets)'
 }
 
-# 5. Network / CredSSP reachability
+# 6. Network / CredSSP reachability
 Write-Section -Title 'Network'
 if ($SkipNetwork) {
     Add-CheckResult -Section 'Network' -Name 'Farm reachability' -Status 'SKIP' -Detail '-SkipNetwork specified'
