@@ -2,6 +2,9 @@
 # the readiness check warns when the task of an environment still carries it. The decision is tested with a fake reader
 # of the Task Scheduler; the reader itself only runs for real on Windows.
 
+# $IsWindows does not exist in Windows PowerShell 5.1: the platform is read the way the reader does, when the tests are discovered
+$onWindows = [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT
+
 BeforeAll {
     $repoRoot = Split-Path -Path $PSScriptRoot -Parent
     $modulePath = Join-Path -Path $repoRoot -ChildPath 'src/Modules/SPSWeather.Common/SPSWeather.Common.psd1'
@@ -156,13 +159,13 @@ Describe 'Read-SPSScheduledTask' {
         $source | Should -Not -Match 'RegisterTask|DeleteTask|DeleteFolder|CreateFolder|Register-ScheduledTask|Set-ScheduledTask|Unregister-ScheduledTask'
     }
 
-    It 'says that it is not supported off Windows' -Skip:($IsWindows) {
+    It 'says that it is not supported off Windows' -Skip:($onWindows) {
         $r = InModuleScope SPSWeather.Common { Read-SPSScheduledTask -TaskName 'SPSWeather-contoso-PROD' }
         $r.Supported | Should -BeFalse
         $r.Found | Should -BeFalse
     }
 
-    It 'finds nothing for a task that does not exist, and that is not an error' -Skip:(-not $IsWindows) {
+    It 'finds nothing for a task that does not exist, and that is not an error' -Skip:(-not $onWindows) {
         $r = InModuleScope SPSWeather.Common { Read-SPSScheduledTask -TaskName ('SPSWeather-test-' + [guid]::NewGuid().ToString('N')) }
         $r.Supported | Should -BeTrue
         $r.Found | Should -BeFalse
