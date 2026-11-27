@@ -43,8 +43,11 @@ Set `SMTPEnabled = $false` and `SMTPPreview = $true` to review the generated ema
 Run this **as the service account** so the stored credential is decryptable at run time:
 
 ```powershell
-.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -Action Install -InstallAccount (Get-Credential)
+.\SPSWeather.ps1 -ConfigFile (Convert-Path 'Config\contoso-PROD.psd1') -Action Install -InstallAccount (Get-Credential)
 ```
+
+> [!NOTE]
+> Give `-ConfigFile` as an **absolute** path when you install, as `Convert-Path` does above. The task is registered with the path exactly as you write it and it has no working directory, so a relative path would not be found when it starts at 06:00.
 
 ### Uninstall
 

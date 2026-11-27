@@ -14,7 +14,7 @@ orchestration / PULL server) and reaches every farm over a CredSSP PSSession.
 
 ## The service account
 
-One account runs the scheduled task and opens every remote session, so it needs the rights of the layers that SPSWeather reads. **Use the SharePoint farm account**, as I do: with it, every right below is normally already in place and there is nothing to grant. It is a member of the local Administrators of the farm servers, a farm administrator, and the account SharePoint itself uses to reach SQL Server. Another account works if you give it the same rights, which the table lists.
+One account runs the scheduled task and opens every remote session, so it needs the rights of the layers that SPSWeather reads. **I use the SharePoint farm account**, and I suggest it: it already holds most of what the table below asks for. **Check the table against your own farm**, because SharePoint does not grant all of it by itself. Microsoft's description of the [farm service account](https://learn.microsoft.com/en-us/sharepoint/install/initial-deployment-administrative-and-service-accounts-in-sharepoint-server) says that SharePoint gives it additional permissions on the farm servers and a SQL Server login with the `dbcreator` and `securityadmin` server roles and `db_owner` on the SharePoint databases. Membership of the local Administrators group is asked of the *farm administrator* account that runs Setup, and `VIEW SERVER STATE` is not in that list. On my farms the account is also a local administrator, which is why nothing had to be added. Another account works if it has the rights of the table.
 
 | Layer | What SPSWeather needs from the account |
 |---|---|

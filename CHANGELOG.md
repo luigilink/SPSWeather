@@ -62,11 +62,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- *Prerequisites* has a new section on **the service account** (use the SharePoint farm account, with which the rights are normally already in
-  place, and what another account would need: the run server, on each farm server, on SQL Server and on the dashboard folder) and on **what the script changes on the
-  run server** (the High Performance power plan at every elevated run, the Event Log source, and with `-Action Install` the scheduled
-  task, the secret and the CredSSP client). The scheduled task table of *Usage* shows the real task: its arguments are written without
-  quotation marks and it has no working directory, so SPSWeather has to be installed in a folder whose path has no space (#145).
+- *Prerequisites* has a new section on **the service account**: the maintainer uses the SharePoint farm account and suggests it, with the
+  rights that SPSWeather needs on the run server, on each farm server, on SQL Server and on the dashboard folder, and a reminder to check them
+  against one's own farm, since SharePoint grants the farm account part of them only (Microsoft's description of the account is linked). It
+  also lists **what the script changes on the run server** (the High Performance power plan at every elevated run, the Event Log source, and
+  with `-Action Install` the scheduled task, the secret and the CredSSP client). The scheduled task table of *Usage* shows the real task:
+  its arguments are written without quotation marks and it has no working directory, so SPSWeather has to be installed in a folder whose
+  path has no space, and `-Action Install` has to be given an **absolute** `-ConfigFile` (the pages show `(Convert-Path 'Config\...')`).
+  A test checks it (#145).
 
 ## [3.5.0] - 2026-11-26
 

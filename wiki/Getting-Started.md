@@ -32,8 +32,11 @@ xCredSSP CredSSPClient { Ensure = "Present"; Role = "Client"; DelegateComputers 
 3. Register the scheduled task **while signed in as the service account** so the credential is encrypted under that account:
 
 ```powershell
-.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -Action Install -InstallAccount (Get-Credential)
+.\SPSWeather.ps1 -ConfigFile (Convert-Path 'Config\contoso-PROD.psd1') -Action Install -InstallAccount (Get-Credential)
 ```
+
+> [!NOTE]
+> Give `-ConfigFile` as an **absolute** path when you install, as `Convert-Path` does above. The task is registered with the path exactly as you write it and it has no working directory, so a relative path would not be found when it starts at 06:00.
 
 > [!IMPORTANT]
 > Run the `-Action Install` step as the **same account** you pass to `-InstallAccount`. The credential is stored in `Config\secrets.psd1` as a DPAPI SecureString that only that account, on that machine, can decrypt at run time.
