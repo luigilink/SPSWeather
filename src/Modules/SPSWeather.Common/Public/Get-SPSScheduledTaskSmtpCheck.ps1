@@ -70,10 +70,12 @@
         return & $outcome 'NotFound' 'SKIP' "No scheduled task named '$taskName' on this host (not installed here, or installed on another server)."
     }
 
-    # A token is a run of characters that are not blanks, or a quoted part: a quoted path that holds the text is not the switch.
+    # A token is a run of characters that are not blanks, or a quoted part with double quotes or with apostrophes (the task that -Action Install
+    # registers is read by PowerShell as a command, which honours both): a quoted path that holds the text is not the switch. An apostrophe that is
+    # never closed, as in a folder named O'Brien, is an ordinary character.
     $hasSwitch = $false
-    foreach ($match in [regex]::Matches([string]$task.Arguments, '(?:[^\s"]|"[^"]*")+')) {
-        if ($match.Value.Replace('"', '') -match '^-EnableSMTP(:.*)?$') { $hasSwitch = $true; break }
+    foreach ($match in [regex]::Matches([string]$task.Arguments, '(?:"[^"]*"|''[^'']*''|\S)+')) {
+        if (($match.Value -replace '["'']', '') -match '^-EnableSMTP(:.*)?$') { $hasSwitch = $true; break }
     }
     if (-not $hasSwitch) {
         return & $outcome 'Clean' 'PASS' "The scheduled task '$taskName' does not use the deprecated -EnableSMTP switch."

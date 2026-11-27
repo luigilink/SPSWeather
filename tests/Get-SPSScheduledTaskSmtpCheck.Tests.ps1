@@ -66,6 +66,10 @@ Describe 'Get-SPSScheduledTaskSmtpCheck' {
             @{ Name = 'an explicit value'; Arguments = '-File F:\S\SPSWeather.ps1 -EnableSMTP:$false' }
             @{ Name = 'a quoted switch'; Arguments = '-File F:\S\SPSWeather.ps1 "-EnableSMTP"' }
             @{ Name = 'tabs and several blanks'; Arguments = "-File  F:\S\SPSWeather.ps1`t-EnableSMTP" }
+            @{ Name = 'a quoted file name with blanks, then the switch'; Arguments = "-Execution Bypass F:\S\SPSWeather.ps1 -ConfigFile 'F:\S\Config PROD.psd1' -EnableSMTP" }
+            @{ Name = 'a switch between apostrophes'; Arguments = "-Execution Bypass F:\S\SPSWeather.ps1 -ConfigFile 'F:\S\c.psd1' '-EnableSMTP'" }
+            @{ Name = 'a folder with an apostrophe that is never closed, then the switch'; Arguments = "-File F:\O'Brien\SPSWeather.ps1 -ConfigFile F:\S\c.psd1 -EnableSMTP" }
+            @{ Name = 'an apostrophe inside a double-quoted path, then the switch'; Arguments = "-File `"F:\O'Brien\SPSWeather.ps1`" -EnableSMTP" }
         ) {
             $r = Invoke-Check -Task (New-TaskResult -Arguments $Arguments)
             $r.Status | Should -Be 'WARN'
@@ -98,6 +102,10 @@ Describe 'Get-SPSScheduledTaskSmtpCheck' {
             @{ Name = 'a longer parameter name'; Arguments = '-File F:\S\SPSWeather.ps1 -EnableSmtpExtra' }
             @{ Name = 'an abbreviation of the parameter (the script writes the task itself)'; Arguments = '-File F:\S\SPSWeather.ps1 -EnableS' }
             @{ Name = 'the text in a value'; Arguments = '-File F:\S\SPSWeather.ps1 -ConfigFile F:\S\EnableSMTP.psd1' }
+            @{ Name = 'a single-quoted file name that holds a space-delimited switch fragment (command-style task)'; Arguments = "-Execution Bypass F:\S\SPSWeather.ps1 -ConfigFile 'F:\S\Config -EnableSMTP PROD.psd1'" }
+            @{ Name = 'a single-quoted path that holds the switch fragment, then other arguments'; Arguments = "-Execution Bypass 'F:\S -EnableSMTP\SPSWeather.ps1' -ConfigFile F:\S\c.psd1" }
+            @{ Name = 'a folder with an apostrophe that is never closed'; Arguments = "-File F:\O'Brien\SPSWeather.ps1 -ConfigFile F:\S\c.psd1" }
+            @{ Name = 'an apostrophe inside a double-quoted path that holds the fragment'; Arguments = "-File `"F:\O'Brien -EnableSMTP\SPSWeather.ps1`"" }
         ) {
             $r = Invoke-Check -Task (New-TaskResult -Arguments $Arguments)
             $r.Status | Should -Be 'PASS'
