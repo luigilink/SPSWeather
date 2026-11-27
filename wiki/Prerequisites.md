@@ -14,13 +14,13 @@ orchestration / PULL server) and reaches every farm over a CredSSP PSSession.
 
 ## The service account
 
-One account runs the scheduled task and opens every remote session, so it needs the rights of the three layers that SPSWeather reads. **The author recommends the SharePoint farm account**: it is already a member of the local Administrators of the farm servers and a farm administrator, and it is the account SharePoint itself uses to reach SQL Server. Another account works if it has the same rights.
+One account runs the scheduled task and opens every remote session, so it needs the rights of the layers that SPSWeather reads. **Use the SharePoint farm account**, as the author does: with it, every right below is normally already in place and there is nothing to grant. It is a member of the local Administrators of the farm servers, a farm administrator, and the account SharePoint itself uses to reach SQL Server. Another account works if you give it the same rights, which the table lists.
 
 | Layer | What SPSWeather needs from the account |
 |---|---|
 | The run server | Member of the local Administrators (the script runs elevated and stops otherwise); the task is registered with its password and runs with the highest privileges |
 | Each farm server | A remote session over CredSSP, and the rights to run the SharePoint cmdlets (`SharePointServer` module), to read IIS and to read the system information of the server |
-| SQL Server | Windows authentication (integrated security): at least `VIEW SERVER STATE` and read access to `master` and `msdb`. Check it in your environment: a SQL instance that cannot be queried is reported as a failed `Query failed` row, and the other instances are still checked |
+| SQL Server | Windows authentication (integrated security): at least `VIEW SERVER STATE` and read access to `master` and `msdb`. A SQL instance that cannot be queried is reported as a failed `Query failed` row, and the other instances are still checked |
 | The dashboard folder or share | Write access, if `Dashboard.OutputPath` is set |
 
 Use the **same account for every farm** of a configuration. The credential is stored in `Config\secrets.psd1` (see [Configuration](Configuration)), encrypted with DPAPI for that account on that machine.

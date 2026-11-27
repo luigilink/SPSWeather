@@ -6,7 +6,7 @@
 - **CredSSP** configured (see below) so the script can remote into each farm server as the service account.
 - **Administrative privileges** on the server that runs SPSWeather (required to create the `SPSWeather` Windows Event Log on first use and to call most SharePoint cmdlets).
 - An **SMTP server** reachable from the run server (only needed when `SMTPEnabled = $true`; without a relay, use `SMTPPreview = $true` to review the email as an HTML file).
-- A **service account** that can reach the farms (the SharePoint farm account is the one the author recommends, see [Prerequisites](Prerequisites#the-service-account)); its credential is stored in `Config\secrets.psd1` (see [Configuration](Configuration)).
+- A **service account** that can reach the farms (use the SharePoint farm account, see [Prerequisites](Prerequisites#the-service-account)); its credential is stored in `Config\secrets.psd1` (see [Configuration](Configuration)).
 
 ## Configure CredSSP
 

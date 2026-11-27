@@ -70,7 +70,7 @@ The email subject is prefixed with the overall status, e.g. `[ALERT]contoso_PROD
 
 | Field | Value |
 |---|---|
-| Run as | The service account, a member of the local Administrators of the run server (the SharePoint farm account is the one the author recommends, see [Prerequisites](Prerequisites#the-service-account)) |
+| Run as | The service account, a member of the local Administrators of the run server (use the SharePoint farm account, see [Prerequisites](Prerequisites#the-service-account)) |
 | Trigger | Daily at 06:00 |
 | Action | `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe` with the arguments `-Execution Bypass D:\SCRIPT\SPSWeather\SPSWeather.ps1 -ConfigFile D:\SCRIPT\SPSWeather\Config\contoso-PROD.psd1` (plus `-EnableSMTP` while `SMTPEnabled` is not defined) |
 | Run whether user is logged on or not | Yes (the task is registered with the password of the service account) |
