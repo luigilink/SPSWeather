@@ -59,6 +59,11 @@ Describe 'Dashboard to cockpit link (Export-SPSWeatherReport -CockpitFile)' {
             @{ Name = 'en-US, a blank file name'; Language = 'en-US'; Extra = @{ CockpitFile = '   ' } }
         ) {
             $html = Get-DashboardHtml -Language $Language -Extra $Extra
+            if ((Get-Hash -Html $html) -ne $script:reference[$Language]) {
+                $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([regex]::Replace($html, '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', 'STAMP')))
+                $n = 0; for ($i = 0; $i -lt $b64.Length; $i += 200) { Write-Host ('DIAG {0} {1} {2}' -f $Name, $n, $b64.Substring($i, [Math]::Min(200, $b64.Length - $i))); $n++ }
+                Write-Host ('DIAG-ENV date={0} tz={1} os={2} ps={3}' -f (Get-Date).ToString('o'), [System.TimeZoneInfo]::Local.Id, [System.Environment]::OSVersion.Platform, $PSVersionTable.PSVersion)
+            }
             Get-Hash -Html $html | Should -Be $script:reference[$Language]
             $html | Should -Not -Match 'cockpit'
         }
