@@ -86,7 +86,7 @@ else {
 $spsWeatherVersion = (Get-Module -Name 'SPSWeather.Common').Version.ToString()
 $getDateFormatted = Get-Date -Format yyyy-MM-dd
 $spWeatherFileName = "$($Application)-$($Environment)-$($getDateFormatted)"
-$spWeatherTaskName = "SPSWeather-$($Application)-$($Environment)"
+$spWeatherTaskName = Get-SPSWeatherTaskName -Application $Application -Environment $Environment
 $currentUser = ([Security.Principal.WindowsIdentity]::GetCurrent()).Name
 $scriptRootPath = Split-Path -parent $MyInvocation.MyCommand.Definition
 $pathLogsFolder = Join-Path -Path $scriptRootPath -ChildPath 'Logs'

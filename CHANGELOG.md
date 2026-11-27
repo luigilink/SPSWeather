@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Readiness: a warning when the scheduled task still carries the deprecated `-EnableSMTP` switch**, to prepare for 4.0.0, which
+  removes it: the script would then refuse to start and the morning run would not happen, with an error that only shows in the Task
+  Scheduler. `Test-SPSWeatherReadiness.ps1` has a new *Scheduled task* section that reads the task of the configuration
+  (`\SharePoint\SPSWeather-<App>-<Env>`, read-only: it never registers, changes or deletes a task) and shows a `[WARN]` when its arguments
+  contain `-EnableSMTP` (any case, `-EnableSMTP:$false` too; an abbreviation of the name is not looked for, as the script writes the task
+  itself), with what to do: run `-Action Install` again when `SMTPEnabled` is already defined, or add `SMTPEnabled` first when it is not.
+  The line is `[SKIP]`, information only and never a failure, when the task does not exist on that host, when the host is not Windows, or
+  when the task cannot be read. The decision is the new public function `Get-SPSScheduledTaskSmtpCheck`, and the name of the task is built
+  in one place, the new `Get-SPSWeatherTaskName`, used by the entry script and the check, so the two cannot name it differently. Nothing
+  else in the output of the readiness script changes (#136).
 - **The dashboard and the cockpit link to each other.** With `Dashboard.Cockpit = $true`, the header of the dashboard of each farm has an
   *Open the cockpit* link (translated: en-US, fr-FR), and the cockpit has an *Open the farm dashboard* link on the card of each farm of the
   *Executive* tab and in its detail on the *IT* tab. The links are **relative** (the file name alone, encoded): the dashboards and the page are
@@ -16,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   new and optional, `null` when there is none). Without `Dashboard.Cockpit` the dashboard is **byte for byte the one of 3.5.0**: the tests compare
   it, with the time of the run masked, with the SHA-256 of the page that 3.5.0 produces. If the page could not be written in a run (Event ID 3002),
   the dashboards keep their link to the page of the previous run (#141).
+
+### Changed
+
+- The wiki *Usage* and *Configuration* pages say that the `-EnableSmtp` switch is removed in 4.0.0 and how to get ready (#136).
 
 ## [3.5.0] - 2026-11-26
 
@@ -89,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   farm with **since when** (the day of the first snapshot of the unbroken series of snapshots, every usable
   snapshot counting, so an item that was fixed and came back the same day starts again; and whether that is only a lower
   bound), the run journal and the **settings in effect** with what changed between two records, and a reserved empty
-  `kpi` section for the nightly activity run planned for 3.6.0. The periods offered (7, 14, 30 and 60 days) are
+  `kpi` section for the nightly activity run planned for 4.0.0. The periods offered (7, 14, 30 and 60 days) are
   limited by `JsonHistoryRetentionDays`, which is not changed and deletes nothing. A snapshot that is missing, empty
   or not valid JSON is skipped with a warning (and listed), a journal that cannot be read is ignored: the dataset can
   never make a run fail; at most 400 snapshots are read for a farm (the most recent ones, flagged and reported), and
