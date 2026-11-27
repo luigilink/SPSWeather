@@ -5,6 +5,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The dashboard and the cockpit link to each other.** With `Dashboard.Cockpit = $true`, the header of the dashboard of each farm has an
+  *Open the cockpit* link (translated: en-US, fr-FR), and the cockpit has an *Open the farm dashboard* link on the card of each farm of the
+  *Executive* tab and in its detail on the *IT* tab. The links are **relative** (the file name alone, encoded): the dashboards and the page are
+  written to the same folder, so they work from IIS, a file share or a local folder, and need no `Dashboard.Url`. The link of the dashboard
+  is there only when the run produces the cockpit (new optional parameter `-CockpitFile` of `Export-SPSWeatherReport`, given by the entry script
+  from the cockpit setting); the page links to a dashboard only when that file is in its folder (the dataset gives each farm a `dashboard` field,
+  new and optional, `null` when there is none). Without `Dashboard.Cockpit` the dashboard is **byte for byte the one of 3.5.0**: the tests compare
+  it, with the time of the run masked, with the SHA-256 of the page that 3.5.0 produces. If the page could not be written in a run (Event ID 3002),
+  the dashboards keep their link to the page of the previous run (#141).
+
 ## [3.5.0] - 2026-11-26
 
 ### Added

@@ -64,6 +64,11 @@ unless the key is set: with the key absent or `$false` a run produces exactly th
   `OutputPath` as the dashboards, so the same share and the same IIS site serve it. The page loads nothing from outside, so it needs no other file on the site.
 - **The email.** With `EmailMode = 'Consolidated'` and a `Url`, the consolidated email gets an *Open the cockpit* button under its introduction, pointing to
   `<Url>/<App>-<Env>-cockpit.html`. Without `Url` there is no button, like the farm buttons. As for the farm buttons, the address is built from `Url`: it must serve the folder that `OutputPath` writes to (with `OutputPath` empty the page stays in `Results\`, which no web server serves, so leave `Url` empty then). The per-farm email is unchanged.
+- **Links between the two pages.** With `Cockpit = $true`, the header of the dashboard of each farm has an *Open the cockpit* link, and the cockpit has an *Open the farm dashboard* link on
+  the card of each farm and in its detail on the *IT* tab. The links are **relative** (the file name alone), because the dashboards and the page are written to the same `OutputPath`: they
+  work from IIS, from a file share and from a folder, and need no `Url`. The link of the dashboard is there only when this run produces the cockpit, so it is never a dead link; the page links
+  to a dashboard only when that file is in the folder (a farm that has never produced one gets no link). Without `Cockpit = $true` the dashboard is exactly the one of 3.5.0. If the page
+  could not be written in a run (Event ID 3002), the dashboards keep their link to the page of the previous run.
 - **A failure never fails the run.** If the page cannot be written (a share that is down, a folder that refuses the file), the run goes on, writes the error in
   the transcript and records it in the Event Log (ID **3002**); the dashboards and the emails are already done.
 - **A wrong value.** `Cockpit = 'maybe'` (or `$null`, or a number) is reported (transcript, Event ID 2001, readiness `[WARN]`) and the page is not produced; the text `'true'` or
