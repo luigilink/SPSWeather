@@ -59,6 +59,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and *Configuration* now show `-Action Install -InstallAccount (Get-Credential)` and `-Action Uninstall`, with a row for `-Action` in the
   parameter table. A test reads the parameters of the script and fails when a page of the wiki or the README shows a parameter that the
   script does not have, so the two cannot drift again (#145).
+- **The scheduled task registered by `-Action Install` could not find a relative `-ConfigFile`, and split a path that holds a space.** The
+  task has no working directory, and its arguments were written as they were typed and without quotation marks: with
+  `-ConfigFile 'Config\contoso-PROD.psd1'` the run of 06:00 stopped with `Missing ...`, and a script folder such as `D:\My Scripts\SPSWeather`
+  became several arguments. `-Action Install` now writes the **full path** of the configuration file (`Convert-Path`, which also stops
+  the installation when the file does not exist) and registers the arguments in the `-File` form, with the script and the configuration
+  file between double quotation marks: `-ExecutionPolicy Bypass -File "D:\SCRIPT\SPSWeather\SPSWeather.ps1" -ConfigFile "D:\SCRIPT\SPSWeather\Config\contoso-PROD.psd1"`.
+  The arguments are built in one place, the new public function `Get-SPSWeatherTaskArgument`, and a test starts them for real with Windows
+  PowerShell 5.1 from a folder with spaces. A task registered by an earlier version keeps working as it was and gets the new arguments the
+  next time `-Action Install` runs; the readiness check reads both forms. The wiki no longer asks for an absolute path or for a folder
+  without space (#147).
 
 ### Documentation
 

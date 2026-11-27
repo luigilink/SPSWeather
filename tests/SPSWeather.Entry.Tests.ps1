@@ -65,10 +65,17 @@ Describe 'Entry script email settings (SMTPEnabled / SMTPPreview)' {
         $entrySource | Should -Not -Match 'if \(\$EnableSmtp\)'
     }
 
-    It 'only appends the deprecated -EnableSMTP switch to the scheduled task when SMTPEnabled is not defined' {
-        $entrySource | Should -Match "(?s)if \(-not \`$smtpSetting\.ConfigDefinesEnabled\) \{\s*\`$taskArguments \+= ' -EnableSMTP'"
+    It 'only keeps the deprecated -EnableSMTP switch in the scheduled task when SMTPEnabled is not defined' {
+        $entrySource | Should -Match '\$keepEnableSmtp = -not \$smtpSetting\.ConfigDefinesEnabled'
+        $entrySource | Should -Match '-KeepEnableSmtp:\$keepEnableSmtp'
         $entrySource | Should -Match 'Add-SPSSheduledTask .*-ActionArguments \$taskArguments'
-        $entrySource | Should -Not -Match 'ConfigFile \$\(\$ConfigFile\) -EnableSMTP"'
+        $entrySource | Should -Not -Match "\`$taskArguments \+= ' -EnableSMTP'"
+    }
+
+    It 'registers the task with a full path to the configuration file and builds the arguments in one place' {
+        $entrySource | Should -Match '(?s)\$taskArguments = Get-SPSWeatherTaskArgument\s+-ScriptRoot \$scriptRootPath\s+-ConfigFile \(Convert-Path -LiteralPath \$ConfigFile\)'
+        $entrySource | Should -Not -Match '-Execution Bypass'
+        $entrySource | Should -Not -Match '-ConfigFile \$\(\$ConfigFile\)'
     }
 
     It 'writes the email preview next to the JSON snapshot, before any send attempt' {

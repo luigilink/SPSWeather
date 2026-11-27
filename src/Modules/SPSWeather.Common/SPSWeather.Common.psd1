@@ -43,6 +43,7 @@
         'Get-SPSWeatherHistory'
         'Get-SPSWeatherLimitSetting'
         'Get-SPSWeatherRunSetting'
+        'Get-SPSWeatherTaskArgument'
         'Get-SPSWeatherTaskName'
         'Get-SPWeatherListInfo'
         'Get-SYSDiskUsageStatus'
