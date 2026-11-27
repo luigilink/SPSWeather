@@ -295,6 +295,8 @@
     $cockpitCss = ''
     if (-not [string]::IsNullOrWhiteSpace($CockpitFile)) {
         $cockpitHref = [System.Uri]::EscapeDataString($CockpitFile.Trim())
+        # Windows PowerShell 5.1 leaves ! ' ( ) * as they are and PowerShell 7 encodes them: the link is the same on both
+        foreach ($pair in @(@('!', '%21'), @("'", '%27'), @('(', '%28'), @(')', '%29'), @('*', '%2A'))) { $cockpitHref = $cockpitHref.Replace($pair[0], $pair[1]) }
         $cockpitLink = "<a class=`"cockpit-link`" href=`"$(_enc $cockpitHref)`">$(_enc (_t 'OpenCockpit')) &rarr;</a>"
         $cockpitCss = '.cockpit-link{color:#fff;text-decoration:none;font-weight:600;font-size:12px;padding:7px 12px;border:1px solid rgba(255,255,255,.55);border-radius:8px;white-space:nowrap}.cockpit-link:hover{background:rgba(255,255,255,.16)}.cockpit-link:focus-visible{outline:2px solid #fff;outline-offset:2px}'
     }

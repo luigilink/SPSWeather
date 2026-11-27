@@ -113,6 +113,7 @@ Describe 'Dashboard to cockpit link (Export-SPSWeatherReport -CockpitFile)' {
             @{ Name = 'a colon'; File = 'javascript:alert(1).html'; Expected = 'javascript%3Aalert%281%29.html' }
             @{ Name = 'path separators'; File = '..\..\a/b.html'; Expected = '..%5C..%5Ca%2Fb.html' }
             @{ Name = 'accents'; File = 'été.html'; Expected = '%C3%A9t%C3%A9.html' }
+            @{ Name = 'the characters that the two runtimes encode differently'; File = "a!b*c'd(e)f.html"; Expected = 'a%21b%2Ac%27d%28e%29f.html' }
         ) {
             $html = Get-DashboardHtml -Extra @{ CockpitFile = $File }
             $href = [regex]::Match($html, '<a class="cockpit-link" href="([^"]*)"').Groups[1].Value
