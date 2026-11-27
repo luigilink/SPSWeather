@@ -59,6 +59,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and *Configuration* now show `-Action Install -InstallAccount (Get-Credential)` and `-Action Uninstall`, with a row for `-Action` in the
   parameter table. A test reads the parameters of the script and fails when a page of the wiki or the README shows a parameter that the
   script does not have, so the two cannot drift again (#145).
+- **The scheduled task registered by `-Action Install` could not find a relative `-ConfigFile`, and split a path that holds a space.** The
+  task has no working directory, and its arguments were written as they were typed and without quotation marks: with
+  `-ConfigFile 'Config\contoso-PROD.psd1'` the run of 06:00 stopped with `Missing ...`, and a script folder such as `D:\My Scripts\SPSWeather`
+  became several arguments. `-Action Install` now writes the **full path** of the configuration file (`Convert-Path`, which also stops
+  the installation when the file does not exist) and registers the arguments in the `-File` form, with the script and the configuration
+  file between double quotation marks: `-ExecutionPolicy Bypass -File "D:\SCRIPT\SPSWeather\SPSWeather.ps1" -ConfigFile "D:\SCRIPT\SPSWeather\Config\contoso-PROD.psd1"`.
+  The arguments are built in one place, the new public function `Get-SPSWeatherTaskArgument`, and a test starts them for real with Windows
+  PowerShell 5.1 from a folder with spaces. A task registered by an earlier version keeps working as it was and gets the new arguments the
+  next time `-Action Install` runs; the readiness check reads both forms. The wiki no longer asks for an absolute path or for a folder
+  without space (#147).
 
 ### Documentation
 
@@ -66,10 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rights that SPSWeather needs on the run server, on each farm server, on SQL Server and on the dashboard folder, and a reminder to check them
   against one's own farm, since SharePoint grants the farm account part of them only (Microsoft's description of the account is linked). It
   also lists **what the script changes on the run server** (the High Performance power plan at every elevated run, the Event Log source, and
-  with `-Action Install` the scheduled task, the secret and the CredSSP client). The scheduled task table of *Usage* shows the real task:
-  its arguments are written without quotation marks and it has no working directory, so SPSWeather has to be installed in a folder whose
-  path has no space, and `-Action Install` has to be given an **absolute** `-ConfigFile` (the pages show `(Convert-Path 'Config\...')`).
-  A test checks it (#145).
+  with `-Action Install` the scheduled task, the secret and the CredSSP client). The scheduled task table of *Usage* shows the real
+  task: its account, its trigger and its arguments (#145).
 
 ## [3.5.0] - 2026-11-26
 

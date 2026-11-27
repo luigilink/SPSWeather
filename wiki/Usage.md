@@ -43,11 +43,11 @@ Set `SMTPEnabled = $false` and `SMTPPreview = $true` to review the generated ema
 Run this **as the service account** so the stored credential is decryptable at run time:
 
 ```powershell
-.\SPSWeather.ps1 -ConfigFile (Convert-Path 'Config\contoso-PROD.psd1') -Action Install -InstallAccount (Get-Credential)
+.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -Action Install -InstallAccount (Get-Credential)
 ```
 
 > [!NOTE]
-> Give `-ConfigFile` as an **absolute** path when you install, as `Convert-Path` does above. The task is registered with the path exactly as you write it and it has no working directory, so a relative path would not be found when it starts at 06:00.
+> `-Action Install` writes the full path of the configuration file in the task, so a relative `-ConfigFile` works: the task has no working directory and would not find it otherwise.
 
 ### Uninstall
 
@@ -75,12 +75,12 @@ The email subject is prefixed with the overall status, e.g. `[ALERT]contoso_PROD
 |---|---|
 | Run as | The service account, a member of the local Administrators of the run server (use the SharePoint farm account, see [Prerequisites](Prerequisites#the-service-account)) |
 | Trigger | Daily at 06:00 |
-| Action | `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe` with the arguments `-Execution Bypass D:\SCRIPT\SPSWeather\SPSWeather.ps1 -ConfigFile D:\SCRIPT\SPSWeather\Config\contoso-PROD.psd1` (plus `-EnableSMTP` while `SMTPEnabled` is not defined) |
+| Action | `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe` with the arguments `-ExecutionPolicy Bypass -File "D:\SCRIPT\SPSWeather\SPSWeather.ps1" -ConfigFile "D:\SCRIPT\SPSWeather\Config\contoso-PROD.psd1"` (plus `-EnableSMTP` while `SMTPEnabled` is not defined) |
 | Run whether user is logged on or not | Yes (the task is registered with the password of the service account) |
 | Run with highest privileges | Yes |
 
 > [!NOTE]
-> The arguments are written **without quotation marks**, and the task has no working directory. Install SPSWeather in a folder whose path has **no space** (for example `D:\SCRIPT\SPSWeather`): a path with a space would be split into several arguments when the task starts.
+> The two paths are written between quotation marks, in the `-File` form, so a folder or a configuration file whose path has a space works. A task registered by an earlier version (arguments without quotation marks) keeps working as it was, and gets the new arguments the next time you run `-Action Install`.
 
 > [!IMPORTANT]
 > The scheduled task action must run via `powershell.exe` (Windows PowerShell 5.1), not `pwsh.exe`: SPSWeather relies on the `SharePointServer` module (Subscription Edition) and CredSSP remoting.

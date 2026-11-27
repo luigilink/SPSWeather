@@ -205,12 +205,14 @@ else {
         # decrypted at run time by the scheduled task.
         Set-SPSSecret -CredentialKey $envCfg.CredentialKey -Credential $InstallAccount -ConfigPath $pathConfigFolder
 
-        # Add SPSWeather script in a new scheduled Task. The deprecated -EnableSMTP switch is
-        # only dropped when the configuration defines SMTPEnabled: removing it blindly would
-        # silently stop the emails of configurations that still rely on the switch.
-        $taskArguments = "-Execution Bypass $($scriptRootPath)\SPSWeather.ps1 -ConfigFile $($ConfigFile)"
-        if (-not $smtpSetting.ConfigDefinesEnabled) {
-            $taskArguments += ' -EnableSMTP'
+        # Add SPSWeather script in a new scheduled Task. The task has no working directory, so
+        # -ConfigFile is written as a full path (Convert-Path also stops here when it does not
+        # exist). The deprecated -EnableSMTP switch is only dropped when the configuration
+        # defines SMTPEnabled: removing it blindly would silently stop the emails of
+        # configurations that still rely on the switch.
+        $keepEnableSmtp = -not $smtpSetting.ConfigDefinesEnabled
+        $taskArguments = Get-SPSWeatherTaskArgument -ScriptRoot $scriptRootPath -ConfigFile (Convert-Path -LiteralPath $ConfigFile) -KeepEnableSmtp:$keepEnableSmtp
+        if ($keepEnableSmtp) {
             Write-Warning -Message "SMTPEnabled is not defined in ${ConfigFile}: the scheduled task keeps the deprecated -EnableSMTP switch. Add SMTPEnabled = `$true to the configuration file and run -Action Install again to drop it."
         }
         Add-SPSSheduledTask -ExecuteAsCredential $InstallAccount -TaskName $spWeatherTaskName -ActionArguments $taskArguments

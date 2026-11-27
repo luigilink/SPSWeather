@@ -90,28 +90,4 @@ Describe 'Commands shown in the wiki and the README' {
     ) {
         @(Get-UnknownParameter -Text ([System.IO.File]::ReadAllText($Path))) | Should -BeNullOrEmpty
     }
-
-    # The task is registered with the path as it is given and has no working directory: a relative path would not be found at 06:00
-    It 'gives an absolute path to -ConfigFile in the commands that install the task (<Name>)' -ForEach @(
-        Get-ChildItem -Path (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'wiki') -Filter '*.md' | ForEach-Object -Process { @{ Name = $_.Name; Path = $_.FullName } }
-        @{ Name = 'README.md'; Path = (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'README.md') }
-    ) {
-        $relative = New-Object -TypeName System.Collections.ArrayList
-        foreach ($line in (Get-ScriptCommand -Text ([System.IO.File]::ReadAllText($Path)))) {
-            if ($line -notmatch '-Action\s+Install\b') { continue }
-            $value = [regex]::Match($line, '-ConfigFile\s+(\S+(?:\s+\S+)?)').Groups[1].Value
-            if ([string]::IsNullOrEmpty($value)) { continue }
-            if ($value -notmatch '^\(Convert-Path\b' -and $value -notmatch '^[''"]?[A-Za-z]:\\' -and $value -notmatch '^[''"]?\\\\') { [void]$relative.Add($line.Trim()) }
-        }
-        @($relative) | Should -BeNullOrEmpty
-    }
-
-    It 'finds a relative path in a command that installs the task' {
-        $line = ".\SPSWeather.ps1 -ConfigFile 'Config\c.psd1' -Action Install -InstallAccount (Get-Credential)"
-        $value = [regex]::Match($line, '-ConfigFile\s+(\S+(?:\s+\S+)?)').Groups[1].Value
-        ($value -notmatch '^\(Convert-Path\b' -and $value -notmatch '^[''"]?[A-Za-z]:\\' -and $value -notmatch '^[''"]?\\\\') | Should -BeTrue
-        $good = ".\SPSWeather.ps1 -ConfigFile (Convert-Path 'Config\c.psd1') -Action Install -InstallAccount (Get-Credential)"
-        $value = [regex]::Match($good, '-ConfigFile\s+(\S+(?:\s+\S+)?)').Groups[1].Value
-        ($value -notmatch '^\(Convert-Path\b') | Should -BeFalse
-    }
 }

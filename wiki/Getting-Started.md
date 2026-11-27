@@ -27,16 +27,16 @@ xCredSSP CredSSPClient { Ensure = "Present"; Role = "Client"; DelegateComputers 
 
 ## Installation
 
-1. [Download the latest release](https://github.com/luigilink/SPSWeather/releases/latest) and unzip it to a directory on your SharePoint Server, **with no space in its path** (for example `D:\SCRIPT\SPSWeather`): the scheduled task is registered without quotation marks around the paths. The archive extracts straight to `SPSWeather.ps1`, `Config\` and `Modules\` (the `SPSWeather.Common` module ships inside `Modules\`).
+1. [Download the latest release](https://github.com/luigilink/SPSWeather/releases/latest) and unzip it to a directory on your SharePoint Server, (for example `D:\SCRIPT\SPSWeather`). The archive extracts straight to `SPSWeather.ps1`, `Config\` and `Modules\` (the `SPSWeather.Common` module ships inside `Modules\`).
 2. Copy `Config\CONTOSO-PROD.example.psd1` to your own config (e.g. `Config\contoso-PROD.psd1`) and edit it for your environment. See [Configuration](Configuration).
 3. Register the scheduled task **while signed in as the service account** so the credential is encrypted under that account:
 
 ```powershell
-.\SPSWeather.ps1 -ConfigFile (Convert-Path 'Config\contoso-PROD.psd1') -Action Install -InstallAccount (Get-Credential)
+.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -Action Install -InstallAccount (Get-Credential)
 ```
 
 > [!NOTE]
-> Give `-ConfigFile` as an **absolute** path when you install, as `Convert-Path` does above. The task is registered with the path exactly as you write it and it has no working directory, so a relative path would not be found when it starts at 06:00.
+> `-Action Install` writes the full path of the configuration file in the task, with the paths between quotation marks, so a relative `-ConfigFile` and a path with a space both work. A task registered by an earlier version keeps its old arguments until you run `-Action Install` again.
 
 > [!IMPORTANT]
 > Run the `-Action Install` step as the **same account** you pass to `-InstallAccount`. The credential is stored in `Config\secrets.psd1` as a DPAPI SecureString that only that account, on that machine, can decrypt at run time.
