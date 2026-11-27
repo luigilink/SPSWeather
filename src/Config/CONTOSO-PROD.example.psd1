@@ -107,7 +107,7 @@
         SiteCountPerDatabase      = @{ Warning = 5000; Failure = 10000 }
         ContentDatabasesPerFarm   = @{ Warning = 375; Failure = 500 }
         WebApplicationsPerFarm    = @{ Warning = 15; Failure = 20 }
-        ManagedPaths              = @{ Warning = 21 }
+        ManagedPaths              = @{ Warning = 15; Failure = 20 }
         DistributedCacheSize      = @{ Failure = 16 }
         ApplicationPoolsPerServer = @{ Warning = 11 }
         Disabled                  = @()

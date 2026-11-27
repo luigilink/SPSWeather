@@ -21,14 +21,14 @@ dashboard, the email and the counts are the ones of before.
 | `SiteCountPerDatabase` | Site collections of each content database | 5000 | 10000 | 5,000 recommended, 10,000 supported |
 | `ContentDatabasesPerFarm` | Content databases of the farm | 375 | 500 | 500 per farm |
 | `WebApplicationsPerFarm` | Web applications of the farm | 15 | 20 | 20 per farm |
-| `ManagedPaths` | Managed paths of each web application, and managed paths for host-named site collections | 21 | none | 20 per web application, 20 per farm for host-named site collections |
+| `ManagedPaths` | Managed paths of each web application, and managed paths for host-named site collections | 15 | 20 | 20 per web application, 20 per farm for host-named site collections |
 | `DistributedCacheSize` | GB of memory given to the cache of each Distributed Cache host | none | 16 | 16 GB per cache host (boundary) |
 | `ApplicationPoolsPerServer` | IIS application pools of each web server | 11 | none | 10 per web server (threshold) |
 | `SearchTopology` | Search components on a server, and in the whole Search service application | none | fixed | See below |
 
 A **warning** is raised from the *Warning from* value (75 % of the supported limit for the sizes and the counts), and a **failure**
-above the limit. Where Microsoft gives a recommendation and not a hard limit (managed paths, application pools), only a warning exists:
-it is raised as soon as the recommendation is exceeded.
+above the limit, which Microsoft calls *supported*. The application pools are the exception: Microsoft calls 10 per web server a
+*threshold*, a default that can be exceeded with the memory to match, so only a warning exists, raised as soon as it is exceeded.
 
 **Search topology** has fixed limits that cannot be changed: per server, at most 4 index components and 1 crawl, content processing,
 query processing and analytics processing component each; for the Search service application, at most 60 index components, 16 crawl
@@ -78,7 +78,7 @@ Limits = @{
     SiteCountPerDatabase      = @{ Warning = 5000; Failure = 10000 }
     ContentDatabasesPerFarm   = @{ Warning = 375; Failure = 500 }
     WebApplicationsPerFarm    = @{ Warning = 15; Failure = 20 }
-    ManagedPaths              = @{ Warning = 21 }
+    ManagedPaths              = @{ Warning = 15; Failure = 20 }
     DistributedCacheSize      = @{ Failure = 16 }                    # GB
     ApplicationPoolsPerServer = @{ Warning = 11 }
     Disabled                  = @()

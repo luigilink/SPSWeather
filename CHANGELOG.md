@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Supported limits of SharePoint.** Each run now compares the farm with the limits that Microsoft supports and reports the ones that
   are reached, in a new area *Capacity & limits* (section `SPSLimitStatus`, translated: en-US, fr-FR): the data size of each content
   database (warning from 150 GB, failure above 200 GB; the log is not counted), the site collections per content database (5000 / 10000),
-  the content databases per farm (375 / 500), the web applications per farm (15 / 20), the managed paths (a warning above 20 per web
+  the content databases per farm (375 / 500), the web applications per farm (15 / 20), the managed paths (15 / 20 per web
   application and for host-named site collections), the memory of each Distributed Cache host (failure above 16 GB), the application
   pools per web server (a warning above 10) and the fixed limits of the search topology (a failure when one is exceeded). The check is
   **read-only and active by default**; a farm below every threshold adds **no row**, so its report is the one of before. **A farm that

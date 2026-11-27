@@ -36,7 +36,7 @@
         @{ Name = 'SiteCountPerDatabase'; Unit = ''; Warning = 5000; Failure = 10000; Thresholds = $true }
         @{ Name = 'ContentDatabasesPerFarm'; Unit = ''; Warning = 375; Failure = 500; Thresholds = $true }
         @{ Name = 'WebApplicationsPerFarm'; Unit = ''; Warning = 15; Failure = 20; Thresholds = $true }
-        @{ Name = 'ManagedPaths'; Unit = ''; Warning = 21; Failure = $null; Thresholds = $true }
+        @{ Name = 'ManagedPaths'; Unit = ''; Warning = 15; Failure = 20; Thresholds = $true }
         @{ Name = 'DistributedCacheSize'; Unit = 'GB'; Warning = $null; Failure = 16; Thresholds = $true }
         @{ Name = 'ApplicationPoolsPerServer'; Unit = ''; Warning = 11; Failure = $null; Thresholds = $true }
         @{ Name = 'SearchTopology'; Unit = ''; Warning = $null; Failure = $null; Thresholds = $false }

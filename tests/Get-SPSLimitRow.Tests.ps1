@@ -53,8 +53,8 @@ Describe 'Get-SPSWeatherLimitSetting' {
             $s.Checks['ContentDatabasesPerFarm'].Failure | Should -Be 500
             $s.Checks['WebApplicationsPerFarm'].Warning | Should -Be 15
             $s.Checks['WebApplicationsPerFarm'].Failure | Should -Be 20
-            $s.Checks['ManagedPaths'].Warning | Should -Be 21
-            $s.Checks['ManagedPaths'].Failure | Should -BeNullOrEmpty
+            $s.Checks['ManagedPaths'].Warning | Should -Be 15
+            $s.Checks['ManagedPaths'].Failure | Should -Be 20
             $s.Checks['DistributedCacheSize'].Warning | Should -BeNullOrEmpty
             $s.Checks['DistributedCacheSize'].Failure | Should -Be 16
             $s.Checks['ApplicationPoolsPerServer'].Warning | Should -Be 11
@@ -467,14 +467,15 @@ Describe 'Get-SPSLimitRow' {
             if ($null -eq $Status) { $rows.Count | Should -Be 0 } else { $rows.Count | Should -Be 1; $rows[0].Status | Should -Be $Status; $rows[0].Limit | Should -Be 'WebApplicationsPerFarm' }
         }
 
-        It 'warns, and never fails, above 20 managed paths of a web application and above 20 host-named ones' -ForEach @(
-            @{ Count = 20; Status = $null }, @{ Count = 21; Status = 'Warning' }, @{ Count = 400; Status = 'Warning' }
+        It 'judges the managed paths of a web application and the host-named ones: <Expected> for <Count>' -ForEach @(
+            @{ Count = 14; Expected = $null }, @{ Count = 15; Expected = 'Warning' }, @{ Count = 20; Expected = 'Warning' }
+            @{ Count = 21; Expected = 'Failure' }, @{ Count = 400; Expected = 'Failure' }
         ) {
             $rows = Get-Rows -Setting $defaults -Fact (New-Fact -Paths @([PSCustomObject]@{ Name = 'Intranet'; PathCount = $Count }) -HostNamed $Count)
-            if ($null -eq $Status) { $rows.Count | Should -Be 0 }
+            if ($null -eq $Expected) { $rows.Count | Should -Be 0 }
             else {
                 $rows.Count | Should -Be 2
-                @($rows | Where-Object -FilterScript { $_.Status -ne 'Warning' }).Count | Should -Be 0
+                @($rows | Where-Object -FilterScript { $_.Status -ne $Expected }).Count | Should -Be 0
                 @($rows.Object) | Should -Contain 'Intranet'
                 @($rows.Object) | Should -Contain 'host-named site collections'
             }
