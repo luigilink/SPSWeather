@@ -92,7 +92,7 @@ The top-level key (`PROD-ADM`) matches the `CredentialKey` of the environment co
 The easiest way is to let `-Action Install` do it for you, **signed in as the service account**:
 
 ```powershell
-.\SPSWeather.ps1 -ConfigFile (Convert-Path 'Config\contoso-PROD.psd1') -Action Install -InstallAccount (Get-Credential)
+.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -Action Install -InstallAccount (Get-Credential)
 ```
 
 To generate it manually, run this **on the target server, as the account that will run the scheduled task**, and paste the output into `secrets.psd1`:
