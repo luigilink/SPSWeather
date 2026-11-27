@@ -115,6 +115,7 @@
     Area_IIS                = 'IIS'
     Area_System             = 'System'
     Area_SQL                = 'SQL Server'
+    Area_Limits             = 'Capacity & limits'
 
     # Section labels (one per report section)
     Section_SPHealthAnalyzer         = 'Health Analyzer'
@@ -142,6 +143,7 @@
     Section_SQLDiskStatus            = 'SQL - Disk Volumes'
     Section_SQLAvailabilityStatus    = 'SQL - Availability Groups'
     Section_SQLAliasStatus           = 'SQL - Alias Mapping'
+    Section_SPSLimitStatus           = 'Supported limits'
 
 
     # Cockpit: tabs, controls and common words

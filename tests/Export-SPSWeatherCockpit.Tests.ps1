@@ -379,6 +379,53 @@ console.log(JSON.stringify(out));
             $result.changes14 | Should -BeTrue
         }
 
+        It 'shows the thresholds of the limit checks as plain numbers, with a dash for no threshold, and the checks that are turned off' -Skip:(-not $node) {
+            $harness = Join-Path -Path $TestDrive -ChildPath 'cockpit-limits.js'
+            [System.IO.File]::WriteAllText($harness, @'
+const fs = require('fs');
+const html = fs.readFileSync(process.argv[2], 'utf8');
+const block = id => new RegExp('<script type="application/json" id="' + id + '">([\\s\\S]*?)</script>').exec(html)[1];
+const code = /<script>\n([\s\S]*)\n<\/script>\s*<\/body>/.exec(html)[1];
+const END = Date.UTC(2026, 10, 26);
+const iso = i => new Date(END - i * 86400000).toISOString().slice(0, 10);
+const OK = { ok: 10, warn: 0, fail: 0, weather: 'sunny', snapshots: 1, unreachable: 0 };
+const thresholds = {
+  SQLDiskFreeThresholdPercent: { value: 15, source: 'default' },
+  'Limits.ContentDatabaseSize.Warning': { value: 120.5, source: 'config' },
+  'Limits.ContentDatabaseSize.Failure': { value: 1500, source: 'config' },
+  'Limits.ManagedPaths.Warning': { value: 15, source: 'default' },
+  'Limits.ManagedPaths.Failure': { value: 20, source: 'default' },
+  'Limits.ApplicationPoolsPerServer.Failure': { value: null, source: 'default' },
+  'Limits.Exceptions': { value: 2, source: 'config' }
+};
+const d = JSON.parse(block('spsw-data'));
+const n = 14;
+Object.assign(d, { days: Array.from({ length: n }, (_, i) => iso(n - 1 - i)), weekend: Array.from({ length: n }, () => false), runs: [], kpi: null, skipped: [], farms: [{ name: 'A', daily: Array.from({ length: n }, () => OK), latestSnapshot: '2026-11-26T06:00:00+01:00', snapshotsTruncated: false, attention: [], attentionTotal: 0, attentionTruncated: false }], settings: { current: { configFile: 'A.psd1', thresholds, exclusionRules: ['Limits.ManagedPaths'] }, changes: [] } });
+d.period = { retentionDays: 0, offered: [7, 14], maxDays: n, firstDay: d.days[0], lastDay: d.days[n - 1] };
+const els = { 'spsw-data': { textContent: JSON.stringify(d) }, 'spsw-page': { textContent: block('spsw-page') }, 'spsw-error': { textContent: '', hidden: true }, 'spsw-header': { innerHTML: '' }, 'spsw-main': { innerHTML: '' }, 'spsw-footer': { innerHTML: '' }, 'spsw-live': { textContent: '' } };
+const doc = { getElementById: id => els[id], querySelector: () => null, addEventListener() {}, title: '', documentElement: { setAttribute() {}, lang: '' } };
+const win = { addEventListener() {}, innerWidth: 1320, matchMedia: () => ({ matches: false }), scrollTo() {} };
+const text = {};
+for (const lang of ['en-US', 'fr-FR']) {
+  els['spsw-error'].hidden = true; els['spsw-error'].textContent = '';
+  new Function('document', 'window', 'location', 'history', code)(doc, win, { hash: '#tab=method&p=14&lang=' + lang }, { replaceState() {} });
+  text[lang] = els['spsw-main'].innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ') + (els['spsw-error'].hidden ? '' : ' ERROR ' + els['spsw-error'].textContent);
+}
+console.log(JSON.stringify({ error: text['en-US'].includes(' ERROR ') || text['fr-FR'].includes(' ERROR ') ? 'error' : '', text: text['en-US'], french: text['fr-FR'] }));
+'@)
+            $result = & $script:nodePath $harness $script:file | ConvertFrom-Json
+            $result.error | Should -BeNullOrEmpty
+            $result.text | Should -Match 'Limits\.ContentDatabaseSize\.Warning 120\.5 ' -Because 'a threshold that has decimals is shown with them'
+            $result.french | Should -Match 'Limits\.ContentDatabaseSize\.Warning 120,5 ' -Because 'and in the decimal mark of the language'
+            $result.text | Should -Match 'Limits\.ContentDatabaseSize\.Failure 1,?500 '
+            $result.text | Should -Match 'Limits\.ManagedPaths\.Warning 15 '
+            $result.text | Should -Match 'Limits\.ManagedPaths\.Failure 20 '
+            $result.text | Should -Match 'Limits\.ApplicationPoolsPerServer\.Failure \u2014 '
+            $result.text | Should -Match 'Limits\.Exceptions 2 '
+            $result.text | Should -Match 'Limits\.ManagedPaths\b'
+            $result.text | Should -Match 'SQLDiskFreeThresholdPercent 15 ?%'
+        }
+
         It 'renders every tab in every language, period and theme without an error, and escapes the hostile names' -Skip:(-not $node) {
             $harness = Join-Path -Path $TestDrive -ChildPath 'cockpit-smoke.js'
             [System.IO.File]::WriteAllText($harness, @'

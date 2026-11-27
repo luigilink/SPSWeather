@@ -134,8 +134,8 @@ Describe 'Resource keys versus the renderers' {
 
     It 'finds the keys the renderers use' {
         $script:literalKeys.Count | Should -BeGreaterThan 40
-        $script:areaIds.Count | Should -BeGreaterOrEqual 11
-        $script:sections.Count | Should -Be 25
+        $script:areaIds.Count | Should -BeGreaterOrEqual 12
+        $script:sections.Count | Should -Be 26
     }
 
     It 'defines every key the renderers use' {

@@ -78,6 +78,7 @@
   }
   function n0(v) { return Number(v).toLocaleString(locale(), { maximumFractionDigits: 0 }); }
   function n1(v) { return Number(v).toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
+  function n2(v) { return Number(v).toLocaleString(locale(), { maximumFractionDigits: 2 }); }
   function pct(v, d) { return t('Percent', d === 0 ? n0(v) : n1(v)); }
   function pctOrDash(v, d) { return v === null ? '\u2014' : pct(v, d); }
   function pts(v) { return t('CockpitPoints', n1(v)); }
@@ -518,6 +519,8 @@
 
   /* ---------- Settings and method ---------- */
   function settingValue(name, v) {
+    // A limit (Limits.<Check>.Warning or Failure) is a plain number, in the unit of the check, with the decimals it was given; null is no threshold
+    if (name.indexOf('Limits.') === 0) return v === null || v === undefined ? '\u2014' : n2(v);
     if (name === 'SQLDiskFreeThresholdPercent') return pct(v, 0);
     if (name === 'EmailMaxItemsPerArea') return n0(v);
     return dayCount(v);

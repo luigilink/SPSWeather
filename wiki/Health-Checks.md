@@ -103,6 +103,14 @@ backup job, or an unreachable instance raise an alert; best-practice deviations
 (MAXDOP, memory, TempDB, AutoShrink/AutoClose) are shown as orange advisories
 without raising the global alert.
 
+## Capacity & limits
+
+Since **3.6.0**, SPSWeather compares the farm with the supported limits of SharePoint: the data size of each content database, the site
+collections per database, the content databases and web applications per farm, the managed paths, the memory of the Distributed Cache
+hosts, the application pools per web server and the search topology. It is read-only, active by default, and it adds a row **only when
+a threshold is reached** (section `SPSLimitStatus`, area *Capacity & limits*): a failure above the limit raises the alert, a warning
+from 75 % of it does not. See [Limits](Limits) for the thresholds, the exceptions and how the size of a database is measured.
+
 ## How an ALERT is raised
 
 Every check returns rows flagged as informational or not (an internal `IsInfo` flag). When **any** collected check contains at least one **non-informational (failed)** row, SPSWeather:
@@ -117,7 +125,7 @@ In the HTML report, failing rows use the `tdfailed` (red) style, below-threshold
 
 Add the corresponding key to `ExclusionRules` in your config to skip a check. Authorized values:
 
-`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`, `TimerServiceStatus`, `SQLAliasStatus`, `SQLInstanceStatus`, `SQLDatabaseStatus`, `SQLDiskStatus`, `SQLAvailabilityStatus`.
+`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`, `TimerServiceStatus`, `SQLAliasStatus`, `SQLInstanceStatus`, `SQLDatabaseStatus`, `SQLDiskStatus`, `SQLAvailabilityStatus`, `LimitStatus`.
 
 Checks marked _(always)_ above are not individually excludable.
 

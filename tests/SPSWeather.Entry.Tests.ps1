@@ -441,3 +441,114 @@ Describe 'Entry script cockpit page (Dashboard.Cockpit)' {
         }
     }
 }
+
+Describe 'Entry script supported limits' {
+    BeforeAll {
+        $repoRoot = Split-Path -Path $PSScriptRoot -Parent
+        $script:entrySource = Get-Content -Path (Join-Path -Path $repoRoot -ChildPath 'src/SPSWeather.ps1') -Raw
+    }
+
+    It 'resolves the limits before the run setting, which records them, and shows the messages in the transcript' {
+        $limit = $entrySource.IndexOf('$limitSetting = Get-SPSWeatherLimitSetting -Config $envCfg')
+        $run = $entrySource.IndexOf('$runSetting = Get-SPSWeatherRunSetting -Config $envCfg -ConfigFile $ConfigFile -LimitSetting $limitSetting')
+        $limit | Should -BeGreaterThan 0
+        $run | Should -BeGreaterThan $limit
+        ([regex]::Matches($entrySource, 'Get-SPSWeatherLimitSetting')).Count | Should -Be 1
+        $entrySource | Should -Match 'foreach \(\$limitMessage in \$limitSetting\.Messages\) \{ Write-Warning -Message \$limitMessage \}'
+    }
+
+    It 'records the messages of the limits in the Event Log (ID 2001), like the other configuration warnings' {
+        $entrySource | Should -Match '(?s)foreach \(\$limitMessage in \$limitSetting\.Messages\) \{\s*Add-SPSWeatherEvent -Message "SPSWeather limits configuration: \$limitMessage" -EntryType ''Warning'' -EventID 2001'
+    }
+
+    It 'checks the limits of each farm after the SQL block (whose databases it needs) and never before the sections it judges' {
+        $sql = $entrySource.IndexOf('$sqlStatus = Get-SPSSqlStatus')
+        $limits = $entrySource.IndexOf('Get-SPSLimitStatus -Server')
+        $sql | Should -BeGreaterThan 0
+        $limits | Should -BeGreaterThan $sql
+        foreach ($table in '$tbSPSContentDBStatus', '$tbAppFabricStatus', '$tbIISApplicationPoolStatus', '$tbSPSSearchEntTopology') {
+            $entrySource.LastIndexOf("$table +=", $limits) | Should -BeGreaterThan 0 -Because "$table is collected before the limits are judged"
+        }
+    }
+
+    It 'resets the SQL result for every farm, so that a farm never judges the databases of the previous one' {
+        $entrySource | Should -Match '(?s)\$sqlStatus = \$null\r?\n.*?\$sqlStatus = Get-SPSSqlStatus'
+    }
+
+    It 'can be turned off with the LimitStatus exclusion, and adds the section to the report' {
+        $entrySource | Should -Match 'if \(-not \$ExclusionRules\.Contains\(''LimitStatus''\)\) \{\s*Write-Output "Checking the supported limits'
+        $entrySource | Should -Match '\$tbSPSLimitStatus = @\(\)'
+        $entrySource | Should -Match 'SPSLimitStatus\s+= \$tbSPSLimitStatus'
+    }
+
+    Context 'the block that runs the checks' {
+        BeforeAll {
+            $match = [regex]::Match($entrySource, '(?s)(if \(-not \$ExclusionRules\.Contains\(''LimitStatus''\)\) \{.*?-SearchTopology @\(.*?\r?\n\s*\})')
+            $script:limitBlock = $match.Groups[1].Value
+            function script:Invoke-LimitBlock {
+                param($Exclusions = @('None'), $Sql = $null)
+                $captured = @{ Calls = (New-Object -TypeName System.Collections.ArrayList) }
+                $rows = & {
+                    param($ExclusionRules, $block, $captured, $sqlStatus)
+                    $spFarm = @{ Name = 'CONTENT' }; $spTargetServer = 'APP1.contoso.com'; $ADM = 'credential'; $limitSetting = 'setting'
+                    $tbSPSLimitStatus = @('already')
+                    $tbSPSContentDBStatus = @([PSCustomObject]@{ Farm = 'CONTENT'; DatabaseName = 'A' }, [PSCustomObject]@{ Farm = 'OTHER'; DatabaseName = 'B' })
+                    $tbAppFabricStatus = @([PSCustomObject]@{ Farm = 'OTHER'; Server = 'W1' })
+                    $tbIISApplicationPoolStatus = @([PSCustomObject]@{ Farm = 'CONTENT'; ApplicationPool = 'P' })
+                    $tbSPSSearchEntTopology = @()
+                    function Write-Output { param($InputObject) }
+                    function Get-SPSLimitStatus {
+                        param($Server, $InstallAccount, $Farm, $Setting, $SqlDatabase, $ContentDatabaseStatus, $DistributedCache, $ApplicationPool, $SearchTopology)
+                        [void]$captured.Calls.Add(@{ Server = $Server; Farm = $Farm; Setting = $Setting; Sql = @($SqlDatabase); Content = @($ContentDatabaseStatus); Cache = @($DistributedCache); Pools = @($ApplicationPool); Search = @($SearchTopology) })
+                        [PSCustomObject]@{ Limit = 'ContentDatabaseSize' }
+                    }
+                    . ([scriptblock]::Create($block)) | Out-Null
+                    $tbSPSLimitStatus
+                } $Exclusions $limitBlock $captured $Sql
+                [PSCustomObject]@{ Rows = @($rows); Calls = @($captured.Calls) }
+            }
+        }
+
+        It 'finds the block' {
+            $limitBlock | Should -Match 'Get-SPSLimitStatus -Server \$spTargetServer'
+        }
+
+        It 'adds the rows to the table of the report without losing the ones of the other farms' {
+            $r = Invoke-LimitBlock
+            $r.Rows.Count | Should -Be 2
+            $r.Rows[0] | Should -Be 'already'
+            $r.Rows[1].Limit | Should -Be 'ContentDatabaseSize'
+        }
+
+        It 'calls the check once, for the farm, with the resolved setting and only the rows of this farm' {
+            $sql = @([PSCustomObject]@{ Farm = 'CONTENT'; Name = 'A' }, [PSCustomObject]@{ Farm = 'OTHER'; Name = 'B' })
+            $r = Invoke-LimitBlock -Sql ([PSCustomObject]@{ Databases = $sql })
+            $r.Calls.Count | Should -Be 1
+            $r.Calls[0].Server | Should -Be 'APP1.contoso.com'
+            $r.Calls[0].Farm | Should -Be 'CONTENT'
+            $r.Calls[0].Setting | Should -Be 'setting'
+            $r.Calls[0].Sql.Count | Should -Be 1
+            $r.Calls[0].Sql[0].Name | Should -Be 'A'
+            $r.Calls[0].Content.Count | Should -Be 1
+            $r.Calls[0].Content[0].DatabaseName | Should -Be 'A'
+            $r.Calls[0].Cache.Count | Should -Be 0
+            $r.Calls[0].Pools.Count | Should -Be 1
+        }
+
+        It 'still runs, without any database, when the SQL block did not run for this farm' {
+            $r = Invoke-LimitBlock -Sql $null
+            $r.Calls.Count | Should -Be 1
+            $r.Calls[0].Sql.Count | Should -Be 0
+        }
+
+        It 'does nothing when LimitStatus is excluded' {
+            $r = Invoke-LimitBlock -Exclusions @('LimitStatus')
+            $r.Calls.Count | Should -Be 0
+            $r.Rows.Count | Should -Be 1
+        }
+
+        It 'is not turned off by the other exclusions' {
+            (Invoke-LimitBlock -Exclusions @('SQLDatabaseStatus', 'WSPStatus')).Calls.Count | Should -Be 1
+        }
+    }
+}

@@ -228,3 +228,58 @@ Describe 'Get-SPSWeatherRunSetting' {
         }
     }
 }
+
+Describe 'Get-SPSWeatherRunSetting with the limits' {
+    BeforeAll {
+        $script:noLimit = Get-SPSWeatherRunSetting -Config @{ SQLBackupMaxAgeDays = 8; ExclusionRules = @('WSPStatus') } -ConfigFile 'C:\x\conf.psd1'
+    }
+
+    It 'gives the same record as before the limits when no limit setting is given, or when it is null' {
+        $null1 = Get-SPSWeatherRunSetting -Config @{ SQLBackupMaxAgeDays = 8; ExclusionRules = @('WSPStatus') } -ConfigFile 'C:\x\conf.psd1' -LimitSetting $null
+        (ConvertTo-Json -InputObject $null1.Record -Depth 6) | Should -Be (ConvertTo-Json -InputObject $noLimit.Record -Depth 6)
+        @($noLimit.Record.thresholds.PSObject.Properties.Name | Where-Object { $_ -like 'Limits.*' }).Count | Should -Be 0
+    }
+
+    It 'adds the thresholds of the limits, with their source, next to the others, and leaves the others as they were' {
+        $limit = Get-SPSWeatherLimitSetting -Config @{ Limits = @{ ContentDatabaseSize = @{ Warning = 100 } } }
+        $r = Get-SPSWeatherRunSetting -Config @{ SQLBackupMaxAgeDays = 8 } -LimitSetting $limit
+        $r.Record.thresholds.'Limits.ContentDatabaseSize.Warning'.value | Should -Be 100
+        $r.Record.thresholds.'Limits.ContentDatabaseSize.Warning'.source | Should -Be 'config'
+        $r.Record.thresholds.'Limits.ContentDatabaseSize.Failure'.value | Should -Be 200
+        $r.Record.thresholds.'Limits.ContentDatabaseSize.Failure'.source | Should -Be 'default'
+        $r.Record.thresholds.SQLBackupMaxAgeDays.value | Should -Be 8
+        $r.Value.PSObject.Properties.Name | Should -Not -Contain 'Limits.ContentDatabaseSize.Warning'
+    }
+
+    It 'records the checks that are turned off among the excluded names, after the exclusions of the configuration, and the LimitStatus exclusion' {
+        $limit = Get-SPSWeatherLimitSetting -Config @{ Limits = @{ Disabled = @('ManagedPaths') } }
+        $r = Get-SPSWeatherRunSetting -Config @{ ExclusionRules = @('LimitStatus', 'WSPStatus') } -LimitSetting $limit
+        $r.Record.exclusionRules | Should -Contain 'Limits.ManagedPaths'
+        $r.Record.exclusionRules | Should -Contain 'LimitStatus'
+        $r.Record.exclusionRules | Should -Contain 'WSPStatus'
+    }
+
+    It 'records how many exceptions the Limits block holds, so that two configurations that differ only there do not give the same record' {
+        $none = Get-SPSWeatherRunSetting -Config @{} -LimitSetting (Get-SPSWeatherLimitSetting -Config @{ Limits = @{} })
+        $two = Get-SPSWeatherRunSetting -Config @{} -LimitSetting (Get-SPSWeatherLimitSetting -Config @{ Limits = @{ Exceptions = @(
+                        @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Exempt = $true }
+                        @{ Limit = 'ContentDatabaseSize'; Object = 'b'; Failure = 400 }) } })
+        $none.Record.thresholds.'Limits.Exceptions'.value | Should -Be 0
+        $none.Record.thresholds.'Limits.Exceptions'.source | Should -Be 'default'
+        $two.Record.thresholds.'Limits.Exceptions'.value | Should -Be 2
+        $two.Record.thresholds.'Limits.Exceptions'.source | Should -Be 'config'
+        (ConvertTo-Json -InputObject $none.Record -Depth 6) | Should -Not -Be (ConvertTo-Json -InputObject $two.Record -Depth 6)
+    }
+
+    It 'counts only the exceptions that are valid, and records no count without a limit setting' {
+        $limit = Get-SPSWeatherLimitSetting -Config @{ Limits = @{ Exceptions = @(@{ Limit = 'ContentDatabaseSize'; Object = 'a'; Exempt = $true }, 'bad') } }
+        (Get-SPSWeatherRunSetting -Config @{} -LimitSetting $limit).Record.thresholds.'Limits.Exceptions'.value | Should -Be 1
+        $noLimit.Record.thresholds.PSObject.Properties.Name | Should -Not -Contain 'Limits.Exceptions'
+    }
+
+    It 'never lets an object name of an exception reach the record' {
+        $limit = Get-SPSWeatherLimitSetting -Config @{ Limits = @{ Exceptions = @(@{ Limit = 'ContentDatabaseSize'; Object = 'WSS_Content_Archive_secret'; Failure = 4096; Reason = 'secret reason' }) } }
+        $r = Get-SPSWeatherRunSetting -Config @{} -LimitSetting $limit
+        (ConvertTo-Json -InputObject $r.Record -Depth 6) | Should -Not -Match 'secret'
+    }
+}

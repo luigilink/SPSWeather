@@ -54,6 +54,7 @@ Copy `Config\CONTOSO-PROD.example.psd1` and edit it:
 | `Language` | Optional. Display language of the dashboard and the alert email: `en-US` (default) or `fr-FR`, or `auto` for the UI culture of the account that runs the script. Only the labels are translated; the values of the checks stay as collected. An unknown value falls back to English with a warning. See [Localization](Localization). |
 | `CredentialKey` | Name of the entry in `secrets.psd1` that holds the service credential. |
 | `ExclusionRules` | Checks to skip (see below). |
+| `Limits` | Optional. The thresholds of the [supported limit](Limits) checks (`ContentDatabaseSize`, `SiteCountPerDatabase`, `ContentDatabasesPerFarm`, `WebApplicationsPerFarm`, `ManagedPaths`, `DistributedCacheSize`, `ApplicationPoolsPerServer`), the checks to turn off (`Disabled`) and the exceptions for one object (`Exceptions`). Active by default; a farm below every threshold adds nothing to the report. A value that cannot be used is reported (Event ID 2001) and the default is used. |
 | `Dashboard` | `@{ OutputPath; Url; Cockpit }` — where the per-farm dashboard HTML is written, the public IIS base used for the email CTA, and `Cockpit`, an optional boolean (default `$false`): `$true` also writes the multi-farm [Cockpit page](Cockpit-Page) `<App>-<Env>-cockpit.html` next to the dashboards (see [Dashboard](Dashboard)). A value that is not a boolean is reported (transcript, Event ID 2001, readiness `[WARN]`) and the page is not produced. |
 | `Farms` | One entry per trusted farm: `Name`, the short `Server` name, and an optional `SqlServers` array (the cliconfg alias(es) or SQL server name(s) the farm uses, for alias resolution and declared-vs-discovered validation). |
 
@@ -61,7 +62,7 @@ Copy `Config\CONTOSO-PROD.example.psd1` and edit it:
 
 Use `ExclusionRules` to skip checks. Authorized values:
 
-`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`, `TimerServiceStatus`.
+`None`, `APIHttpStatus`, `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus`, `HealthStatus`, `WSPStatus`, `FailedTimerJob`, `TimerServiceStatus`, `SQLInstanceStatus`, `SQLDatabaseStatus`, `SQLDiskStatus`, `SQLAvailabilityStatus`, `SQLAliasStatus`, `LimitStatus` (all the [supported limit](Limits) checks).
 
 The default sample excludes `SPSiteHttpStatus`, `EvtViewerStatus`, `IISW3WPStatus` and `WSPStatus`.
 

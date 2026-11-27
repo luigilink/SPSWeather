@@ -142,6 +142,7 @@
         [PSCustomObject]@{ Id = 'IIS'; Icon = '&#128421;'; Sections = @('IISApplicationPoolStatus', 'IISWorkerProcessStatus', 'IISWebSiteCertStatus') }
         [PSCustomObject]@{ Id = 'System'; Icon = '&#129513;'; Sections = @('SYSDiskUsageStatus', 'SYSLastRebootStatus', 'SYSDOTNETVersion', 'SYSEventViewerAppErrors') }
         [PSCustomObject]@{ Id = 'SQL'; Icon = '&#128451;'; Sections = @('SPSContentDBStatus', 'SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus', 'SQLAvailabilityStatus', 'SQLAliasStatus') }
+        [PSCustomObject]@{ Id = 'Limits'; Icon = '&#128207;'; Sections = @('SPSLimitStatus') }
     )
 
     # Per-section and global counts. Only rows that are actual checks (carrying IsInfo or a

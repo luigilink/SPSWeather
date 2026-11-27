@@ -25,6 +25,7 @@ $script:SPSWeatherIdentityColumns = @{
     SQLDiskStatus            = @('SqlServer', 'Volume')
     SQLAvailabilityStatus    = @('SqlServer', 'Type', 'Name')
     SQLAliasStatus           = @('Name')
+    SPSLimitStatus           = @('Limit', 'Object')
 }
 
 function Get-SPSWeatherItemIdentity {

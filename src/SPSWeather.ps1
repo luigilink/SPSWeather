@@ -173,6 +173,7 @@ $tbSPWeatherListInfo = @()
 $tbSPSContentDBStatus = @()
 $tbSQLInstanceStatus = @()
 $tbSQLDatabaseStatus = @()
+$tbSPSLimitStatus = @()
 $tbSQLDiskStatus = @()
 $tbSQLAvailabilityStatus = @()
 $tbSQLAliasStatus = @()
@@ -263,8 +264,10 @@ else {
         }
         $spFarms = $envCfg.Farms
         # Thresholds: the values used here are the ones recorded in the run journal
-        $runSetting = Get-SPSWeatherRunSetting -Config $envCfg -ConfigFile $ConfigFile
+        $limitSetting = Get-SPSWeatherLimitSetting -Config $envCfg
+        $runSetting = Get-SPSWeatherRunSetting -Config $envCfg -ConfigFile $ConfigFile -LimitSetting $limitSetting
         foreach ($settingMessage in $runSetting.Messages) { Write-Warning -Message $settingMessage }
+        foreach ($limitMessage in $limitSetting.Messages) { Write-Warning -Message $limitMessage }
         $cockpitSetting = Resolve-SPSCockpitSetting -Config $envCfg -Application $Application -Environment $Environment -ResultsFolder $pathResultsFolder
         foreach ($cockpitMessage in $cockpitSetting.Messages) { Write-Warning -Message $cockpitMessage }
         $sqlDiskThreshold = $runSetting.Value.SQLDiskFreeThresholdPercent
@@ -292,6 +295,9 @@ else {
         }
         foreach ($settingMessage in $runSetting.Messages) {
             Add-SPSWeatherEvent -Message "SPSWeather configuration: $settingMessage" -EntryType 'Warning' -EventID 2001
+        }
+        foreach ($limitMessage in $limitSetting.Messages) {
+            Add-SPSWeatherEvent -Message "SPSWeather limits configuration: $limitMessage" -EntryType 'Warning' -EventID 2001
         }
         foreach ($cockpitMessage in $cockpitSetting.Messages) {
             Add-SPSWeatherEvent -Message "SPSWeather cockpit configuration: $cockpitMessage" -EntryType 'Warning' -EventID 2001
@@ -465,6 +471,7 @@ else {
                     -WarningPercentage 20
             }
 
+            $sqlStatus = $null
             # Get SQL Server health for the farm (Tier 1+2+3), unless every SQL
             # check is excluded. Get-SPSSqlStatus discovers the SQL servers from
             # Get-SPDatabase and queries them with dependency-free ADO.NET.
@@ -482,6 +489,22 @@ else {
                 if (-not $ExclusionRules.Contains('SQLDiskStatus')) { $tbSQLDiskStatus += $sqlStatus.Disks }
                 if (-not $ExclusionRules.Contains('SQLAvailabilityStatus')) { $tbSQLAvailabilityStatus += $sqlStatus.Availability }
                 if (-not $ExclusionRules.Contains('SQLAliasStatus')) { $tbSQLAliasStatus += $sqlStatus.Aliases }
+            }
+
+            # Supported limits of SharePoint (content database size, sites per database, web applications, ...). A farm below every
+            # threshold gives no row. It judges the sections collected above, so it comes after them; it never stops the run.
+            if (-not $ExclusionRules.Contains('LimitStatus')) {
+                Write-Output "Checking the supported limits of farm $($spFarm.Name)"
+                $limitFarm = "$($spFarm.Name)"
+                $tbSPSLimitStatus += Get-SPSLimitStatus -Server $spTargetServer `
+                    -InstallAccount $ADM `
+                    -Farm $limitFarm `
+                    -Setting $limitSetting `
+                    -SqlDatabase @($(if ($null -ne $sqlStatus) { $sqlStatus.Databases }) | Where-Object { $_ -and "$($_.Farm)" -eq $limitFarm }) `
+                    -ContentDatabaseStatus @($tbSPSContentDBStatus | Where-Object { $_ -and "$($_.Farm)" -eq $limitFarm }) `
+                    -DistributedCache @($tbAppFabricStatus | Where-Object { $_ -and "$($_.Farm)" -eq $limitFarm }) `
+                    -ApplicationPool @($tbIISApplicationPoolStatus | Where-Object { $_ -and "$($_.Farm)" -eq $limitFarm }) `
+                    -SearchTopology @($tbSPSSearchEntTopology | Where-Object { $_ -and "$($_.Farm)" -eq $limitFarm })
             }
         }
 
@@ -521,6 +544,7 @@ else {
             SQLDiskStatus            = $tbSQLDiskStatus
             SQLAvailabilityStatus    = $tbSQLAvailabilityStatus
             SQLAliasStatus           = $tbSQLAliasStatus
+            SPSLimitStatus           = $tbSPSLimitStatus
         }
         # --- Per-farm reporting (Opt.1: one dashboard + one short email per farm) ---
         # The aggregate $reportSections span every farm; slice them per farm, then render
