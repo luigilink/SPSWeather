@@ -1,84 +1,85 @@
 # SPSWeather - Release Notes
 
-## [3.5.0] - 2026-11-26
+## [3.6.0] - 2026-11-27
 
-SPSWeather gets a **cockpit**: one self-contained HTML page that shows every farm of an environment, for management and for the IT team,
-built from what the runs already leave in `Results\`. Nothing new is collected from the farms. The page is **opt-in** (`Dashboard.Cockpit`);
-with the key absent a run writes what it wrote in 3.4.1, plus the run journal and a footer line on the dashboards, both described below. This release also fixes two defects: the
-history shared between environments, and a Failed timer jobs check that never reported a failure.
+SPSWeather now checks each farm against the **supported limits of SharePoint** (content database size, site collections, managed
+paths, Distributed Cache memory and more), links the dashboards and the cockpit to each other, warns before the removal of the
+`-EnableSMTP` switch in 4.0.0, and registers its scheduled task with a full configuration path and quoted paths. **A farm that is
+already above a supported limit shows new alerts at its first run**: it is the check doing its job, and the new `Limits` block lets you
+adapt it.
 
 ### Added
 
-- **The cockpit page** (`Export-SPSWeatherCockpit`, written by the run when `Dashboard.Cockpit = $true`): one HTML file,
-  `<App>-<Env>-cockpit.html` in `Dashboard.OutputPath` (`Results\` when it is empty), with nothing loaded from outside. Five tabs:
-  **Executive** (health, days without failure, open attention items, collection, trend, weather), **IT** (causes grouped, farms by
-  section, stability, detail per farm), **Data quality**, **Collection tracking** (the run journal) and **Settings & method** (the settings
-  in effect and their changes, how the figures are computed). Periods of 7, 14, 30 and 60 days; the cards say in a sentence what their
-  figure means (fixed rules on the data, no external service). English and French, light and dark theme, responsive from 390 px,
-  keyboard accessible. The period, the language, the theme and the tab are kept in the address (`#tab=it&p=14&lang=fr-FR`), so a link
-  can be shared. Every value that comes from a farm is HTML-escaped. See the wiki pages *Cockpit page* and *Cockpit data*.
-- **A button in the consolidated email**: with `EmailMode = 'Consolidated'` and a `Dashboard.Url`, an *Open the cockpit* button points to
-  the page. Without `Dashboard.Cockpit` or without a `Url`, the email is **byte for byte the one of 3.4.1** (the tests compare it with the
-  body that 3.4.1 produces).
-- **A run journal**, `Results\<App>-<Env>.runs.json`: every run appends one record (start, duration, script version, language, email mode,
-  outcome of the email, and for each farm whether it was collected or unreachable, with its counts). A farm that cannot be reached leaves no
-  JSON snapshot, so the journal is the only trace of it over time. The record also holds the **settings in effect** (the thresholds with
-  their source `config` or `default`, and the names of the exclusion rules; no server, address, credential, URL or path). A small
-  `.lock` file stays next to the journal so that two overlapping runs do not lose a record. The journal is pruned with
-  `JsonHistoryRetentionDays`, never holds more than 1000 records, and a journal that cannot be read is kept aside as `.corrupt`. A journal
-  that cannot be written only produces a warning, never a failed run.
-- **The footer of the per-farm dashboard** says which configuration file the run used and which SQL thresholds it applied (`(default)`
-  next to a value the file does not set), so that an alert that looks wrong can be explained at once. Translated in English and French.
-- **`Test-SPSWeatherReadiness.ps1`** checks `Dashboard.Cockpit`: the key, the page that will be written, whether the folder accepts a file
-  and lets it be removed (a small temporary file, removed at once; nothing is created), and the address of the button. `New-SPSDashboardSite.ps1`
-  says that the same folder serves the page.
-- A new Event ID, **3002**: the cockpit page could not be written (a share that is down, a folder that refuses the file). The run goes on;
-  the dashboards and the emails are already done.
+- **Supported limits of SharePoint** (area *Capacity & limits*, section `SPSLimitStatus`; English and French). Each run compares the farm
+  with the limits that Microsoft supports and reports the ones that are reached: the data size of each content database (warning from
+  150 GB, failure above 200 GB; the log is not counted), the site collections per content database (5000 / 10000), the content
+  databases per farm (375 / 500), the web applications per farm (15 / 20), the managed paths (15 / 20 per web application and for
+  host-named site collections), the memory of each Distributed Cache host (failure above 16 GB), the application pools per web server
+  (a warning above 10) and the fixed limits of the search topology. The check is **read-only and active by default**, and a farm below
+  every threshold adds **no row**: its report is the one of before. The used size of a database is read (`FILEPROPERTY(name, 'SpaceUsed')`)
+  only for a database whose allocated size already reaches the warning threshold. The new optional `Limits` block of the configuration
+  sets a `Warning` and a `Failure` for each check, turns checks off (`Disabled`) and accepts `Exceptions` for one object, for instance a
+  document archive supported up to 4 TB, with a `Reason` shown in the row. The thresholds join the settings that each run records and that
+  the cockpit shows; the name of an object is never recorded. `Test-SPSWeatherReadiness.ps1` reports an unusable value of the block.
+  New wiki page *Limits*. See the change log for the details (#137).
+- **The dashboard and the cockpit link to each other.** With `Dashboard.Cockpit = $true`, the header of each farm dashboard has an *Open
+  the cockpit* link, and the cockpit has an *Open the farm dashboard* link on the card of each farm and in its detail on the *IT* tab.
+  The links are relative (the file name alone), so they work from IIS, a file share or a local folder, and need no `Dashboard.Url`.
+  Without `Dashboard.Cockpit` the dashboard is **byte for byte the one of 3.5.0** (#141).
+- **Readiness warns when the scheduled task still carries the deprecated `-EnableSMTP` switch.** 4.0.0 removes it; a task that still has it
+  would then fail to start and the morning run would not happen. `Test-SPSWeatherReadiness.ps1` has a new *Scheduled task* section that
+  reads the task (read-only) and shows a `[WARN]` with what to do. The line is `[SKIP]`, never a failure, when the task is not on that
+  host, when the host is not Windows, or when the task cannot be read (#136).
 
 ### Changed
 
-- The thresholds are resolved in one place. With a valid configuration nothing changes. A value that is not a whole number of 0 or more
-  (`abc`, a blank, `-1`) used to give an undefined result (an error, or a threshold of 0 that flagged everything): it is now reported
-  (transcript, Event ID 2001) and the default is used.
-- The bars of the per-farm dashboard are counted by the same code as the cockpit. The numbers are the same as before.
+- The wiki *Usage* and *Configuration* pages say that `-EnableSmtp` is removed in 4.0.0 and how to get ready (#136).
+- The wiki *Prerequisites* page has a new section on the service account (the maintainer uses the SharePoint farm account; check the
+  rights against your own farm) and one on what the script changes on the run server. The scheduled task table of *Usage* shows the real
+  task (#145).
 
 ### Fixed
 
-- **The Failed timer jobs check reports a failure again.** A collector handed its parameters to the remote script block as the caller wrote
-  them, so a parameter that kept its default reached the block empty. The entry script calls the Failed timer jobs collector without the
-  24 hour look-back and the 5 % threshold, so the look-back was zero hours and the check **never returned a row**. It has been so since
-  2.0.0. A timer job that failed more often than 5 % of its runs over the last 24 hours now appears in the dashboard and in the alerts of
-  the email. **A farm that has failing timer jobs will show a new warning at its first run with 3.5.0**: it is the check doing what its
-  documentation says, not a new problem. The same fix is in the 2.x line (2.4.1).
-- **The history of a farm is no longer shared between environments.** `Results\history\<Farm>\` is shared by the environments that name
-  a farm the same (`CONTENT` in a `PROD` and a `QUAL` configuration). The bars of the dashboard showed the runs of every environment as their
-  own, and the retention of one environment deleted the archives of the others. Each environment now reads and removes only its own
-  archives. Archives of another environment that a retention had already deleted are gone.
+- **The scheduled task could not find a relative `-ConfigFile`, and split a path that holds a space.** The task has no working directory
+  and its arguments were written as typed and without quotation marks: with `-ConfigFile 'Config\contoso-PROD.psd1'` the run of 06:00
+  stopped with `Missing ...`, and a folder such as `D:\My Scripts\SPSWeather` became several arguments. `-Action Install` now writes the
+  **full path** of the configuration file (and stops when the file does not exist) and registers the arguments in the `-File` form, with
+  the two paths between double quotation marks. **A task registered by an earlier version keeps working as it was and gets the new
+  arguments the next time you run `-Action Install`.** The wiki no longer asks for an absolute path or for a folder without space (#147).
+- **The wiki and the README showed `-Install` and `-Uninstall` as switches of `SPSWeather.ps1`**, which has `-Action Install|Uninstall|Default`.
+  Someone who copied the installation command got a parameter error. A test now fails when a page shows a parameter that the script does
+  not have (#145).
 
 ### Upgrade notes
 
-- **No change is required.** The only new key is optional: `Dashboard.Cockpit` (`$false` by default). A value other than `$true` or `$false`
-  is reported and the page is not produced. See `Config\CONTOSO-PROD.example.psd1`.
-- Replace the `Modules` folder and the scripts with the new ones (keep `Config\` and `Results\`). The account that runs SPSWeather must be
-  able to create files in `Results\` (the journal, its `.lock`) and, to get the page, in `Dashboard.OutputPath`.
-- To get the page: set `Dashboard.Cockpit = $true`, run `Test-SPSWeatherReadiness.ps1`, then run. To open it from the email, set
-  `Dashboard.Url` and `EmailMode = 'Consolidated'`. The page is only as complete as the history in `Results\`: it fills in over the
-  first days of runs.
+- **No change is required.** The `Limits` block and `Dashboard.Cockpit` are optional. See `Config\CONTOSO-PROD.example.psd1`.
+- **Expect new alerts at the first run if a farm is above a supported limit** (a content database of 180 GB is a warning). To adapt a
+  threshold, or to accept a known case such as a large archive, use the `Limits` block (see the wiki page *Limits*).
+- Replace the `Modules` folder and the scripts with the new ones (keep `Config\` and `Results\`).
+- To get the new arguments in the scheduled task, run `-Action Install` again, **signed in as the service account**. It is not required
+  for the task to keep running. If the task still carries `-EnableSMTP`, define `SMTPEnabled` in the configuration first, so that the
+  emails keep flowing (see the wiki page *Usage*).
 - This line is for **SharePoint Server Subscription Edition**. For SharePoint Server 2016 and 2019 (out of support on 14 July 2026), stay on
   [v2.4.1](https://github.com/luigilink/SPSWeather/releases/tag/v2.4.1).
 
 ### What has been tested
 
-- More than 1,000 automated tests pass on PowerShell 7 and on Windows PowerShell 5.1 (continuous integration), and the code analysis is
-  clean. The page was checked in a browser at 390, 768 and 1320 px, in both languages and both themes.
-- On a Subscription Edition lab farm: the run journal and the settings in effect were written by real runs, and the dataset and the page
-  were built from that real history. **The scheduled run that writes the page itself (`Dashboard.Cockpit = $true`) and the Failed timer jobs
-  fix have only been exercised with the real block of the entry script and a simulated farm, not yet by a scheduled run on a farm.** A
-  report of what worked and what did not is welcome (https://github.com/luigilink/SPSWeather/issues).
+- More than 1,400 automated tests pass on PowerShell 7 and on Windows PowerShell 5.1 (continuous integration), and the code analysis is
+  clean. The arguments of the scheduled task are started for real with Windows PowerShell 5.1 from a folder with spaces.
+- On a Subscription Edition lab farm, a **read-only probe** exercised the reads of the limits: the site count, the managed paths, the used
+  size of the data files and the matching of the SQL server and the database. **A complete scheduled run with the limit checks and the
+  links has not yet been done on a farm**: the report, the email and the cockpit were built from test data, and the dashboard page was
+  opened in a browser. A report of what worked and what did not is welcome (https://github.com/luigilink/SPSWeather/issues).
+
+### Known issues
+
+- **The note about Remote BLOB Storage does not show.** The size of a content database does not count the external BLOBs of Remote BLOB
+  Storage, and the note that should say so on such a database is never added (#149). Nothing else depends on it.
 
 ### Not in this release
 
-- The nightly activity indicators of the cockpit (a reserved `kpi` section is empty), editing the settings from the page, and securing the
-  access to the hosted pages are planned for later versions (#112, #119, #85).
+- A check of the IIS configuration against SharePoint (#138) is planned for 3.7.0. The nightly activity indicators of the cockpit, editing
+  the settings from the page, the removal of `-EnableSmtp` and securing the access to the hosted pages are planned for later versions
+  (#112, #119, #140, #85).
 
 A full list of changes can be found in the [change log](CHANGELOG.md).
