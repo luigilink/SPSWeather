@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-11-27
+
 ### Added
 
 - **Readiness: a warning when the scheduled task still carries the deprecated `-EnableSMTP` switch**, to prepare for 4.0.0, which
@@ -37,7 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   working, and the thresholds and exceptions below are there to adapt it. The size of a database is the used size of its data, read
   **only for a database whose allocated size already reaches the warning threshold** (`FILEPROPERTY(name, 'SpaceUsed')`, integrated
   security, a read-only query); otherwise the allocated size of the data files, an upper bound, from the SQL section; the row says
-  which one it used, and a database that uses Remote BLOB Storage carries a note, as its external BLOBs are not visible to SQL Server.
+  which one it used. The size does not count the external BLOBs of Remote BLOB Storage, which SQL Server cannot see, and the note that
+  should say so on such a database **does not show yet** (#149).
   New optional `Limits` block of the configuration: a `Warning` and a `Failure` for each check (a number of 0 or more, `$null` for none;
   an unusable value is reported, Event ID 2001, and the default is used), `Disabled` to turn checks off, and `Exceptions` for one object
   (a different threshold or `Exempt = $true`, with a `Reason` shown in the row), for instance a document archive supported up to 4 TB;
