@@ -45,7 +45,10 @@ The limit is about the **content**, so the **log is never counted**. The check u
 3. the size that SharePoint reports, **log included**, only when the two above are not available.
 
 The row says which one it used: `(used)`, `(allocated)` or `(as reported by SharePoint, log included)`. When the used size could not be
-read (SQL server not reachable, no permission), the row says so and keeps the allocated size.
+read (SQL server not reachable, no permission), the row says so and keeps the allocated size. A database is always matched with the sizes
+of **its own SQL server**: two servers that hold a database of the same name never share a size. The reads of the used size have a
+**time budget of two minutes** for all the databases together; when it is spent, the databases left are not tried and keep their allocated
+size, so that a SQL server that does not answer cannot delay the report.
 
 **Remote BLOB Storage**: Microsoft's limit includes the external BLOBs, which SQL Server cannot see. A database that uses RBS is
 measured without them and its row carries a note saying so.
@@ -118,8 +121,10 @@ Exceptions = @(
 | `Reason` | Free text, shown in the recommendation of the row |
 
 An exception must change something (a `Warning`, a `Failure` or `Exempt = $true`); otherwise it is reported and ignored. The first
-exception that names the object wins. **Object names stay on the server**: the run journal and the cockpit only record the number of
-exceptions, never a name.
+exception that names the object wins. A threshold that an exception does not give is the one of the check, so the pair is judged as the
+object would get it: `Warning = 300` alone is refused when the failure of the check is 200 (give `Failure = $null` too to have none).
+**Object names stay on the server**: the run journal and the cockpit only record the number of valid exceptions
+(`Limits.Exceptions`), never a name.
 
 ### Messages
 
@@ -143,7 +148,8 @@ for the checks that need it; it never stops the run.
 
 The thresholds are part of the **settings recorded by each run** (`Limits.ContentDatabaseSize.Warning`, ...), with their origin
 (*default* or *configuration*), so the *Settings & method* tab of the [cockpit](Cockpit-Page) shows the ones in use and a change of
-threshold appears in the list of changes. The checks that are turned off appear among the excluded names (`Limits.ManagedPaths`).
+threshold appears in the list of changes, and so does a change in the number of exceptions (`Limits.Exceptions`). The checks that are
+turned off appear among the excluded names (`Limits.ManagedPaths`).
 
 ## See also
 

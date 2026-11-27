@@ -49,7 +49,7 @@ Each record of the journal says which thresholds the run really used, so that "w
 - `exclusionRules`: the exclusions that the run really applies. They are asked the same question as the entry script does
   (`Contains('Name')`), so a list matches exact names and a single string matches as a substring; a typo or a path typed there
   excludes nothing and is not recorded. The limit checks that are turned off with `Limits.Disabled` are listed as `Limits.<Check>`;
-  the exceptions of the `Limits` block are only counted, and the name of an object is never recorded.
+  the number of valid exceptions of the `Limits` block is recorded as `Limits.Exceptions`, and the name of an object never is.
 
 Nothing else of the configuration is recorded: no server, address, credential key, URL or path. The list of keys is fixed in
 `Get-SPSWeatherRunSetting`, which is also the only place that resolves these thresholds.

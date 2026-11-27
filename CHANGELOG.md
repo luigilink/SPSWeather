@@ -42,7 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an unusable value is reported, Event ID 2001, and the default is used), `Disabled` to turn checks off, and `Exceptions` for one object
   (a different threshold or `Exempt = $true`, with a `Reason` shown in the row), for instance a document archive supported up to 4 TB;
   `LimitStatus` in `ExclusionRules` turns every limit check off. The thresholds join the settings recorded by each run and shown by the
-  cockpit (`Limits.<Check>.Warning|Failure`, `Limits.<Check>` for a check that is off); the name of an object is never recorded.
+  cockpit (`Limits.<Check>.Warning|Failure`, `Limits.<Check>` for a check that is off, `Limits.Exceptions` for the number of valid exceptions);
+  the name of an object is never recorded. The reads of the used size have a time budget of two minutes for all the databases, and a size is
+  always the one of the database on its own SQL server.
   `Test-SPSWeatherReadiness.ps1` reports an unusable value of the block as a `[WARN]`. New public functions `Get-SPSLimitStatus` and
   `Get-SPSWeatherLimitSetting`; new wiki page *Limits* (#137).
 
