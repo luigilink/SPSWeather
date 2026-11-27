@@ -116,7 +116,7 @@
         foreach ($database in @($fact.ContentDatabases)) {
             $threshold = Get-SPSLimitThreshold -Setting $Setting -Limit 'ContentDatabaseSize' -Object "$($database.Name)"
             if (-not $threshold.Enabled -or $null -eq $threshold.Warning) { continue }
-            $sql = @($SqlDatabase | Where-Object -FilterScript { $null -ne $_ -and "$($_.Name)" -eq "$($database.Name)" })[0]
+            $sql = @($SqlDatabase | Where-Object -FilterScript { $null -ne $_ -and "$($_.Name)" -eq "$($database.Name)" -and "$($_.SqlServer)".Trim() -eq "$($database.SqlServer)".Trim() })[0]
             $allocatedMB = 0.0
             if ($null -ne $sql -and [double]::TryParse([string]$sql.DataSizeMB, [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$allocatedMB)) {
                 if (($allocatedMB / 1024) -ge $threshold.Warning) { [void]$candidates.Add($database) }

@@ -45,7 +45,7 @@
         try {
             $contentDatabases = New-Object -TypeName System.Collections.ArrayList
             foreach ($database in @(Get-SPContentDatabase)) {
-                $sqlServer = if ($null -ne $database.Server.Address) { "$($database.Server.Address)" } else { "$($database.Server)" }
+                $sqlServer = if ($database.Server -and $database.Server.Address) { "$($database.Server.Address)" } else { "$($database.Server)" }
                 # $null when it cannot be read: the check then says nothing about the external BLOBs
                 $rbs = $null
                 try { $rbs = [System.Boolean]$database.RemoteBlobStorageSettings.Enabled() } catch { $rbs = $null }

@@ -207,9 +207,16 @@
                     [void]$messages.Add("$label.Limit '$limitName' has no threshold to set; use Exempt = `$true. The exception is ignored.")
                     continue
                 }
-                if ($null -ne $warning -and $null -ne $failure -and $warning -gt $failure) {
-                    [void]$messages.Add("${label}: the warning ($warning) is above the failure ($failure); the exception is ignored.")
-                    continue
+                # The pair that the object would get: a threshold that the exception does not give is the one of the check
+                if (-not $exempt) {
+                    $effectiveWarning = if ($hasWarning) { $warning } else { $checks[$limitName].Warning }
+                    $effectiveFailure = if ($hasFailure) { $failure } else { $checks[$limitName].Failure }
+                    if ($null -ne $effectiveWarning -and $null -ne $effectiveFailure -and $effectiveWarning -gt $effectiveFailure) {
+                        $warningText = if ($hasWarning) { "$effectiveWarning" } else { "$effectiveWarning, from the check" }
+                        $failureText = if ($hasFailure) { "$effectiveFailure" } else { "$effectiveFailure, from the check" }
+                        [void]$messages.Add("${label}: the warning ($warningText) is above the failure ($failureText); the exception is ignored.")
+                        continue
+                    }
                 }
                 if (-not $exempt -and -not $hasWarning -and -not $hasFailure) {
                     [void]$messages.Add("$label changes nothing: give a Warning, a Failure or Exempt = `$true; it is ignored.")

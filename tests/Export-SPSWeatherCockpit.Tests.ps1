@@ -391,10 +391,12 @@ const iso = i => new Date(END - i * 86400000).toISOString().slice(0, 10);
 const OK = { ok: 10, warn: 0, fail: 0, weather: 'sunny', snapshots: 1, unreachable: 0 };
 const thresholds = {
   SQLDiskFreeThresholdPercent: { value: 15, source: 'default' },
-  'Limits.ContentDatabaseSize.Warning': { value: 150, source: 'default' },
+  'Limits.ContentDatabaseSize.Warning': { value: 120.5, source: 'config' },
   'Limits.ContentDatabaseSize.Failure': { value: 1500, source: 'config' },
-  'Limits.ManagedPaths.Warning': { value: 21, source: 'default' },
-  'Limits.ManagedPaths.Failure': { value: null, source: 'default' }
+  'Limits.ManagedPaths.Warning': { value: 15, source: 'default' },
+  'Limits.ManagedPaths.Failure': { value: 20, source: 'default' },
+  'Limits.ApplicationPoolsPerServer.Failure': { value: null, source: 'default' },
+  'Limits.Exceptions': { value: 2, source: 'config' }
 };
 const d = JSON.parse(block('spsw-data'));
 const n = 14;
@@ -403,15 +405,23 @@ d.period = { retentionDays: 0, offered: [7, 14], maxDays: n, firstDay: d.days[0]
 const els = { 'spsw-data': { textContent: JSON.stringify(d) }, 'spsw-page': { textContent: block('spsw-page') }, 'spsw-error': { textContent: '', hidden: true }, 'spsw-header': { innerHTML: '' }, 'spsw-main': { innerHTML: '' }, 'spsw-footer': { innerHTML: '' }, 'spsw-live': { textContent: '' } };
 const doc = { getElementById: id => els[id], querySelector: () => null, addEventListener() {}, title: '', documentElement: { setAttribute() {}, lang: '' } };
 const win = { addEventListener() {}, innerWidth: 1320, matchMedia: () => ({ matches: false }), scrollTo() {} };
-new Function('document', 'window', 'location', 'history', code)(doc, win, { hash: '#tab=method&p=14&lang=en-US' }, { replaceState() {} });
-const text = els['spsw-main'].innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-console.log(JSON.stringify({ error: els['spsw-error'].hidden ? '' : els['spsw-error'].textContent, text }));
+const text = {};
+for (const lang of ['en-US', 'fr-FR']) {
+  els['spsw-error'].hidden = true; els['spsw-error'].textContent = '';
+  new Function('document', 'window', 'location', 'history', code)(doc, win, { hash: '#tab=method&p=14&lang=' + lang }, { replaceState() {} });
+  text[lang] = els['spsw-main'].innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ') + (els['spsw-error'].hidden ? '' : ' ERROR ' + els['spsw-error'].textContent);
+}
+console.log(JSON.stringify({ error: text['en-US'].includes(' ERROR ') || text['fr-FR'].includes(' ERROR ') ? 'error' : '', text: text['en-US'], french: text['fr-FR'] }));
 '@)
             $result = & $script:nodePath $harness $script:file | ConvertFrom-Json
             $result.error | Should -BeNullOrEmpty
-            $result.text | Should -Match 'Limits\.ContentDatabaseSize\.Warning 150 '
+            $result.text | Should -Match 'Limits\.ContentDatabaseSize\.Warning 120\.5 ' -Because 'a threshold that has decimals is shown with them'
+            $result.french | Should -Match 'Limits\.ContentDatabaseSize\.Warning 120,5 ' -Because 'and in the decimal mark of the language'
             $result.text | Should -Match 'Limits\.ContentDatabaseSize\.Failure 1,?500 '
-            $result.text | Should -Match 'Limits\.ManagedPaths\.Failure \u2014 '
+            $result.text | Should -Match 'Limits\.ManagedPaths\.Warning 15 '
+            $result.text | Should -Match 'Limits\.ManagedPaths\.Failure 20 '
+            $result.text | Should -Match 'Limits\.ApplicationPoolsPerServer\.Failure \u2014 '
+            $result.text | Should -Match 'Limits\.Exceptions 2 '
             $result.text | Should -Match 'Limits\.ManagedPaths\b'
             $result.text | Should -Match 'SQLDiskFreeThresholdPercent 15 ?%'
         }

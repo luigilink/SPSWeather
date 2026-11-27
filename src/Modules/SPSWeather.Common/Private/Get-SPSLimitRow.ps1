@@ -145,13 +145,14 @@
         $usedRows = @($UsedSize | Where-Object -FilterScript { $null -ne $_ })
         foreach ($database in $databases) {
             $name = "$($database.Name)"
+            # Two SQL servers can hold databases of the same name: a size is the one of the database on its own server, never another
+            $server = "$($database.SqlServer)".Trim()
             $threshold = & $thresholdOf 'ContentDatabaseSize' $name
             if ($threshold.Enabled) {
                 $value = $null; $basis = ''
-                $used = @($usedRows | Where-Object -FilterScript { "$($_.Name)" -eq $name })[0]
+                $used = @($usedRows | Where-Object -FilterScript { "$($_.Name)" -eq $name -and "$($_.SqlServer)".Trim() -eq $server })[0]
                 $usedMB = if ($null -ne $used) { ConvertTo-Number $used.UsedDataMB } else { $null }
-                $sql = @($sqlRows | Where-Object -FilterScript { "$($_.Name)" -eq $name -and ([string]::IsNullOrEmpty("$($database.SqlServer)") -or "$($_.SqlServer)" -eq "$($database.SqlServer)") })[0]
-                if ($null -eq $sql) { $sql = @($sqlRows | Where-Object -FilterScript { "$($_.Name)" -eq $name })[0] }
+                $sql = @($sqlRows | Where-Object -FilterScript { "$($_.Name)" -eq $name -and "$($_.SqlServer)".Trim() -eq $server })[0]
                 $allocatedMB = if ($null -ne $sql) { ConvertTo-Number $sql.DataSizeMB } else { $null }
                 if ($null -ne $usedMB) { $value = $usedMB / 1024; $basis = ' (used)' }
                 elseif ($null -ne $allocatedMB) {
@@ -159,7 +160,7 @@
                     $basis = if ($null -ne $used -and -not [string]::IsNullOrEmpty("$($used.Error)")) { " (allocated; the used size could not be read: $("$($used.Error)".Trim()))" } else { ' (allocated)' }
                 }
                 else {
-                    $status = @($statusRows | Where-Object -FilterScript { "$($_.DatabaseName)" -eq $name })[0]
+                    $status = @($statusRows | Where-Object -FilterScript { "$($_.DatabaseName)" -eq $name -and "$($_.SQLInstance)".Trim() -eq $server })[0]
                     $reported = if ($null -ne $status) { ConvertTo-Number $status.DiskSize } else { $null }
                     if ($null -ne $reported) { $value = $reported; $basis = ' (as reported by SharePoint, log included)' }
                 }

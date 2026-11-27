@@ -259,6 +259,24 @@ Describe 'Get-SPSWeatherRunSetting with the limits' {
         $r.Record.exclusionRules | Should -Contain 'WSPStatus'
     }
 
+    It 'records how many exceptions the Limits block holds, so that two configurations that differ only there do not give the same record' {
+        $none = Get-SPSWeatherRunSetting -Config @{} -LimitSetting (Get-SPSWeatherLimitSetting -Config @{ Limits = @{} })
+        $two = Get-SPSWeatherRunSetting -Config @{} -LimitSetting (Get-SPSWeatherLimitSetting -Config @{ Limits = @{ Exceptions = @(
+                        @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Exempt = $true }
+                        @{ Limit = 'ContentDatabaseSize'; Object = 'b'; Failure = 400 }) } })
+        $none.Record.thresholds.'Limits.Exceptions'.value | Should -Be 0
+        $none.Record.thresholds.'Limits.Exceptions'.source | Should -Be 'default'
+        $two.Record.thresholds.'Limits.Exceptions'.value | Should -Be 2
+        $two.Record.thresholds.'Limits.Exceptions'.source | Should -Be 'config'
+        (ConvertTo-Json -InputObject $none.Record -Depth 6) | Should -Not -Be (ConvertTo-Json -InputObject $two.Record -Depth 6)
+    }
+
+    It 'counts only the exceptions that are valid, and records no count without a limit setting' {
+        $limit = Get-SPSWeatherLimitSetting -Config @{ Limits = @{ Exceptions = @(@{ Limit = 'ContentDatabaseSize'; Object = 'a'; Exempt = $true }, 'bad') } }
+        (Get-SPSWeatherRunSetting -Config @{} -LimitSetting $limit).Record.thresholds.'Limits.Exceptions'.value | Should -Be 1
+        $noLimit.Record.thresholds.PSObject.Properties.Name | Should -Not -Contain 'Limits.Exceptions'
+    }
+
     It 'never lets an object name of an exception reach the record' {
         $limit = Get-SPSWeatherLimitSetting -Config @{ Limits = @{ Exceptions = @(@{ Limit = 'ContentDatabaseSize'; Object = 'WSS_Content_Archive_secret'; Failure = 4096; Reason = 'secret reason' }) } }
         $r = Get-SPSWeatherRunSetting -Config @{} -LimitSetting $limit

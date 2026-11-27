@@ -17,8 +17,9 @@
 
         .PARAMETER LimitSetting
         The result of Get-SPSWeatherLimitSetting. Its thresholds join the ones of the record (Limits.<Check>.Warning and
-        Limits.<Check>.Failure) and the checks that are turned off join the excluded names (Limits.<Check>), so that the run journal and
-        the Settings tab of the cockpit show them. Without it the record is exactly the one of 3.5.0.
+        Limits.<Check>.Failure), with the number of valid exceptions (Limits.Exceptions, never an object name), and the checks that are
+        turned off join the excluded names (Limits.<Check>), so that the run journal and the Settings tab of the cockpit show them.
+        Without it the record is exactly the one of 3.5.0.
 
         .EXAMPLE
         $runSetting = Get-SPSWeatherRunSetting -Config $envCfg -ConfigFile $ConfigFile
@@ -106,6 +107,9 @@
 
     if ($null -ne $LimitSetting -and $null -ne $LimitSetting.Record) {
         foreach ($property in $LimitSetting.Record.thresholds.PSObject.Properties) { $thresholds[$property.Name] = $property.Value }
+        # The number of exceptions, never their names: two configurations that differ only there must not give the same record
+        $exceptionCount = [int]$LimitSetting.Record.exceptions
+        $thresholds['Limits.Exceptions'] = [ordered]@{ value = $exceptionCount; source = $(if ($exceptionCount -gt 0) { 'config' } else { 'default' }) }
         foreach ($off in @($LimitSetting.Record.disabled)) { [void]$names.Add("$off") }
     }
 

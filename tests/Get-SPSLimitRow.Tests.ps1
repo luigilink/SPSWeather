@@ -220,6 +220,8 @@ Describe 'Get-SPSWeatherLimitSetting' {
             @{ Name = 'an Exempt that is not a boolean'; Item = @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Exempt = 'maybe' }; Expected = 'Exempt must be \$true or \$false' }
             @{ Name = 'a threshold that is not a number'; Item = @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Warning = 'x' }; Expected = 'must be a number of 0 or more' }
             @{ Name = 'a warning above the failure'; Item = @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Warning = 9; Failure = 1 }; Expected = 'the warning \(9\) is above the failure \(1\)' }
+            @{ Name = 'a warning above the failure that the check gives'; Item = @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Warning = 300 }; Expected = 'the warning \(300\) is above the failure \(200, from the check\)' }
+            @{ Name = 'a failure below the warning that the check gives'; Item = @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Failure = 100 }; Expected = 'the warning \(150, from the check\) is above the failure \(100\)' }
             @{ Name = 'a threshold for the search topology'; Item = @{ Limit = 'SearchTopology'; Object = 'a'; Failure = 3 }; Expected = 'has no threshold to set' }
         ) {
             $s = Get-Setting -Config @{ Limits = @{ Exceptions = @($Item) } }
@@ -227,6 +229,28 @@ Describe 'Get-SPSWeatherLimitSetting' {
             $s.Messages.Count | Should -Be 1
             $s.Messages[0] | Should -Match $Expected
             $s.Messages[0] | Should -Match 'Limits\.Exceptions\[1\]|Exceptions\[1\]'
+        }
+
+        It 'accepts an exception whose effective pair is in order: <Name>' -ForEach @(
+            @{ Name = 'a warning below the failure of the check'; Item = @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Warning = 100 } }
+            @{ Name = 'a failure above the warning of the check'; Item = @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Failure = 4096 } }
+            @{ Name = 'a warning above the failure, with an explicit $null failure'; Item = @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Warning = 300; Failure = $null } }
+            @{ Name = 'a failure that is an explicit $null'; Item = @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Failure = $null } }
+            @{ Name = 'a warning above the failure of the check, when the object is exempt'; Item = @{ Limit = 'ContentDatabaseSize'; Object = 'a'; Warning = 300; Exempt = $true } }
+            @{ Name = 'a warning for a check that has no failure'; Item = @{ Limit = 'ApplicationPoolsPerServer'; Object = 'WFE1'; Warning = 40 } }
+        ) {
+            $s = Get-Setting -Config @{ Limits = @{ Exceptions = @($Item) } }
+            $s.Messages.Count | Should -Be 0
+            @($s.Exceptions).Count | Should -Be 1
+        }
+
+        It 'judges an exception against the thresholds that the Limits block gives the check, not only the defaults' {
+            $s = Get-Setting -Config @{ Limits = @{ ContentDatabaseSize = @{ Warning = 400; Failure = 600 }; Exceptions = @(@{ Limit = 'ContentDatabaseSize'; Object = 'a'; Warning = 300 }) } }
+            $s.Messages.Count | Should -Be 0
+            @($s.Exceptions).Count | Should -Be 1
+            $inverted = Get-Setting -Config @{ Limits = @{ ContentDatabaseSize = @{ Warning = 400; Failure = 600 }; Exceptions = @(@{ Limit = 'ContentDatabaseSize'; Object = 'a'; Warning = 700 }) } }
+            @($inverted.Exceptions).Count | Should -Be 0
+            $inverted.Messages[0] | Should -Match 'the warning \(700\) is above the failure \(600, from the check\)'
         }
 
         It 'keeps the valid exceptions next to the invalid one, and numbers the message by position' {
@@ -373,7 +397,7 @@ Describe 'Get-SPSLimitRow' {
         }
 
         It 'uses the used size when it was read, even when the allocated one is far above the limit' {
-            $rows = Get-Rows -Setting $defaults -Fact (New-Fact -Databases @(New-Db)) -Sql @(New-Sql -DataGB 210) -Used @([PSCustomObject]@{ Name = 'DB'; UsedDataMB = 160 * 1024; Error = '' })
+            $rows = Get-Rows -Setting $defaults -Fact (New-Fact -Databases @(New-Db)) -Sql @(New-Sql -DataGB 210) -Used @([PSCustomObject]@{ Name = 'DB'; SqlServer = 'SQL1'; UsedDataMB = 160 * 1024; Error = '' })
             $rows.Count | Should -Be 1
             $rows[0].Status | Should -Be 'Warning'
             $rows[0].Value | Should -Be 160
@@ -381,11 +405,11 @@ Describe 'Get-SPSLimitRow' {
         }
 
         It 'does not alert for a database whose used size is under the threshold, whatever the file was pre-sized to' {
-            (Get-Rows -Setting $defaults -Fact (New-Fact -Databases @(New-Db)) -Sql @(New-Sql -DataGB 900) -Used @([PSCustomObject]@{ Name = 'DB'; UsedDataMB = 100 * 1024; Error = '' })).Count | Should -Be 0
+            (Get-Rows -Setting $defaults -Fact (New-Fact -Databases @(New-Db)) -Sql @(New-Sql -DataGB 900) -Used @([PSCustomObject]@{ Name = 'DB'; SqlServer = 'SQL1'; UsedDataMB = 100 * 1024; Error = '' })).Count | Should -Be 0
         }
 
         It 'falls back to the allocated size and says why when the used size could not be read' {
-            $rows = Get-Rows -Setting $defaults -Fact (New-Fact -Databases @(New-Db)) -Sql @(New-Sql -DataGB 210) -Used @([PSCustomObject]@{ Name = 'DB'; UsedDataMB = $null; Error = 'login failed' })
+            $rows = Get-Rows -Setting $defaults -Fact (New-Fact -Databases @(New-Db)) -Sql @(New-Sql -DataGB 210) -Used @([PSCustomObject]@{ Name = 'DB'; SqlServer = 'SQL1'; UsedDataMB = $null; Error = 'login failed' })
             $rows[0].Status | Should -Be 'Failure'
             $rows[0].Recommendation | Should -Match 'allocated; the used size could not be read: login failed'
         }
@@ -395,7 +419,7 @@ Describe 'Get-SPSLimitRow' {
         }
 
         It 'uses the size that SharePoint reports, and says that it includes the log, only when the SQL rows are not there' {
-            $status = @([PSCustomObject]@{ DatabaseName = 'DB'; Type = 'Content Database'; DiskSize = '210' })
+            $status = @([PSCustomObject]@{ SQLInstance = 'SQL1'; DatabaseName = 'DB'; Type = 'Content Database'; DiskSize = '210' })
             $rows = Get-Rows -Setting $defaults -Fact (New-Fact -Databases @(New-Db)) -Status $status
             $rows[0].Recommendation | Should -Match 'as reported by SharePoint, log included'
             (Get-Rows -Setting $defaults -Fact (New-Fact -Databases @(New-Db)) -Status $status -Sql @(New-Sql -DataGB 5)).Count | Should -Be 0
@@ -409,6 +433,49 @@ Describe 'Get-SPSLimitRow' {
         It 'does not take the size of a database of the same name on another SQL server when its own is there' {
             $sql = @([PSCustomObject]@{ Name = 'DB'; SqlServer = 'OTHER'; DataSizeMB = 900 * 1024 }, [PSCustomObject]@{ Name = 'DB'; SqlServer = 'SQL1'; DataSizeMB = 10 * 1024 })
             (Get-Rows -Setting $defaults -Fact (New-Fact -Databases @(New-Db)) -Sql $sql).Count | Should -Be 0
+        }
+
+        It 'never takes the size of a database of the same name that is on another SQL server' {
+            $databases = @(
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL1'; SiteCount = 10; Rbs = $false }
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL2'; SiteCount = 10; Rbs = $false })
+            $sql = @(
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL1'; DataSizeMB = 10 * 1024 }
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL2'; DataSizeMB = 210 * 1024 })
+            $rows = Get-Rows -Setting $defaults -Fact (New-Fact -Databases $databases) -Sql $sql
+            $rows.Count | Should -Be 1
+            $rows[0].Status | Should -Be 'Failure'
+            $rows[0].Value | Should -Be 210
+            (Get-Rows -Setting $defaults -Fact (New-Fact -Databases $databases) -Sql @($sql[1], $sql[0])).Count | Should -Be 1
+        }
+
+        It 'does not judge a database by the size of one of the same name on another server when its own size is not there' {
+            $fact = New-Fact -Databases @([PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL2'; SiteCount = 10; Rbs = $false })
+            (Get-Rows -Setting $defaults -Fact $fact -Sql @([PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL1'; DataSizeMB = 210 * 1024 })).Count | Should -Be 0
+            (Get-Rows -Setting $defaults -Fact $fact -Sql @([PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'sql2'; DataSizeMB = 210 * 1024 })).Count | Should -Be 1
+        }
+
+        It 'takes the used size of the database on its own server, and the one that SharePoint reports for it, not the ones of the same name elsewhere' {
+            $databases = @(
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL1'; SiteCount = 10; Rbs = $false }
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL2'; SiteCount = 10; Rbs = $false })
+            $sql = @(
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL1'; DataSizeMB = 300 * 1024 }
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL2'; DataSizeMB = 300 * 1024 })
+            $used = @(
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL1'; UsedDataMB = 100 * 1024; Error = '' }
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL2'; UsedDataMB = 160 * 1024; Error = '' })
+            $rows = Get-Rows -Setting $defaults -Fact (New-Fact -Databases $databases) -Sql $sql -Used $used
+            $rows.Count | Should -Be 1
+            $rows[0].Value | Should -Be 160
+            $rows[0].Recommendation | Should -Match '\(used\)'
+            $status = @(
+                [PSCustomObject]@{ Type = 'Content Database'; SQLInstance = 'SQL1'; DatabaseName = 'WSS_Content'; DiskSize = 5 }
+                [PSCustomObject]@{ Type = 'Content Database'; SQLInstance = 'SQL2'; DatabaseName = 'WSS_Content'; DiskSize = 210 })
+            $reported = Get-Rows -Setting $defaults -Fact (New-Fact -Databases $databases) -Status $status
+            $reported.Count | Should -Be 1
+            $reported[0].Value | Should -Be 210
+            (Get-Rows -Setting $defaults -Fact (New-Fact -Databases @($databases[0])) -Status @($status[1])).Count | Should -Be 0
         }
 
         It 'notes that Remote BLOB Storage is not counted, and only for a database that has it' {

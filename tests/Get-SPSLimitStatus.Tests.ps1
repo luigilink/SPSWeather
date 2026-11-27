@@ -166,6 +166,29 @@ Describe 'Get-SPSContentDatabaseUsedSize' {
         }
     }
 
+    It 'stops reading when its time budget is spent, and answers the databases left with an error and no size' {
+        InModuleScope SPSWeather.Common -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            Mock Invoke-SPSCommand { & $ScriptBlock @($Arguments) }
+            $targets = @(1..4 | ForEach-Object { [PSCustomObject]@{ Name = "DB$_"; SqlServer = '127.0.0.1,1' } })
+            $rows = @(Get-SPSContentDatabaseUsedSize -Server 'APP1' -InstallAccount $Cred -Farm 'F' -Database $targets -TimeBudgetSeconds 0)
+            $rows.Count | Should -Be 4
+            foreach ($row in $rows) {
+                $row.UsedDataMB | Should -BeNullOrEmpty
+                $row.Error | Should -Match 'time budget of 0 seconds'
+                $row.Error | Should -Not -Match 'network|connect|server was not found'
+            }
+            @($rows.Name) | Should -Be @('DB1', 'DB2', 'DB3', 'DB4')
+        }
+    }
+
+    It 'has a time budget of two minutes by default, that is handed to the remote side, and checks it before each database' {
+        $source = Get-Content -Path (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'src/Modules/SPSWeather.Common/Private/Get-SPSContentDatabaseUsedSize.ps1') -Raw
+        $source | Should -Match '\$TimeBudgetSeconds = 120'
+        $source | Should -Match 'TimeBudgetSeconds = \$TimeBudgetSeconds'
+        $source | Should -Match '(?s)foreach \(\$target in .*?\) \{\s*\$row = .*?\[System\.DateTime\]::UtcNow -ge \$deadline'
+    }
+
     It 'returns the error of a server that cannot be reached, with a real connection that fails at once' {
         # The remote block runs here, against a SQL server that does not exist: it must return the error and not throw
         InModuleScope SPSWeather.Common -Parameters @{ Cred = $script:cred } {
@@ -249,7 +272,7 @@ Describe 'Get-SPSLimitStatus' {
                         [PSCustomObject]@{ Name = 'BIG'; SqlServer = 'SQL1'; SiteCount = 1; Rbs = $false }
                         [PSCustomObject]@{ Name = 'NOSQL'; SqlServer = 'SQL1'; SiteCount = 1; Rbs = $false }) }
             }
-            Mock Get-SPSContentDatabaseUsedSize { $script:asked = @($Database.Name); @([PSCustomObject]@{ Name = 'BIG'; UsedDataMB = 160 * 1024; Error = '' }, [PSCustomObject]@{ Name = 'AT'; UsedDataMB = 100 * 1024; Error = '' }) }
+            Mock Get-SPSContentDatabaseUsedSize { $script:asked = @($Database.Name); @([PSCustomObject]@{ Name = 'BIG'; SqlServer = 'SQL1'; UsedDataMB = 160 * 1024; Error = '' }, [PSCustomObject]@{ Name = 'AT'; SqlServer = 'SQL1'; UsedDataMB = 100 * 1024; Error = '' }) }
             $sql = @(
                 [PSCustomObject]@{ Name = 'SMALL'; SqlServer = 'SQL1'; DataSizeMB = 10 * 1024 }
                 [PSCustomObject]@{ Name = 'AT'; SqlServer = 'SQL1'; DataSizeMB = 150 * 1024 }
@@ -276,6 +299,28 @@ Describe 'Get-SPSLimitStatus' {
             Mock Get-SPSContentDatabaseUsedSize { throw 'must not be called' }
             $null = Get-SPSLimitStatus -Server 'APP1' -InstallAccount $Cred -Farm 'F' -Setting (Get-SPSWeatherLimitSetting -Config $C) -SqlDatabase @([PSCustomObject]@{ Name = 'DB'; SqlServer = 'SQL1'; DataSizeMB = $GB * 1024 })
             Should -Invoke Get-SPSContentDatabaseUsedSize -Times 0 -Exactly
+        }
+    }
+
+    It 'asks the used size of the database whose own allocated size reaches the threshold, not of one of the same name on another server' {
+        InModuleScope SPSWeather.Common -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            $script:asked = @()
+            Mock Get-SPSLimitFact {
+                [PSCustomObject]@{ Error = ''; WebApplicationCount = 1; WebApplications = @(); HostNamedManagedPathCount = 0
+                    ContentDatabases = @(
+                        [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL1'; SiteCount = 1; Rbs = $false }
+                        [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL2'; SiteCount = 1; Rbs = $false }) }
+            }
+            Mock Get-SPSContentDatabaseUsedSize { $script:asked = @($Database | ForEach-Object { "$($_.SqlServer)/$($_.Name)" }); @() }
+            $sql = @(
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL1'; DataSizeMB = 10 * 1024 }
+                [PSCustomObject]@{ Name = 'WSS_Content'; SqlServer = 'SQL2'; DataSizeMB = 160 * 1024 })
+            $null = Get-SPSLimitStatus -Server 'APP1' -InstallAccount $Cred -Farm 'F' -Setting (Get-SPSWeatherLimitSetting -Config @{}) -SqlDatabase $sql
+            $script:asked | Should -Be @('SQL2/WSS_Content')
+            $script:asked = @()
+            $null = Get-SPSLimitStatus -Server 'APP1' -InstallAccount $Cred -Farm 'F' -Setting (Get-SPSWeatherLimitSetting -Config @{}) -SqlDatabase @($sql[0])
+            $script:asked.Count | Should -Be 0 -Because 'the size of the other server must not stand for the size of this database'
         }
     }
 
