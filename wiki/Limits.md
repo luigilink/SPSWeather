@@ -50,8 +50,9 @@ of **its own SQL server**: two servers that hold a database of the same name nev
 **time budget of two minutes** for all the databases together; when it is spent, the databases left are not tried and keep their allocated
 size, so that a SQL server that does not answer cannot delay the report.
 
-**Remote BLOB Storage**: Microsoft's limit includes the external BLOBs, which SQL Server cannot see. A database that uses RBS is
-measured without them and its row carries a note saying so.
+**Remote BLOB Storage**: Microsoft's limit includes the external BLOBs, which SQL Server cannot see, so the size read here does not
+count them. The row of a database that uses RBS is meant to say so in a note, but **that note does not show yet** ([#149](https://github.com/luigilink/SPSWeather/issues/149)):
+if you use RBS, keep in mind that the real size is larger than the one shown.
 
 ## What a row looks like
 
@@ -65,7 +66,7 @@ limites* in French):
 | `Warning`, `Failure` | The thresholds that applied to this object (exceptions included) |
 | `Status` | `Warning` or `Failure` |
 | `Recommendation` | A sentence with the value, how it was measured, the thresholds and the reason of the exception, if any |
-| `Note` | An additional fact (for example the Remote BLOB Storage note) |
+| `Note` | An additional fact |
 
 A `Failure` row makes the farm **ALERT** (subject tag, High priority, Event ID 2000, like any failed check). A `Warning` row is orange and
 does not raise the alert on its own, like the other advisories. The [cockpit](Cockpit-Page) follows each limit from one run to the next by
@@ -135,7 +136,7 @@ Every problem of the block is shown in the transcript and recorded in the **Even
 
 | What | How |
 |---|---|
-| Content databases, with their site count and whether Remote BLOB Storage is on | `Get-SPContentDatabase` on the entry server |
+| Content databases, with their site count | `Get-SPContentDatabase` on the entry server |
 | Web applications and their managed paths, managed paths for host-named site collections | `Get-SPWebApplication`, `Get-SPManagedPath` |
 | Used size of the data of a content database | A `SELECT` on `sys.database_files` over a connection of the entry server with **integrated security**, **only** for a database that reaches the warning threshold (the name of the database is the connection's catalog, never a part of the query) |
 | Distributed Cache, IIS pools, search topology | The sections that the run has already collected |
