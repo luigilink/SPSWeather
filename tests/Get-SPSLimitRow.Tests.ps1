@@ -9,10 +9,14 @@ BeforeAll {
     function script:Get-Setting { param($Config) Get-SPSWeatherLimitSetting -Config $Config }
     function script:Get-Rows {
         param($Setting, $Fact = $null, $Sql = @(), $Status = @(), $Used = @(), $Cache = @(), $Pools = @(), $Topology = @())
-        InModuleScope SPSWeather.Common -Parameters @{ A = @{ Farm = 'F'; Setting = $Setting; Fact = $Fact; SqlDatabase = $Sql; ContentDatabaseStatus = $Status; UsedSize = $Used; DistributedCache = $Cache; ApplicationPool = $Pools; SearchTopology = $Topology } } {
+        $found = InModuleScope SPSWeather.Common -Parameters @{ A = @{ Farm = 'F'; Setting = $Setting; Fact = $Fact; SqlDatabase = $Sql; ContentDatabaseStatus = $Status; UsedSize = $Used; DistributedCache = $Cache; ApplicationPool = $Pools; SearchTopology = $Topology } } {
             param($A)
             @(Get-SPSLimitRow @A)
         }
+        # One row is not an array on Windows PowerShell 5.1: hand back a real array, empty when there is no row
+        $list = @()
+        if ($null -ne $found) { $list = @($found) }
+        , $list
     }
     function script:New-Fact {
         param($Databases = @(), [int]$WebApplications = 1, $Paths = @(), $HostNamed = 0)
