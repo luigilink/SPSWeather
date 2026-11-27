@@ -14,7 +14,7 @@ orchestration / PULL server) and reaches every farm over a CredSSP PSSession.
 
 ## The service account
 
-One account runs the scheduled task and opens every remote session, so it needs the rights of the layers that SPSWeather reads. **Use the SharePoint farm account**, as the author does: with it, every right below is normally already in place and there is nothing to grant. It is a member of the local Administrators of the farm servers, a farm administrator, and the account SharePoint itself uses to reach SQL Server. Another account works if you give it the same rights, which the table lists.
+One account runs the scheduled task and opens every remote session, so it needs the rights of the layers that SPSWeather reads. **Use the SharePoint farm account**, as I do: with it, every right below is normally already in place and there is nothing to grant. It is a member of the local Administrators of the farm servers, a farm administrator, and the account SharePoint itself uses to reach SQL Server. Another account works if you give it the same rights, which the table lists.
 
 | Layer | What SPSWeather needs from the account |
 |---|---|
@@ -29,7 +29,7 @@ Use the **same account for every farm** of a configuration. The credential is st
 
 SPSWeather is not read-only on the machine that runs it. Every run that starts elevated:
 
-- sets the Windows **power plan to High Performance** (`powercfg /s`). The author does it in all his scripts because the servers are always-on virtual machines. It applies to every action, including `-Action Install` and `-Action Uninstall`;
+- sets the Windows **power plan to High Performance** (`powercfg /s`). I do it in all my scripts because the servers are always-on virtual machines. It applies to every action, including `-Action Install` and `-Action Uninstall`;
 - creates the `SPSWeather` **Windows Event Log** source on first use.
 
 `-Action Install` also registers the **scheduled task**, stores the secret in `Config\secrets.psd1` and configures the **CredSSP client** (see below). `-Action Uninstall` removes the task and the secret and leaves the CredSSP client configuration in place. Nothing is changed on the farm servers, in IIS or in SQL Server: the checks only read.
