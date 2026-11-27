@@ -26,6 +26,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   new and optional, `null` when there is none). Without `Dashboard.Cockpit` the dashboard is **byte for byte the one of 3.5.0**: the tests compare
   it, with the time of the run masked, with the SHA-256 of the page that 3.5.0 produces. If the page could not be written in a run (Event ID 3002),
   the dashboards keep their link to the page of the previous run (#141).
+- **Supported limits of SharePoint.** Each run now compares the farm with the limits that Microsoft supports and reports the ones that
+  are reached, in a new area *Capacity & limits* (section `SPSLimitStatus`, translated: en-US, fr-FR): the data size of each content
+  database (warning from 150 GB, failure above 200 GB; the log is not counted), the site collections per content database (5000 / 10000),
+  the content databases per farm (375 / 500), the web applications per farm (15 / 20), the managed paths (a warning above 20 per web
+  application and for host-named site collections), the memory of each Distributed Cache host (failure above 16 GB), the application
+  pools per web server (a warning above 10) and the fixed limits of the search topology (a failure when one is exceeded). The check is
+  **read-only and active by default**; a farm below every threshold adds **no row**, so its report is the one of before. **A farm that
+  is already above a threshold gets a new alert at its first run** (a content database of 180 GB is a warning): that is the check
+  working, and the thresholds and exceptions below are there to adapt it. The size of a database is the used size of its data, read
+  **only for a database whose allocated size already reaches the warning threshold** (`FILEPROPERTY(name, 'SpaceUsed')`, integrated
+  security, a read-only query); otherwise the allocated size of the data files, an upper bound, from the SQL section; the row says
+  which one it used, and a database that uses Remote BLOB Storage carries a note, as its external BLOBs are not visible to SQL Server.
+  New optional `Limits` block of the configuration: a `Warning` and a `Failure` for each check (a number of 0 or more, `$null` for none;
+  an unusable value is reported, Event ID 2001, and the default is used), `Disabled` to turn checks off, and `Exceptions` for one object
+  (a different threshold or `Exempt = $true`, with a `Reason` shown in the row), for instance a document archive supported up to 4 TB;
+  `LimitStatus` in `ExclusionRules` turns every limit check off. The thresholds join the settings recorded by each run and shown by the
+  cockpit (`Limits.<Check>.Warning|Failure`, `Limits.<Check>` for a check that is off); the name of an object is never recorded.
+  `Test-SPSWeatherReadiness.ps1` reports an unusable value of the block as a `[WARN]`. New public functions `Get-SPSLimitStatus` and
+  `Get-SPSWeatherLimitSetting`; new wiki page *Limits* (#137).
 
 ### Changed
 

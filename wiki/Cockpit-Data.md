@@ -44,10 +44,12 @@ Each record of the journal says which thresholds the run really used, so that "w
 - `configFile`: the file name of the configuration, without its folder.
 - `thresholds`: for `SQLDiskFreeThresholdPercent`, `SQLBackupMaxAgeDays`, `JsonHistoryRetentionDays`, `EmailMaxItemsPerArea` and
   `LogRetentionDays`, the `value` and its `source`: `config`, or `default` when the file does not set it (`invalid: true` when it held
-  a value that could not be used).
+  a value that could not be used). Since 3.6.0 it also holds the thresholds of the [limit checks](Limits), one entry for each
+  `Limits.<Check>.Warning` and `Limits.<Check>.Failure` (the `value` is `null` when the check has no such threshold).
 - `exclusionRules`: the exclusions that the run really applies. They are asked the same question as the entry script does
   (`Contains('Name')`), so a list matches exact names and a single string matches as a substring; a typo or a path typed there
-  excludes nothing and is not recorded.
+  excludes nothing and is not recorded. The limit checks that are turned off with `Limits.Disabled` are listed as `Limits.<Check>`;
+  the exceptions of the `Limits` block are only counted, and the name of an object is never recorded.
 
 Nothing else of the configuration is recorded: no server, address, credential key, URL or path. The list of keys is fixed in
 `Get-SPSWeatherRunSetting`, which is also the only place that resolves these thresholds.

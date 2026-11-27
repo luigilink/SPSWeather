@@ -6,6 +6,7 @@
 - [⚙️ Configuration](Configuration)
 - [📖 Usage](Usage)
 - [🩺 Health Checks](Health-Checks)
+- [📏 Limits](Limits)
 - [📊 Dashboard](Dashboard)
 - [🗂 Cockpit data](Cockpit-Data)
 - [🧭 Cockpit page](Cockpit-Page)

@@ -48,7 +48,7 @@
     # ExclusionRules : checks to skip. Authorized values: None, APIHttpStatus,
     # SPSiteHttpStatus, EvtViewerStatus, IISW3WPStatus, HealthStatus, WSPStatus,
     # FailedTimerJob, TimerServiceStatus, SQLInstanceStatus, SQLDatabaseStatus,
-    # SQLDiskStatus, SQLAvailabilityStatus, SQLAliasStatus.
+    # SQLDiskStatus, SQLAvailabilityStatus, SQLAliasStatus, LimitStatus.
     ExclusionRules    = @(
         'SPSiteHttpStatus'
         'EvtViewerStatus'
@@ -84,6 +84,35 @@
     # LogRetentionDays: how many days of *.log transcript files are kept under
     # Logs\ by Clear-SPSLog. 0 disables pruning. Default: 180.
     LogRetentionDays            = 180
+
+    # Limits (optional): the supported limits of SharePoint (content database size, site collections
+    # per database, content databases and web applications per farm, managed paths, Distributed Cache
+    # memory, application pools per server, search topology). A farm below every threshold adds
+    # nothing to the report. Every key is optional and the values below are the defaults.
+    #   Warning : the value from which a warning is raised.
+    #   Failure : the limit; a value above it is a failure.
+    # A number of 0 or more, or $null for none. A value that cannot be used is reported and the
+    # default is used. ContentDatabaseSize is in GB of DATA (the log is not counted).
+    # SearchTopology has fixed limits: only Disabled and Exempt apply to it.
+    # See the wiki page Limits (source: Microsoft software boundaries and limits).
+    #   Disabled   : checks to turn off, e.g. @('ManagedPaths'); LimitStatus in ExclusionRules
+    #                turns them all off.
+    #   Exceptions : a different threshold, or Exempt = $true, for ONE object (a database, a
+    #                server or a web application; the name is matched without regard to case);
+    #                Reason is shown with the alert. Example, a document archive that is
+    #                supported up to 4 TB:
+    #                @{ Limit = 'ContentDatabaseSize'; Object = 'WSS_Content_Archive'; Warning = 3072; Failure = 4096; Reason = 'document archive' }
+    Limits                      = @{
+        ContentDatabaseSize       = @{ Warning = 150; Failure = 200 }
+        SiteCountPerDatabase      = @{ Warning = 5000; Failure = 10000 }
+        ContentDatabasesPerFarm   = @{ Warning = 375; Failure = 500 }
+        WebApplicationsPerFarm    = @{ Warning = 15; Failure = 20 }
+        ManagedPaths              = @{ Warning = 21 }
+        DistributedCacheSize      = @{ Failure = 16 }
+        ApplicationPoolsPerServer = @{ Warning = 11 }
+        Disabled                  = @()
+        Exceptions                = @()
+    }
 
     # Dashboard : where the per-farm dashboard HTML is written and how the email CTA
     # links to it. Provision the hosting target once with New-SPSDashboardSite.ps1.
