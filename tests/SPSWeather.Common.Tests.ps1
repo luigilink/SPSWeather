@@ -58,6 +58,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SPSFailedTimerJob'
             'Get-SPSHealthStatusFromCA'
             'Get-SPSInstalledProductVersion'
+            'Get-SPSLimitStatus'
             'Get-SPSScheduledTaskSmtpCheck'
             'Get-SPSSearchEntCrawlLogs'
             'Get-SPSSearchEntCrawlStatus'
@@ -71,6 +72,7 @@ Describe 'SPSWeather.Common module' {
             'Get-SPSUpgradeStatus'
             'Get-SPSVersion'
             'Get-SPSWeatherHistory'
+            'Get-SPSWeatherLimitSetting'
             'Get-SPSWeatherRunSetting'
             'Get-SPSWeatherTaskName'
             'Get-SPWeatherListInfo'
@@ -96,7 +98,7 @@ Describe 'SPSWeather.Common module' {
     }
 
     It 'does not export the private helpers' {
-        foreach ($name in @('Invoke-SPSCommand', 'ConvertFrom-SPSSqlAliasValue', 'Get-SPSWeatherRowSeverity', 'Get-SPSConfigRoot')) {
+        foreach ($name in @('Invoke-SPSCommand', 'ConvertFrom-SPSSqlAliasValue', 'Get-SPSWeatherRowSeverity', 'Get-SPSConfigRoot', 'Get-SPSLimitFact', 'Get-SPSContentDatabaseUsedSize', 'Get-SPSLimitRow', 'Get-SPSLimitThreshold')) {
             Get-Command -Name $name -Module SPSWeather.Common -ErrorAction SilentlyContinue |
                 Should -BeNullOrEmpty
         }
