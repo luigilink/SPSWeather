@@ -8,9 +8,8 @@ This page describes how to run, schedule and troubleshoot SPSWeather.
 |---|---|---|
 | `-ConfigFile` | `string` | Path to the environment configuration `.psd1` file. Mandatory. |
 | `-EnableSmtp` | `switch` | **Deprecated (removed in 4.0.0)** — set `SMTPEnabled = $true` in the configuration file instead. While `SMTPEnabled` is not defined the switch still sends the email; when it is defined the configuration wins and the switch is ignored. |
-| `-Install` | `switch` | Register SPSWeather as a scheduled task and store the service credential in `secrets.psd1`. |
-| `-InstallAccount` | `PSCredential` | The service account that runs the scheduled task (required with `-Install`). |
-| `-Uninstall` | `switch` | Remove the SPSWeather scheduled task and the stored secret. |
+| `-Action` | `string` | `Default` (the default): run the checks. `Install`: register SPSWeather as a scheduled task, store the service credential in `secrets.psd1` and configure the CredSSP client. `Uninstall`: remove the scheduled task and the stored secret. |
+| `-InstallAccount` | `PSCredential` | The service account that runs the scheduled task (required with `-Action Install`). |
 
 ### Basic run
 
@@ -44,13 +43,16 @@ Set `SMTPEnabled = $false` and `SMTPPreview = $true` to review the generated ema
 Run this **as the service account** so the stored credential is decryptable at run time:
 
 ```powershell
-.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -Install -InstallAccount (Get-Credential)
+.\SPSWeather.ps1 -ConfigFile (Convert-Path 'Config\contoso-PROD.psd1') -Action Install -InstallAccount (Get-Credential)
 ```
+
+> [!NOTE]
+> Give `-ConfigFile` as an **absolute** path when you install, as `Convert-Path` does above. The task is registered with the path exactly as you write it and it has no working directory, so a relative path would not be found when it starts at 06:00.
 
 ### Uninstall
 
 ```powershell
-.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -Uninstall
+.\SPSWeather.ps1 -ConfigFile 'Config\contoso-PROD.psd1' -Action Uninstall
 ```
 
 ## Output
@@ -67,15 +69,18 @@ The email subject is prefixed with the overall status, e.g. `[ALERT]contoso_PROD
 
 ## Scheduling
 
-`-Install` registers a scheduled task named `SPSWeather-<app>-<env>` that runs the script as the service account. The task no longer needs `-EnableSMTP` once `SMTPEnabled` is defined in the configuration; when it is not, `-Install` keeps the switch in the task (so existing mails keep flowing) and warns you to add `SMTPEnabled = $true` and run `-Install` again. A task that still carries `-EnableSMTP` has to be registered again before **4.0.0**, which removes the switch: the script would then refuse to start and the morning run would not happen. `Test-SPSWeatherReadiness.ps1` has a *Scheduled task* section that reads the task of the configuration (read-only) and shows a `[WARN]` with what to do when it still carries the switch; the line is `[SKIP]`, information only, when the task does not exist on that host, when the host is not Windows, or when the task cannot be read (run the check as an administrator). A typical setup:
+`-Action Install` registers a scheduled task named `SPSWeather-<app>-<env>` that runs the script as the service account. The task no longer needs `-EnableSMTP` once `SMTPEnabled` is defined in the configuration; when it is not, `-Action Install` keeps the switch in the task (so existing mails keep flowing) and warns you to add `SMTPEnabled = $true` and run `-Action Install` again. A task that still carries `-EnableSMTP` has to be registered again before **4.0.0**, which removes the switch: the script would then refuse to start and the morning run would not happen. `Test-SPSWeatherReadiness.ps1` has a *Scheduled task* section that reads the task of the configuration (read-only) and shows a `[WARN]` with what to do when it still carries the switch; the line is `[SKIP]`, information only, when the task does not exist on that host, when the host is not Windows, or when the task cannot be read (run the check as an administrator). A typical setup:
 
 | Field | Value |
 |---|---|
-| Run as | Service account (member of local Administrators on the run server) |
-| Trigger | Daily, e.g. every morning at 06:00 |
-| Action | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\SCRIPT\SPSWeather\SPSWeather.ps1" -ConfigFile "D:\SCRIPT\SPSWeather\Config\contoso-PROD.psd1"` (plus `-EnableSMTP` while `SMTPEnabled` is not defined) |
-| Run whether user is logged on or not | Yes |
+| Run as | The service account, a member of the local Administrators of the run server (use the SharePoint farm account, see [Prerequisites](Prerequisites#the-service-account)) |
+| Trigger | Daily at 06:00 |
+| Action | `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe` with the arguments `-Execution Bypass D:\SCRIPT\SPSWeather\SPSWeather.ps1 -ConfigFile D:\SCRIPT\SPSWeather\Config\contoso-PROD.psd1` (plus `-EnableSMTP` while `SMTPEnabled` is not defined) |
+| Run whether user is logged on or not | Yes (the task is registered with the password of the service account) |
 | Run with highest privileges | Yes |
+
+> [!NOTE]
+> The arguments are written **without quotation marks**, and the task has no working directory. Install SPSWeather in a folder whose path has **no space** (for example `D:\SCRIPT\SPSWeather`): a path with a space would be split into several arguments when the task starts.
 
 > [!IMPORTANT]
 > The scheduled task action must run via `powershell.exe` (Windows PowerShell 5.1), not `pwsh.exe`: SPSWeather relies on the `SharePointServer` module (Subscription Edition) and CredSSP remoting.
@@ -139,11 +144,11 @@ The `-ConfigFile` path does not exist. Pass the full path to your `.psd1` config
 ### Credential not found in secrets.psd1
 
 ```
-Credential 'PROD-ADM' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Install
+Credential 'PROD-ADM' was not found in Config\secrets.psd1. Run SPSWeather.ps1 -Action Install
 as the service account, or populate secrets.psd1 manually.
 ```
 
-`secrets.psd1` has no entry for the `CredentialKey` declared in your config. Run `-Install` **as the service account**, or add the entry by hand (see [Configuration](Configuration#service-credential-secretspsd1)).
+`secrets.psd1` has no entry for the `CredentialKey` declared in your config. Run `-Action Install` **as the service account**, or add the entry by hand (see [Configuration](Configuration#service-credential-secretspsd1)).
 
 ### Failed to decode SecureString
 
