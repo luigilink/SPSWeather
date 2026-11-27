@@ -55,6 +55,12 @@
         [System.String[]]
         $FarmName,
 
+        # Folder of the page: a farm gets the file name of its dashboard when that file is in the folder (the dashboards and the page share it)
+        [Parameter()]
+        [AllowEmptyString()]
+        [System.String]
+        $DashboardFolder = '',
+
         [Parameter()]
         [System.UInt32]
         $RetentionDays = 0,
@@ -307,8 +313,15 @@
         $total = $sorted.Count
         if ($sorted.Count -gt $MaxItemsPerFarm) { $sorted = @($sorted | Select-Object -First $MaxItemsPerFarm) }
 
+        $dashboardFile = $null
+        if (-not [string]::IsNullOrWhiteSpace($DashboardFolder)) {
+            $candidate = "$Application-$Environment-$safe-dashboard.html"
+            if ([System.IO.File]::Exists($DashboardFolder.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar + $candidate)) { $dashboardFile = $candidate }
+        }
+
         [void]$farms.Add([ordered]@{
                 name                     = $farmDisplay[$safe]
+                dashboard                = $dashboardFile
                 daily                    = $daily.ToArray()
                 latestSnapshot           = $latestSnapshot
                 snapshotsTruncated       = $farmTruncated[$safe]

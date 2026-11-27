@@ -238,7 +238,7 @@ Describe 'Entry script run journal' {
     }
 
     It 'also hands the record of the settings to the dashboard, which shows the SQL thresholds in its footer' {
-        $entrySource | Should -Match '(?s)Export-SPSWeatherReport -InputObject.*?-Setting \$runSetting\.Record\)'
+        $entrySource | Should -Match '(?s)Export-SPSWeatherReport -InputObject.*?-Setting \$runSetting\.Record\b'
     }
 
     It 'hands the record of the settings, not the configuration, to the run journal' {
@@ -349,9 +349,11 @@ Describe 'Entry script cockpit page (Dashboard.Cockpit)' {
         $entrySource | Should -Match '-CockpitUrl \$\(if \(\$cockpitSetting\.Enabled\) \{ \$cockpitSetting\.Url \} else \{ '''' \}\)'
     }
 
-    It 'leaves the per-farm email and the per-farm dashboards without any mention of the cockpit' {
+    It 'leaves the per-farm email without any mention of the cockpit, and gives the dashboard only the link arguments' {
         $perFarm = $entrySource.Substring($entrySource.IndexOf('# --- Per-farm reporting'), $entrySource.IndexOf('# EmailMode = ''Consolidated'': one email for all the farms of the environment, built from the') - $entrySource.IndexOf('# --- Per-farm reporting'))
-        $perFarm | Should -Not -Match '(?i)cockpit'
+        # What the dashboard gets (the comment, the arguments and their use) is the one mention allowed; the email gets none
+        $withoutDashboardLink = [regex]::Replace($perFarm, '(?im)^[^\r\n]*(?:dashboardCockpitLink|link to the cockpit only)[^\r\n]*\r?\n', '')
+        $withoutDashboardLink | Should -Not -Match '(?i)cockpit'
     }
 
     It 'produces nothing for the default configuration: the page call sits under the opt-in test only' {

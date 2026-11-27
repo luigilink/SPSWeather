@@ -190,6 +190,7 @@
     CockpitListed                              = '{0} listés sur {1}'
     CockpitShowOthers                          = 'Afficher les {0} autres'
     CockpitNothingOpen                         = 'Rien ne demande d''attention au dernier relevé.'
+    CockpitOpenDashboard                       = 'Ouvrir le tableau de bord de la ferme'
     CockpitSeverity                            = 'Gravité'
     CockpitItem                                = 'Élément'
     CockpitItems                               = 'Éléments'

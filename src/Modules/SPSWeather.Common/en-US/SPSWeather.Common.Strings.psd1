@@ -193,6 +193,7 @@
     CockpitListed                              = '{0} listed of {1}'
     CockpitShowOthers                          = 'Show the other {0}'
     CockpitNothingOpen                         = 'Nothing needs attention at the latest snapshot.'
+    CockpitOpenDashboard                       = 'Open the farm dashboard'
     CockpitSeverity                            = 'Severity'
     CockpitItem                                = 'Item'
     CockpitItems                               = 'Items'

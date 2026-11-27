@@ -47,6 +47,10 @@ The settings shown are the last ones the run journal recorded. When the latest r
 Each card gives its figure, the change against the previous period (when the history covers it), an "as of" label and a button to the
 place where the detail is.
 
+The card of each farm on the *Executive* tab, and its detail on the *IT* tab, have an *Open the farm dashboard* link to the dashboard of the farm (`<App>-<Env>-<Farm>-dashboard.html`),
+and the dashboard has a link back to the page. The links are relative: the dashboards and the page are written to the same folder (`Dashboard.OutputPath`), so they work from IIS, a file
+share or a folder. A farm whose dashboard is not in that folder has no link.
+
 The period (7, 14, 30 or 60 days) is limited by `JsonHistoryRetentionDays`: the page never offers more days
 than the history keeps.
 

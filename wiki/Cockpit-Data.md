@@ -74,6 +74,7 @@ that the file does not set.
 | `period` | The periods offered, `firstDay`, `lastDay`. |
 | `days`, `weekend` | One entry per calendar day, from the first day with data to today. |
 | `farms[].daily` | For each day, aligned with `days`: `ok`, `warn`, `fail`, `weather`, `snapshots` (files of the day), `unreachable` (runs of the day, from the journal); `null` when nothing is known. |
+| `farms[].dashboard` | The file name of the dashboard of the farm (`<App>-<Env>-<Farm>-dashboard.html`) when that file is in the folder of the page, else `null`. The page builds its relative link from it. |
 | `farms[].failingSince`, `failingSinceIsLowerBound` | The day of the first snapshot of the unbroken series of snapshots, ending at the latest one, that all had failures; `null` when the latest snapshot has none. The series is read from **every** snapshot, not from the last one of each day, so a clean snapshot in between breaks it. True when the series starts at the oldest snapshot read. |
 | `farms[].attention` | What needs attention in the last snapshot: `section`, `id`, `name`, `severity`, `cause`, `detail`, `count`, `since`, `sinceIsLowerBound`. |
 | `runs`, `settings` | The journal records of the period, the settings of the last record that has some, and what changed between two records. |

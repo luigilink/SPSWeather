@@ -536,6 +536,9 @@ else {
         # the renderer). This is a run count, independent of the day-based history retention.
         $historyBars = 29
 
+        # The dashboards link to the cockpit only when this run produces it (same folder, so the file name is enough)
+        $dashboardCockpitLink = if ($cockpitSetting.Enabled) { @{ CockpitFile = $cockpitSetting.FileName } } else { @{} }
+
         foreach ($farmName in @($probedFarms)) {
             # Property access is case-insensitive, so $_.Farm matches both 'Farm' and 'farm'.
             $farmSections = [ordered]@{}
@@ -579,7 +582,8 @@ else {
                         -Duration $runDuration `
                         -History $farmHistory `
                         -Language $languageSetting.Culture `
-                        -Setting $runSetting.Record)
+                        -Setting $runSetting.Record `
+                        @dashboardCockpitLink)
                 Write-Output " * Dashboard: $dashFile"
 
                 if ($smtpSetting.Mode -eq 'PerFarm') {
