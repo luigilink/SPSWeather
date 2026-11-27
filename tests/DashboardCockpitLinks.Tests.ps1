@@ -12,11 +12,13 @@ BeforeAll {
     $script:entryPath = Join-Path -Path $repoRoot -ChildPath 'src/SPSWeather.ps1'
     $script:nodePath = (Get-Command -Name node -ErrorAction SilentlyContinue).Source
 
-    # SHA-256 of the dashboard that 3.5.0 produces for the fixture below, with the time of the run masked (it is written in the header
-    # and in the footer): the page must not change by a byte when no link is asked for
+    # SHA-256 of the dashboard that 3.5.0 produces for the fixture below: the page must not change by a byte when no link is asked for.
+    # Only what depends on the machine or on the day is masked (see Get-Hash): the time of the run in the header and the footer, the date
+    # of the run on the chart, the number of the donut offsets (the runtimes print the same double differently) and the line endings and
+    # the end of the file (they follow the source file and the host).
     $script:reference = @{
-        'en-US' = '3455ae467d74e2e9a45ef9410c2274aad2d2b65d80a58e98e94c68266e2dd3ec'
-        'fr-FR' = 'c775f44220763c3adf06e9ca1bf6c7d1976330e7f3fc22254f29423f921d870f'
+        'en-US' = '00d7217e2461708c158a5f00095f1b9987a3125bbd1d2edfe67b97e82fa95d90'
+        'fr-FR' = '6433f32d158384fec67d4851c3846bb0c98c0b219db86449906d3f5cc66aa438'
     }
 
     function script:Get-DashboardHtml {
@@ -39,7 +41,12 @@ BeforeAll {
 
     function script:Get-Hash {
         param([string]$Html)
-        $masked = [regex]::Replace($Html, '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', 'STAMP')
+        $masked = $Html.Replace("`r`n", "`n")
+        $masked = [regex]::Replace($masked, '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', 'STAMP')
+        # the date of the run on the chart is written MM-dd in English and dd/MM in French
+        $today = Get-Date
+        foreach ($format in @('MM-dd', 'dd/MM')) { $masked = $masked.Replace($today.ToString($format, [System.Globalization.CultureInfo]::InvariantCulture), 'MD') }
+        $masked = [regex]::Replace($masked, 'stroke-dashoffset="[^"]*"', 'stroke-dashoffset="OFFSET"').TrimEnd()
         $sha = [System.Security.Cryptography.SHA256]::Create()
         ([System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($masked))) -replace '-', '').ToLowerInvariant()
     }
@@ -59,11 +66,6 @@ Describe 'Dashboard to cockpit link (Export-SPSWeatherReport -CockpitFile)' {
             @{ Name = 'en-US, a blank file name'; Language = 'en-US'; Extra = @{ CockpitFile = '   ' } }
         ) {
             $html = Get-DashboardHtml -Language $Language -Extra $Extra
-            if ((Get-Hash -Html $html) -ne $script:reference[$Language]) {
-                $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([regex]::Replace($html, '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', 'STAMP')))
-                $n = 0; for ($i = 0; $i -lt $b64.Length; $i += 200) { Write-Host ('DIAG {0} {1} {2}' -f $Name, $n, $b64.Substring($i, [Math]::Min(200, $b64.Length - $i))); $n++ }
-                Write-Host ('DIAG-ENV date={0} tz={1} os={2} ps={3}' -f (Get-Date).ToString('o'), [System.TimeZoneInfo]::Local.Id, [System.Environment]::OSVersion.Platform, $PSVersionTable.PSVersion)
-            }
             Get-Hash -Html $html | Should -Be $script:reference[$Language]
             $html | Should -Not -Match 'cockpit'
         }
