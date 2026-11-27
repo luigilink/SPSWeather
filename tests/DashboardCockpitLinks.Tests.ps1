@@ -14,8 +14,9 @@ BeforeAll {
 
     # SHA-256 of the dashboard that 3.5.0 produces for the fixture below: the page must not change by a byte when no link is asked for.
     # Only what depends on the machine or on the day is masked (see Get-Hash): the time of the run in the header and the footer, the date
-    # of the run on the chart, the number of the donut offsets (the runtimes print the same double differently) and the line endings and
-    # the end of the file (they follow the source file and the host).
+    # of the current run on the chart (its tooltip and its label on the axis, and nothing else: the dates of the fixture are fixed), the
+    # number of the donut offsets (the runtimes print the same double differently) and the line endings and the end of the file (they
+    # follow the source file and the host).
     $script:reference = @{
         'en-US' = '00d7217e2461708c158a5f00095f1b9987a3125bbd1d2edfe67b97e82fa95d90'
         'fr-FR' = '6433f32d158384fec67d4851c3846bb0c98c0b219db86449906d3f5cc66aa438'
@@ -43,9 +44,10 @@ BeforeAll {
         param([string]$Html)
         $masked = $Html.Replace("`r`n", "`n")
         $masked = [regex]::Replace($masked, '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', 'STAMP')
-        # the date of the run on the chart is written MM-dd in English and dd/MM in French
-        $today = Get-Date
-        foreach ($format in @('MM-dd', 'dd/MM')) { $masked = $masked.Replace($today.ToString($format, [System.Globalization.CultureInfo]::InvariantCulture), 'MD') }
+        # the date of the current run is written MM-dd in English and dd/MM in French, in the tooltip of the bar that is marked now and in
+        # the bold label of the axis
+        $masked = [regex]::Replace($masked, '(class="bcol now"><div class="stack" title=")\d{2}[-/]\d{2}', '${1}MD')
+        $masked = [regex]::Replace($masked, '<b>\d{2}[-/]\d{2}</b>', '<b>MD</b>')
         $masked = [regex]::Replace($masked, 'stroke-dashoffset="[^"]*"', 'stroke-dashoffset="OFFSET"').TrimEnd()
         $sha = [System.Security.Cryptography.SHA256]::Create()
         ([System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($masked))) -replace '-', '').ToLowerInvariant()
@@ -68,6 +70,26 @@ Describe 'Dashboard to cockpit link (Export-SPSWeatherReport -CockpitFile)' {
             $html = Get-DashboardHtml -Language $Language -Extra $Extra
             Get-Hash -Html $html | Should -Be $script:reference[$Language]
             $html | Should -Not -Match 'cockpit'
+        }
+    }
+
+    Context 'the comparison with the page of 3.5.0 does not depend on the day it runs' {
+        It 'masks the date of the current run where it is written, and no other date, even when it is the date of a bar of the history (<Name>)' -ForEach @(
+            @{ Name = 'en-US'; Today = '06-01'; Other = '06-02'; Tooltip = '(now)' }
+            @{ Name = 'fr-FR'; Today = '01/06'; Other = '02/06'; Tooltip = '(maintenant)' }
+        ) {
+            $html = '<span>{0}</span><div class="bcol"><div class="stack" title="{0}: 12 OK"></div></div><div class="bcol"><div class="stack" title="{1}: 11 OK"></div></div><div class="bcol now"><div class="stack" title="{0} {2} : 1 OK"></div></div><div class="xlabels"><span>{0}</span><span></span><span><b>{0}</b></span></div>' -f $Today, $Other, $Tooltip
+            $expectedMasked = '<span>{0}</span><div class="bcol"><div class="stack" title="{0}: 12 OK"></div></div><div class="bcol"><div class="stack" title="{1}: 11 OK"></div></div><div class="bcol now"><div class="stack" title="MD {2} : 1 OK"></div></div><div class="xlabels"><span>{0}</span><span></span><span><b>MD</b></span></div>' -f $Today, $Other, $Tooltip
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            $hashOf = { param($text) ([System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($text))) -replace '-', '').ToLowerInvariant() }
+            Get-Hash -Html $html | Should -Be (& $hashOf $expectedMasked)
+        }
+
+        It 'keeps the dates of the history of the fixture in the page that it compares' {
+            $html = Get-DashboardHtml
+            $html | Should -Match 'title="06-01: 12 OK'
+            $html | Should -Match '<span>06-01</span>'
+            $html | Should -Match 'class="bcol now"><div class="stack" title="\d{2}-\d{2} \(now\)'
         }
     }
 
@@ -243,6 +265,8 @@ Describe 'Cockpit to dashboard link' {
     Context 'the page' {
         BeforeAll {
             $script:pagePath = Join-Path -Path $folder -ChildPath 'zebes-PROD-cockpit.html'
+            # The page is exported here, so that each test of the context runs alone (the first context also writes a page, for its own check)
+            [void](Export-SPSWeatherCockpit -OutputFile $script:pagePath -ResultsFolder $results -Application 'zebes' -Environment 'PROD' -FarmName 'CONTENT', 'SEARCH' -RetentionDays 30 -Language 'en-US' -Version '9.9.9')
             $script:pageCode = [System.IO.File]::ReadAllText((Join-Path -Path $moduleDir -ChildPath 'Assets/Cockpit.js'))
             $script:harness = Join-Path -Path $TestDrive -ChildPath 'links-harness.js'
             [System.IO.File]::WriteAllText($harness, @'
