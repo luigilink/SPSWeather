@@ -156,6 +156,7 @@
         SQLDiskStatus           = @{ Label = @('SqlServer', 'Volume'); Detail = @('FreePercent') }
         SQLAvailabilityStatus   = @{ Label = @('Name', 'SqlServer'); Detail = @('Detail') }
         SQLAliasStatus          = @{ Label = @('Name'); Detail = @('Note') }
+        SPSLimitStatus          = @{ Label = @('Limit', 'Object'); Detail = @('Recommendation') }
     }
     $areaOrder = $areaMap.Order
 

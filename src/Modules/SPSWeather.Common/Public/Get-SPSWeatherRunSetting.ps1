@@ -15,6 +15,11 @@
         .PARAMETER ConfigFile
         The configuration file given to the entry script; only its file name is kept.
 
+        .PARAMETER LimitSetting
+        The result of Get-SPSWeatherLimitSetting. Its thresholds join the ones of the record (Limits.<Check>.Warning and
+        Limits.<Check>.Failure) and the checks that are turned off join the excluded names (Limits.<Check>), so that the run journal and
+        the Settings tab of the cockpit show them. Without it the record is exactly the one of 3.5.0.
+
         .EXAMPLE
         $runSetting = Get-SPSWeatherRunSetting -Config $envCfg -ConfigFile $ConfigFile
     #>
@@ -30,7 +35,11 @@
         [AllowNull()]
         [AllowEmptyString()]
         [System.String]
-        $ConfigFile
+        $ConfigFile,
+
+        [Parameter()]
+        [AllowNull()]
+        $LimitSetting
     )
 
     $definitions = @(
@@ -45,7 +54,7 @@
     $knownExclusions = @(
         'None', 'APIHttpStatus', 'SPSiteHttpStatus', 'EvtViewerStatus', 'IISW3WPStatus', 'HealthStatus', 'WSPStatus',
         'FailedTimerJob', 'TimerServiceStatus', 'SQLInstanceStatus', 'SQLDatabaseStatus', 'SQLDiskStatus',
-        'SQLAvailabilityStatus', 'SQLAliasStatus'
+        'SQLAvailabilityStatus', 'SQLAliasStatus', 'LimitStatus'
     )
 
     $messages = New-Object -TypeName System.Collections.ArrayList
@@ -93,6 +102,11 @@
     $leaf = $null
     if (-not [string]::IsNullOrWhiteSpace($ConfigFile)) {
         $leaf = @($ConfigFile -split '[\\/]' | Where-Object -FilterScript { $_ })[-1]
+    }
+
+    if ($null -ne $LimitSetting -and $null -ne $LimitSetting.Record) {
+        foreach ($property in $LimitSetting.Record.thresholds.PSObject.Properties) { $thresholds[$property.Name] = $property.Value }
+        foreach ($off in @($LimitSetting.Record.disabled)) { [void]$names.Add("$off") }
     }
 
     return [PSCustomObject]@{

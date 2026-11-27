@@ -20,8 +20,9 @@
         SPHealthAnalyzer = @('&#129657;', 'HealthAnalyzer'); IISApplicationPoolStatus = @('&#128421;', 'IIS'); IISWorkerProcessStatus = @('&#128421;', 'IIS'); IISWebSiteCertStatus = @('&#128421;', 'IIS')
         SYSDiskUsageStatus = @('&#129513;', 'System'); SYSLastRebootStatus = @('&#129513;', 'System'); SYSEventViewerAppErrors = @('&#129513;', 'System')
         SPSContentDBStatus = @('&#128451;', 'SQL'); SQLInstanceStatus = @('&#128451;', 'SQL'); SQLDatabaseStatus = @('&#128451;', 'SQL'); SQLDiskStatus = @('&#128451;', 'SQL'); SQLAvailabilityStatus = @('&#128451;', 'SQL'); SQLAliasStatus = @('&#128451;', 'SQL')
+        SPSLimitStatus = @('&#128207;', 'Limits')
     }
-    $areaOrder = @('FarmUpgrade', 'TrustFarm', 'Search', 'DistributedCache', 'TimerJobs', 'Solutions', 'UserProfiles', 'HealthAnalyzer', 'IIS', 'System', 'SQL')
+    $areaOrder = @('FarmUpgrade', 'TrustFarm', 'Search', 'DistributedCache', 'TimerJobs', 'Solutions', 'UserProfiles', 'HealthAnalyzer', 'IIS', 'System', 'SQL', 'Limits')
 
     return [PSCustomObject]@{ Map = $areaOf; Order = $areaOrder }
 }

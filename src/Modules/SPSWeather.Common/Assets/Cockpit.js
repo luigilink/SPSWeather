@@ -518,6 +518,8 @@
 
   /* ---------- Settings and method ---------- */
   function settingValue(name, v) {
+    // A limit (Limits.<Check>.Warning or Failure) is a plain number, in the unit of the check; null is no threshold
+    if (name.indexOf('Limits.') === 0) return v === null || v === undefined ? '\u2014' : n0(v);
     if (name === 'SQLDiskFreeThresholdPercent') return pct(v, 0);
     if (name === 'EmailMaxItemsPerArea') return n0(v);
     return dayCount(v);
