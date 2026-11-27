@@ -199,6 +199,44 @@ $Extra
             (Get-CheckLine -Lines $langAbsent -Key 'Language') | Should -BeNullOrEmpty
         }
     }
+
+    Context 'Limits' {
+        BeforeAll {
+            $script:limitsOk = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Limits = @{ ContentDatabaseSize = @{ Warning = 100; Failure = 180 }; Disabled = @('ManagedPaths'); Exceptions = @(@{ Limit = 'ContentDatabaseSize'; Object = 'Archive'; Failure = 4096; Reason = 'document archive' }) }"
+            $script:limitsEmpty = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Limits = @{}"
+            $script:limitsBad = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Limits = @{ ContentDatabaseSize = @{ Warning = 'lots' }; Disabled = @('NoSuchCheck') }"
+            $script:limitsNotATable = Invoke-Readiness -Extra "    SMTPEnabled = `$false`n    Limits = 'yes'"
+            $script:limitsAbsent = Invoke-Readiness -Extra "    SMTPEnabled = `$false"
+        }
+
+        It 'reports a valid block with what it turns off and how many exceptions it holds' {
+            $line = Get-CheckLine -Lines $limitsOk -Key 'Limits'
+            $line | Should -Match '^\[ OK \]'
+            $line | Should -Match '1 check\(s\) turned off, 1 exception\(s\)'
+        }
+
+        It 'accepts an empty block, which is the default thresholds' {
+            (Get-CheckLine -Lines $limitsEmpty -Key 'Limits') | Should -Match '^\[ OK \].*0 check\(s\) turned off, 0 exception\(s\)'
+        }
+
+        It 'warns, never fails, for a value that cannot be used, and says which one' {
+            $lines = @($limitsBad | Where-Object { $_ -match "Key 'Limits'" })
+            $lines.Count | Should -BeGreaterThan 0
+            foreach ($line in $lines) { $line | Should -Match '^\[WARN\]' }
+            ($lines -join "`n") | Should -Match 'ContentDatabaseSize'
+            ($lines -join "`n") | Should -Match 'NoSuchCheck'
+            ($limitsBad -join "`n") | Should -Not -Match "\[FAIL\]\s+Key 'Limits'"
+        }
+
+        It 'warns, never fails, when the block is not a table' {
+            $line = Get-CheckLine -Lines $limitsNotATable -Key 'Limits'
+            $line | Should -Match '^\[WARN\]'
+        }
+
+        It 'says nothing when no block is configured' {
+            (Get-CheckLine -Lines $limitsAbsent -Key 'Limits') | Should -BeNullOrEmpty
+        }
+    }
 }
 
 Describe 'Readiness script cockpit page (Dashboard.Cockpit)' {

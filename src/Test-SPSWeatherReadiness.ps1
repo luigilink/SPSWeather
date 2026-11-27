@@ -183,6 +183,23 @@ if ($null -ne $cfg) {
         }
     }
 
+    # Limits (optional): the thresholds, the checks turned off and the exceptions of the supported-limit checks. A value that cannot be
+    # used is a WARN, never a FAIL: the run keeps the default of that check and says so (Event ID 2001).
+    if ($cfg.Contains('Limits')) {
+        if (Get-Command -Name Get-SPSWeatherLimitSetting -ErrorAction SilentlyContinue) {
+            $limitCheck = Get-SPSWeatherLimitSetting -Config $cfg
+            if (@($limitCheck.Messages).Count -gt 0) {
+                foreach ($limitMessage in @($limitCheck.Messages)) { Add-CheckResult -Section 'Config' -Name "Key 'Limits'" -Status 'WARN' -Detail $limitMessage }
+            }
+            else {
+                Add-CheckResult -Section 'Config' -Name "Key 'Limits'" -Status 'PASS' -Detail "$(@($limitCheck.Record.disabled).Count) check(s) turned off, $($limitCheck.Record.exceptions) exception(s)"
+            }
+        }
+        else {
+            Add-CheckResult -Section 'Config' -Name "Key 'Limits'" -Status 'SKIP' -Detail 'SPSWeather.Common is not loaded'
+        }
+    }
+
     # Dashboard.Cockpit (optional): the multi-farm page. An invalid value is a WARN, never a FAIL: the run does not produce
     # the page (Event ID 2001). When it is on, the folder that receives it must exist or be creatable and accept a file.
     if ($cfg.Contains('Dashboard') -and ($cfg['Dashboard'] -is [System.Collections.IDictionary]) -and $cfg['Dashboard'].Contains('Cockpit')) {
