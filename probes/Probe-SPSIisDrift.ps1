@@ -176,7 +176,10 @@ $spBlock = {
                     warningSiteCount  = Get-Safe -Block { [int]$database.WarningSiteCount }
                     maximumSiteCount  = Get-Safe -Block { [int]$database.MaximumSiteCount }
                     diskSizeRequiredGB = Get-Safe -Block { [math]::Round([double]$database.DiskSizeRequired / 1GB, 2) }
-                    rbsEnabled        = Get-Safe -Block { [bool]$database.RemoteBlobStorageSettings.Enabled() }
+                    rbsMembers        = Get-Safe -Block { , @($database.RemoteBlobStorageSettings | Get-Member | ForEach-Object -Process { "$($_.MemberType) $($_.Name)" }) }
+                    rbsInstalled      = Get-Safe -Block { [bool]$database.RemoteBlobStorageSettings.Installed() }
+                    rbsActiveProvider = Get-Safe -Block { "$($database.RemoteBlobStorageSettings.GetActiveProviderName())" }
+                    rbsProviders      = Get-Safe -Block { , @($database.RemoteBlobStorageSettings.GetProviderNames() | ForEach-Object -Process { "$_" }) }
                 }
             })
         $limits['webApplicationCount'] = @(Get-SPWebApplication).Count
