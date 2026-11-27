@@ -52,6 +52,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The wiki *Usage* and *Configuration* pages say that the `-EnableSmtp` switch is removed in 4.0.0 and how to get ready (#136).
 
+### Fixed
+
+- **The wiki and the README showed `-Install` and `-Uninstall` as switches of `SPSWeather.ps1`, which has `-Action Install|Uninstall|Default`.**
+  Someone who copied the installation command of the wiki got a parameter error at the first step. The pages *Usage*, *Getting Started*
+  and *Configuration* now show `-Action Install -InstallAccount (Get-Credential)` and `-Action Uninstall`, with a row for `-Action` in the
+  parameter table. A test reads the parameters of the script and fails when a page of the wiki or the README shows a parameter that the
+  script does not have, so the two cannot drift again (#145).
+
+### Documentation
+
+- *Prerequisites* has a new section on **the service account** (the SharePoint farm account is the one the author recommends, with what
+  is needed on the run server, on each farm server, on SQL Server and on the dashboard folder) and on **what the script changes on the
+  run server** (the High Performance power plan at every elevated run, the Event Log source, and with `-Action Install` the scheduled
+  task, the secret and the CredSSP client). The scheduled task table of *Usage* shows the real task: its arguments are written without
+  quotation marks and it has no working directory, so SPSWeather has to be installed in a folder whose path has no space (#145).
+
 ## [3.5.0] - 2026-11-26
 
 ### Added
