@@ -340,6 +340,9 @@
   function attentionHead() {
     return [{ label: t('CockpitSeverity') }, { label: t('CockpitItem') }, { label: t('FarmLabel') }, { label: t('CockpitSection') }, { label: t('CockpitDetail') }, { label: t('CockpitSinceCol') }];
   }
+  function dashboardLink(f) {
+    return f.dashboard ? h`<a class="cta" href="${encodeURIComponent(f.dashboard)}">${t('CockpitOpenDashboard')} \u2192</a>` : '';
+  }
   function farmCard(f, r) {
     const l = latest(f), lastCell = f.daily[N - 1];
     const st = lastCell && lastCell.ok === null ? 'down' : l ? cellState(l.c) : 'down';
@@ -354,7 +357,7 @@
       if (N - 1 - l.i >= 2) info += ' \u00b7 ' + t('CockpitNoSnapshotDays', N - 1 - l.i);
     }
     const color = st === 'ok' ? 'var(--ok)' : st === 'warn' ? 'var(--warn)' : st === 'fail' ? 'var(--fail)' : 'var(--down)';
-    return h`<div class="card farm s-${st}"><div class="farm-hd"><div><h4>${f.name}</h4><small>${f.latestSnapshot ? stamp(f.latestSnapshot) : ''}</small></div>${badge(st)}</div>${l ? h`<div>${hbar(l.c)}<div class="row" style="margin-top:6px"><b class="num">${healthPct(l.c) === null ? '\u2014' : t('FarmHealth', pct(healthPct(l.c), 0))}</b><span class="small muted num">${counts(l.c)}</span></div></div>` : ''}<div class="row"><span class="small muted">${info}</span>${spark(series, color)}</div></div>`;
+    return h`<div class="card farm s-${st}"><div class="farm-hd"><div><h4>${f.name}</h4><small>${f.latestSnapshot ? stamp(f.latestSnapshot) : ''}</small></div>${badge(st)}</div>${l ? h`<div>${hbar(l.c)}<div class="row" style="margin-top:6px"><b class="num">${healthPct(l.c) === null ? '\u2014' : t('FarmHealth', pct(healthPct(l.c), 0))}</b><span class="small muted num">${counts(l.c)}</span></div></div>` : ''}<div class="row"><span class="small muted">${info}</span>${spark(series, color)}</div>${dashboardLink(f)}</div>`;
   }
   function viewDirection() {
     if (!farms.length || !GLOBAL.some(function (g) { return g; })) return empty(t('CockpitNoData'));
@@ -439,7 +442,7 @@
 
     const details = farms.map(function (f) {
       const l = latest(f), st = l ? cellState(l.c) : 'down';
-      return h`<details class="fold"${f.attention.length && st === 'fail' ? raw(' open') : ''}><summary><span>${f.name} ${badge(st)}</span><span class="muted small">${t('CockpitListed', f.attention.length, f.attentionTotal)}</span></summary><div class="in">${f.attention.length ? table([{ label: t('CockpitItem') }, { label: t('CockpitSection') }, { label: t('CockpitDetail') }, { label: t('CockpitSinceCol') }], f.attention.map(function (a) {
+      return h`<details class="fold"${f.attention.length && st === 'fail' ? raw(' open') : ''}><summary><span>${f.name} ${badge(st)}</span><span class="muted small">${t('CockpitListed', f.attention.length, f.attentionTotal)}</span></summary><div class="in">${dashboardLink(f)}${f.attention.length ? table([{ label: t('CockpitItem') }, { label: t('CockpitSection') }, { label: t('CockpitDetail') }, { label: t('CockpitSinceCol') }], f.attention.map(function (a) {
         return h`<tr><td class="wrap-cell"><b>${a.name}</b></td><td>${sectionLabel(a.section)}</td><td class="wrap-cell">${a.detail}</td><td class="num">${sinceText(a)}</td></tr>`;
       })) : h`<div class="empty">${t('CockpitNothingOpen')}</div>`}</div></details>`;
     });

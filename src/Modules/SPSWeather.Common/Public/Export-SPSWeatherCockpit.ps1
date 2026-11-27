@@ -77,12 +77,12 @@
     )
 
     $fullPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputFile)
+    $folder = [System.IO.Path]::GetDirectoryName($fullPath)
     $temp = $null
     try {
-        $data = Get-SPSWeatherCockpitData -ResultsFolder $ResultsFolder -Application $Application -Environment $Environment -FarmName $FarmName -RetentionDays $RetentionDays
+        $data = Get-SPSWeatherCockpitData -DashboardFolder $folder -ResultsFolder $ResultsFolder -Application $Application -Environment $Environment -FarmName $FarmName -RetentionDays $RetentionDays
         $html = ConvertTo-SPSWeatherCockpitHtml -Data $data -Language $Language -Version $Version
 
-        $folder = [System.IO.Path]::GetDirectoryName($fullPath)
         if (-not [System.IO.Directory]::Exists($folder)) { [void][System.IO.Directory]::CreateDirectory($folder) }
 
         $temp = '{0}.{1}.tmp' -f $fullPath, [guid]::NewGuid().ToString('N')

@@ -73,7 +73,14 @@
         [Parameter()]
         [AllowNull()]
         [System.Object]
-        $Setting
+        $Setting,
+
+        # File name of the cockpit page, written in the same folder as the dashboard: adds a link to it in the header. Empty
+        # (the default): no link, and the page is exactly the one of 3.5.0.
+        [Parameter()]
+        [AllowEmptyString()]
+        [System.String]
+        $CockpitFile = ''
     )
 
     if ($PSCmdlet.ParameterSetName -eq 'File') {
@@ -283,6 +290,15 @@
     }
     if ($Farm) { $envLine = "$(_enc (_t 'FarmLabel')) $Farm &middot; $envLine" }
 
+    # The link is relative (the pages share a folder), and the file name is encoded so that it can never read as a scheme or a path
+    $cockpitLink = ''
+    $cockpitCss = ''
+    if (-not [string]::IsNullOrWhiteSpace($CockpitFile)) {
+        $cockpitHref = [System.Uri]::EscapeDataString($CockpitFile.Trim())
+        $cockpitLink = "<a class=`"cockpit-link`" href=`"$(_enc $cockpitHref)`">$(_enc (_t 'OpenCockpit')) &rarr;</a>"
+        $cockpitCss = '.cockpit-link{color:#fff;text-decoration:none;font-weight:600;font-size:12px;padding:7px 12px;border:1px solid rgba(255,255,255,.55);border-radius:8px;white-space:nowrap}.cockpit-link:hover{background:rgba(255,255,255,.16)}.cockpit-link:focus-visible{outline:2px solid #fff;outline-offset:2px}'
+    }
+
     $page = @"
 <!DOCTYPE html>
 <html lang="$(_enc (_t 'HtmlLang'))"><head>
@@ -317,12 +333,12 @@ header.top{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#
 .pill.ok{background:var(--ok-bg);color:var(--ok)}.pill.warn{background:var(--warn-bg);color:var(--warn)}.pill.fail{background:var(--fail-bg);color:var(--fail)}.sg-ico{width:16px;text-align:center;font-size:10px}.sg-ico.ok{color:var(--ok)}.sg-ico.warn{color:var(--warn)}.sg-ico.fail{color:var(--fail)}
 .tw{overflow:auto;border-top:1px solid var(--line)}table{width:100%;border-collapse:collapse}th,td{padding:6px 10px;text-align:left;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}thead th{background:#eef2f7;color:#10222e;font-weight:600}tr.r-fail td{background:#fff5f5}tr.r-warn td{background:#fff9f0}
 .detail-head{display:flex;align-items:center;gap:10px;margin:22px 2px 12px}.detail-head .exp{margin-left:auto;font-size:12px}.detail-head .exp button{color:var(--brand);background:none;border:0;padding:0;font:inherit;text-decoration:underline;cursor:pointer}
-footer{max-width:1180px;margin:10px auto 36px;padding:0 20px;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+footer{max-width:1180px;margin:10px auto 36px;padding:0 20px;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}$cockpitCss
 </style></head>
 <body>
 <header class="top">
   <div class="brand"><div class="logo">$wx</div><div><h1>$(_enc (_t 'DashboardTitle'))</h1><div class="sub">$envLine &middot; SharePoint Server Subscription Edition</div></div></div>
-  <div class="top-right"><div class="weather"><div class="ico">$wx</div><div class="lbl">$wxLabel<small>$(_enc (_t 'NeedAttention' $attention))</small></div></div><div class="meta">$(_enc (_t 'Generated'))<br><b>$generated</b><br>$(_enc $Duration) &middot; v$(_enc $Version)</div></div>
+  <div class="top-right"><div class="weather"><div class="ico">$wx</div><div class="lbl">$wxLabel<small>$(_enc (_t 'NeedAttention' $attention))</small></div></div><div class="meta">$(_enc (_t 'Generated'))<br><b>$generated</b><br>$(_enc $Duration) &middot; v$(_enc $Version)</div>$cockpitLink</div>
 </header>
 <div class="wrap">
   <div class="hero">
